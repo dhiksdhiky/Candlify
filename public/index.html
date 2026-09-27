@@ -1,0 +1,1324 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <!-- Mencegah user zoom tak disengaja & cover notch (Sesuai pwa_config.md) -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Candlify v2 🕯️ — Lean IDX Candlestick & Bandarmologi</title>
+    
+    <!-- Link ke PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+    
+    <!-- Theme Color untuk Status Bar Android -->
+    <meta name="theme-color" content="#0a0d14">
+    
+    <!-- Optimasi iOS Safari & Android Standalone -->
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
+</head>
+<body>
+    <div id="app">
+        <!-- ======================================================== -->
+        <!-- 0. DATABASE VIEW (DATA OVERVIEW & ENGINE STATUS)         -->
+        <!-- ======================================================== -->
+        <div id="database-view" class="app-view hidden">
+            <header class="screener-header compact-hdr">
+                <div class="screener-brand-row">
+                    <div class="brand-section">
+                        <span class="brand-logo">Database Overview 🗄️</span>
+                        <span class="screener-count-badge" id="db-server-status">Neon DB Online</span>
+                    </div>
+                    <span class="source-status-pill">
+                        <span class="source-dot"></span>
+                        <span id="db-engine-status">Engine Aktif</span>
+                    </span>
+                </div>
+            </header>
+
+            <main class="home-content-scroll">
+                <!-- Welcome / System Architecture Hero Card -->
+                <div class="home-hero-card">
+                    <div class="hero-left">
+                        <span class="hero-tag">STOCK ENGINE &amp; CANDLIFY UNIFIED</span>
+                        <h2 class="hero-title">Data Overview IDX</h2>
+                        <p class="hero-desc">Pusat data master emiten BEI, broker summary harian, dan manajemen pantauan swing trading.</p>
+                    </div>
+                </div>
+
+                <!-- 4 Master Data Stats (Sesuai Desain Stock Engine PWA) -->
+                <div class="db-metrics-grid">
+                    <div class="db-metric-card" id="btn-db-go-screener" title="Buka Candlify Screener">
+                        <div class="db-metric-top">
+                            <span class="db-metric-label">Total Emiten</span>
+                            <span class="db-metric-tag blue">BEI Master</span>
+                        </div>
+                        <div class="db-metric-val" id="db-stat-total-emiten">880+</div>
+                        <div class="db-metric-sub">Seluruh saham terdaftar</div>
+                    </div>
+
+                    <div class="db-metric-card">
+                        <div class="db-metric-top">
+                            <span class="db-metric-label">Harga Aktif</span>
+                            <span class="db-metric-tag emerald">Real-time</span>
+                        </div>
+                        <div class="db-metric-val" id="db-stat-active-price">880</div>
+                        <div class="db-metric-sub">Candlestick feed terupdate</div>
+                    </div>
+
+                    <div class="db-metric-card">
+                        <div class="db-metric-top">
+                            <span class="db-metric-label">Broksum Aktif</span>
+                            <span class="db-metric-tag purple">Net Flow</span>
+                        </div>
+                        <div class="db-metric-val" id="db-stat-active-broksum">880</div>
+                        <div class="db-metric-sub">HMB &amp; akumulasi bandar</div>
+                    </div>
+
+                    <div class="db-metric-card">
+                        <div class="db-metric-top">
+                            <span class="db-metric-label">Cloud Database</span>
+                            <span class="db-metric-tag amber">Serverless</span>
+                        </div>
+                        <div class="db-metric-val font-sm">Neon DB</div>
+                        <div class="db-metric-sub">PostgreSQL Cloud Storage</div>
+                    </div>
+                </div>
+
+                <!-- Small Info Cards (Permintaan Khusus Mas Dhika) -->
+                <div class="db-info-section">
+                    <h4 class="db-section-title">📊 Info Pantauan &amp; Konfigurasi Akun</h4>
+                    
+                    <div class="db-info-cards-row">
+                        <!-- Info Card 1: Jumlah Saham di Watchlist -->
+                        <div class="db-mini-info-card" id="btn-db-go-watchlist" title="Buka Tab Watchlist">
+                            <div class="mini-info-icon gold">⭐</div>
+                            <div class="mini-info-body">
+                                <span class="mini-info-lbl">Saham di Watchlist</span>
+                                <span class="mini-info-val gold" id="db-stat-wl-count">0 Saham</span>
+                                <span class="mini-info-hint">Setup aktif yang dipantau</span>
+                            </div>
+                            <span class="mini-info-arrow">›</span>
+                        </div>
+
+                        <!-- Info Card 2: Toleransi Risiko Posisi -->
+                        <div class="db-mini-info-card" id="btn-db-go-settings-risk" title="Atur Toleransi Risiko di Pengaturan">
+                            <div class="mini-info-icon emerald">🛡️</div>
+                            <div class="mini-info-body">
+                                <span class="mini-info-lbl">Batas Risiko per Posisi</span>
+                                <span class="mini-info-val emerald" id="db-stat-risk-nominal">Rp 1.000.000 (1.0%)</span>
+                                <span class="mini-info-hint" id="db-stat-capital-sub">Modal: Rp 100.000.000</span>
+                            </div>
+                            <span class="mini-info-arrow">›</span>
+                        </div>
+
+                        <!-- Info Card 3: Sumber Feed Candlestick 1D -->
+                        <div class="db-mini-info-card" id="btn-db-go-settings-feed" title="Ubah Sumber Feed di Pengaturan">
+                            <div class="mini-info-icon blue">📡</div>
+                            <div class="mini-info-body">
+                                <span class="mini-info-lbl">Data Feed Harian (1D)</span>
+                                <span class="mini-info-val blue" id="db-stat-feed-source">Neon DB (Glory Engine)</span>
+                                <span class="mini-info-hint">Timeframe 1D Candlestick</span>
+                            </div>
+                            <span class="mini-info-arrow">›</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stock Engine Unified Sync Card -->
+                <div class="home-info-card" style="margin-top: 10px;">
+                    <div class="info-card-header">
+                        <span class="info-icon">⚡</span>
+                        <div>
+                            <h4 class="info-title">Penyatuan Candlify &amp; Stock Engine</h4>
+                            <p class="info-sub">Railway Backend + Neon Cloud + KLineCharts</p>
+                        </div>
+                    </div>
+                    <p class="info-text">
+                        Data master emiten, broker summary harian, dan harga saham terhubung ke database Neon serverless. Siap untuk sinkronisasi total saat PWA Database diintegrasikan penuh.
+                    </p>
+                </div>
+            </main>
+        </div>
+
+        <!-- ======================================================== -->
+        <!-- 1. CANDLIFY SCREENER VIEW (SCREENING UTAMA)              -->
+        <!-- ======================================================== -->
+        <div id="screener-view" class="app-view">
+            <header class="screener-header compact-hdr">
+                <div class="screener-brand-row">
+                    <div class="brand-section">
+                        <span class="brand-logo">Candlify 🕯️</span>
+                        <span class="screener-count-badge" id="screener-count-badge">880+ Saham</span>
+                    </div>
+                    <div class="screener-brand-right">
+                        <!-- Active Preset Badge Indicator (Shows when a preset is selected) -->
+                        <div id="screener-active-filter-badge" class="active-preset-badge hidden" title="Filter aktif (Klik untuk reset)">
+                            <span id="active-preset-name">Preset</span>
+                            <span class="badge-clear-btn" id="btn-clear-active-preset" title="Hapus filter">✕</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Unified Single-Row Search + Filter + Sort Bar -->
+                <div class="screener-unified-bar">
+                    <!-- Search Input (Flexible Width) -->
+                    <div class="screener-search-wrap">
+                        <span class="search-icon">🔍</span>
+                        <input 
+                            type="text" 
+                            id="screener-search-input" 
+                            class="screener-search-input" 
+                            placeholder="Cari kode/nama..." 
+                            autocomplete="off"
+                        >
+                        <button id="screener-search-clear" class="search-clear-btn hidden" title="Hapus pencarian">✕</button>
+                    </div>
+
+                    <!-- Filter Modal Trigger Button -->
+                    <button id="btn-toggle-filters" class="screener-filter-btn" title="Buka Filter & Strategi">
+                        <span>⚡ Filter</span>
+                        <span id="filter-active-dot" class="filter-dot hidden"></span>
+                    </button>
+
+                    <!-- Rich Sorting Dropdown -->
+                    <div class="screener-sort-wrap">
+                        <select id="screener-sort-select" class="screener-sort-select" title="Urutkan Saham">
+                            <option value="change_desc">% Chg High</option>
+                            <option value="change_asc">% Chg Low</option>
+                            <option value="volume_desc">Volume</option>
+                            <option value="surge_desc">Vol Surge</option>
+                            <option value="market_cap_desc">Market Cap</option>
+                            <option value="perf_3m_desc">Performa 3M</option>
+                            <option value="perf_1m_desc">Performa 1M</option>
+                            <option value="rsi_asc">RSI Oversold</option>
+                            <option value="rsi_desc">RSI Overbought</option>
+                            <option value="price_desc">Harga High</option>
+                            <option value="price_asc">Harga Low</option>
+                        </select>
+                    </div>
+                </div>
+            </header>
+
+            <main class="screener-content">
+                <div id="screener-list" class="screener-list">
+                    <!-- Populated dynamically via JS -->
+                </div>
+                <div id="screener-pagination" class="screener-pagination-bar">
+                    <!-- Populated dynamically via JS -->
+                </div>
+            </main>
+        </div>
+
+        <!-- ======================================================== -->
+        <!-- 2. WATCHLIST VIEW (DAFTAR PANTAUAN SWING SETUP)          -->
+        <!-- ======================================================== -->
+        <div id="watchlist-view" class="app-view hidden">
+            <header class="watchlist-header compact-hdr">
+                <div class="watchlist-brand-row">
+                    <div class="brand-section">
+                        <span class="brand-logo">Watchlist ⭐</span>
+                        <span class="watchlist-count-badge" id="watchlist-count-badge">0 Saham</span>
+                    </div>
+                </div>
+
+                <!-- Category Filter Chips (Breakout, etc.) & Category Management (CRUD) -->
+                <div class="watchlist-category-bar">
+                    <div class="watchlist-categories" id="watchlist-categories">
+                        <button class="watchlist-cat-chip active" data-category="Breakout">💥 Breakout</button>
+                        <button class="watchlist-cat-chip" data-category="all">Semua</button>
+                    </div>
+                    <button id="btn-manage-categories" class="watchlist-cat-manage-btn" title="Kelola Kategori Watchlist (Tambah/Ubah/Hapus)">
+                        <span>⚙️ Kelola List</span>
+                    </button>
+                </div>
+            </header>
+
+            <main class="watchlist-content">
+                <div id="watchlist-list" class="watchlist-list">
+                    <!-- Populated dynamically via JS -->
+                </div>
+                <!-- Empty state shown when no items in watchlist -->
+                <div id="watchlist-empty" class="watchlist-empty hidden">
+                    <span class="empty-icon">⭐</span>
+                    <h4 class="empty-title">Belum Ada Saham di Watchlist</h4>
+                    <p class="empty-desc">Buka candlestick saham di Candlify/Screener, lalu klik ikon bintang ⭐ di kanan atas untuk menambahkan ke Watchlist pilihan Anda.</p>
+                </div>
+            </main>
+        </div>
+
+        <!-- ======================================================== -->
+        <!-- 3. CHART VIEW (DETAIL CANDLESTICK + BANDARMOLOGI)        -->
+        <!-- ======================================================== -->
+        <div id="chart-view" class="app-view hidden">
+            <!-- 1. Top Header: Clean Brand, Back Button, & Top Right Badges (No clash on chart!) -->
+            <header class="top-header">
+                <div class="brand-row">
+                    <button id="btn-back-screener" class="back-screener-btn" title="Kembali ke Daftar Saham">
+                        <span class="back-arrow">◀</span> Screener
+                    </button>
+                    <!-- Header Badges: Clean, uncluttered, leaves bottom of chart 100% open -->
+                    <div class="chart-header-badges">
+                        <button id="btn-star-watchlist" class="star-watchlist-btn" title="Tambah / Hapus dari Watchlist">
+                            <span id="star-icon">☆</span>
+                        </button>
+                        <button id="bandar-badge-label" class="bandar-badge hidden" title="Klik untuk lihat Broker Summary lengkap"></button>
+                        <span class="source-status-pill">
+                            <span class="source-dot"></span>
+                            <span id="source-badge-label">Feed Siap</span>
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Quick Watchlist Ticker Chips with Company Logos -->
+                <div id="quick-chips-container" class="quick-chips">
+                <button class="chip-btn active" data-symbol="BBRI">
+                    <img src="https://assets.stockbit.com/logos/companies/BBRI.png" alt="BBRI" class="chip-logo" onerror="this.style.display='none'">
+                    <span class="chip-text">BBRI</span>
+                </button>
+                <button class="chip-btn" data-symbol="NCKL">
+                    <img src="https://assets.stockbit.com/logos/companies/NCKL.png" alt="NCKL" class="chip-logo" onerror="this.style.display='none'">
+                    <span class="chip-text">NCKL</span>
+                </button>
+                <button class="chip-btn" data-symbol="BBCA">
+                    <img src="https://assets.stockbit.com/logos/companies/BBCA.png" alt="BBCA" class="chip-logo" onerror="this.style.display='none'">
+                    <span class="chip-text">BBCA</span>
+                </button>
+                <button class="chip-btn" data-symbol="BMRI">
+                    <img src="https://assets.stockbit.com/logos/companies/BMRI.png" alt="BMRI" class="chip-logo" onerror="this.style.display='none'">
+                    <span class="chip-text">BMRI</span>
+                </button>
+                <button class="chip-btn" data-symbol="TLKM">
+                    <img src="https://assets.stockbit.com/logos/companies/TLKM.png" alt="TLKM" class="chip-logo" onerror="this.style.display='none'">
+                    <span class="chip-text">TLKM</span>
+                </button>
+                <button class="chip-btn" data-symbol="ASII">
+                    <img src="https://assets.stockbit.com/logos/companies/ASII.png" alt="ASII" class="chip-logo" onerror="this.style.display='none'">
+                    <span class="chip-text">ASII</span>
+                </button>
+                <button class="chip-btn" data-symbol="GOTO">
+                    <img src="https://assets.stockbit.com/logos/companies/GOTO.png" alt="GOTO" class="chip-logo" onerror="this.style.display='none'">
+                    <span class="chip-text">GOTO</span>
+                </button>
+                <button class="chip-btn" data-symbol="BBNI">
+                    <img src="https://assets.stockbit.com/logos/companies/BBNI.png" alt="BBNI" class="chip-logo" onerror="this.style.display='none'">
+                    <span class="chip-text">BBNI</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- 2. Magic Control Bar: Direct In-Place Editable Ticker + Controls -->
+        <div class="control-bar">
+            <!-- Left: Ticker Direct In-Place Edit + Price Metrics -->
+            <div class="ticker-badge">
+                <input 
+                    type="text" 
+                    id="ticker-inplace-input" 
+                    class="ticker-inplace-input" 
+                    value="BBRI" 
+                    autocomplete="off" 
+                    autocapitalize="characters"
+                    spellcheck="false"
+                    title="Klik untuk langsung ganti kode saham"
+                >
+                <span id="current-price-label" class="current-price">--</span>
+                <span id="current-change-label" class="current-change">0.00%</span>
+            </div>
+
+            <!-- Right: Single Timeframe Dropdown + Professional Tools -->
+            <div class="control-actions">
+                <!-- Timeframe Dropdown Pill -->
+                <div class="tf-dropdown-container">
+                    <button id="btn-timeframe" class="action-pill tf-pill" title="Pilih Timeframe">
+                        <span id="active-tf-label">4H</span>
+                        <span class="caret">▾</span>
+                    </button>
+                    
+                    <!-- Timeframe Dropdown Popup Menu -->
+                    <div id="timeframe-menu" class="tf-menu hidden">
+                        <button class="tf-opt" data-tf="5m">5m <span class="tf-desc">Fast</span></button>
+                        <button class="tf-opt" data-tf="15m">15m <span class="tf-desc">Intraday</span></button>
+                        <button class="tf-opt" data-tf="1h">1H <span class="tf-desc">Trend</span></button>
+                        <button class="tf-opt active" data-tf="4h">4H <span class="tf-desc">Swing</span></button>
+                        <button class="tf-opt" data-tf="1d">1D <span class="tf-desc">Daily</span></button>
+                        <button class="tf-opt" data-tf="1w">1W <span class="tf-desc">Weekly</span></button>
+                    </div>
+                </div>
+
+                <!-- Drawing Tools Button (Renamed to Tools) -->
+                <button id="btn-draw" class="action-pill" title="Alat Garis & Gambar">
+                    <span>✏️</span> <span class="btn-text">Tools</span>
+                </button>
+
+                <!-- Indicator Switcher Button -->
+                <button id="btn-indicator" class="action-pill" title="Indikator Teknikal">
+                    <span>📊</span> <span class="btn-text">Indikator</span>
+                </button>
+
+                <!-- Reset Overlays Button -->
+                <button id="btn-reset-overlays" class="action-pill icon-only" title="Bersihkan Semua Coretan">
+                    <span>🗑️</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- 3. Main Chart Canvas Area -->
+        <main class="chart-wrapper">
+            <!-- Compact Floating Contextual Action Toolbar (Appears ONLY when an object is clicked) -->
+            <div id="overlay-action-popup" class="overlay-action-popup hidden">
+                <span class="overlay-tag" id="popup-overlay-name">Garis Tren</span>
+                
+                <div class="popup-divider"></div>
+                
+                <!-- Preset Color Dots -->
+                <div class="color-picker-group">
+                    <button class="color-dot active" data-color="#3b82f6" style="background:#3b82f6;" title="Biru"></button>
+                    <button class="color-dot" data-color="#10b981" style="background:#10b981;" title="Hijau"></button>
+                    <button class="color-dot" data-color="#eab308" style="background:#eab308;" title="Kuning"></button>
+                    <button class="color-dot" data-color="#ef4444" style="background:#ef4444;" title="Merah"></button>
+                </div>
+
+                <div class="popup-divider"></div>
+
+                <!-- Action Buttons: Lock, Delete Single, Delete All, Close -->
+                <button id="popup-btn-lock" class="popup-btn" title="Kunci Garis">🔓</button>
+                <button id="popup-btn-delete" class="popup-btn delete-btn" title="Hapus Garis Ini">🗑️</button>
+                <button id="popup-btn-delete-all" class="popup-btn delete-all-btn" title="Hapus Semua Garis">🧹</button>
+                <button id="popup-btn-close" class="popup-btn close-btn" title="Tutup">✕</button>
+            </div>
+
+            <div id="chart-container"></div>
+            
+            <div id="loading-overlay" class="loading-overlay">
+                <div class="spinner"></div>
+                <span style="font-size: 12px; color: #94a3b8;">Memuat data candlestick...</span>
+            </div>
+        </main>
+
+
+        <!-- 5. Sheet Backdrop Overlay -->
+        <div id="sheet-backdrop" class="sheet-backdrop hidden"></div>
+
+        <!-- 6. Drawing Tools Bottom Sheet -->
+        <div id="draw-sheet" class="bottom-sheet hidden">
+            <div class="sheet-handle"></div>
+            <div class="sheet-header">
+                <div>
+                    <h3 class="sheet-title">Alat Analisis Garis & Objek</h3>
+                    <p class="sheet-subtitle">Pilih alat lukis untuk analisis teknikal di chart</p>
+                </div>
+                <button id="close-draw-sheet" class="sheet-close">✕</button>
+            </div>
+
+            <div class="tools-grid">
+                <button class="tool-btn" data-tool="segment" data-name="Garis Tren">
+                    <span class="tool-icon">📈</span>
+                    <span class="tool-label">Garis Tren</span>
+                </button>
+                <button class="tool-btn" data-tool="horizontalStraightLine" data-name="Horizontal SnR">
+                    <span class="tool-icon">➖</span>
+                    <span class="tool-label">Horizontal</span>
+                </button>
+                <button class="tool-btn" data-tool="rayLine" data-name="Garis Sinar (Ray)">
+                    <span class="tool-icon">↗️</span>
+                    <span class="tool-label">Sinar (Ray)</span>
+                </button>
+                <button class="tool-btn" data-tool="fibonacciLine" data-name="Fibonacci Retracement">
+                    <span class="tool-icon">📐</span>
+                    <span class="tool-label">Fibonacci</span>
+                </button>
+                <button class="tool-btn" data-tool="priceChannelLine" data-name="Channel Harga">
+                    <span class="tool-icon">📊</span>
+                    <span class="tool-label">Channel</span>
+                </button>
+                <button class="tool-btn" data-tool="rectZone" data-name="Area Box">
+                    <span class="tool-icon">⏹️</span>
+                    <span class="tool-label">Area Box</span>
+                </button>
+                <button class="tool-btn" data-tool="priceProjection" data-name="Long Position (R:R)">
+                    <span class="tool-icon">🎯</span>
+                    <span class="tool-label">Long (R:R)</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- 7. Indicators Bottom Sheet -->
+        <div id="indicator-sheet" class="bottom-sheet hidden">
+            <div class="sheet-handle"></div>
+            <div class="sheet-header">
+                <div>
+                    <h3 class="sheet-title">Indikator Teknikal</h3>
+                    <p class="sheet-subtitle">Aktifkan overlay atau sub-pane grafik</p>
+                </div>
+                <button id="close-ind-sheet" class="sheet-close">✕</button>
+            </div>
+
+            <div class="indicators-list">
+                <!-- Auto SnR Pivots with Settings -->
+                <div class="ind-card">
+                    <div class="ind-row">
+                        <div class="ind-info">
+                            <span class="ind-name">Auto SnR Pivots (S/R)</span>
+                            <span class="ind-desc" id="snr-config-desc">Level kunci Classic Pivot (Daily)</span>
+                        </div>
+                        <div class="ind-actions">
+                            <button id="btn-snr-settings" class="ind-settings-btn" title="Pengaturan SnR">⚙️</button>
+                            <button id="toggle-snr" class="ind-toggle-btn" data-active="false">OFF</button>
+                        </div>
+                    </div>
+
+                    <!-- Collapsible SnR Customization Panel -->
+                    <div id="snr-settings-panel" class="snr-settings-panel hidden">
+                        <div class="snr-config-group">
+                            <span class="snr-config-label">Periode Acuan:</span>
+                            <div class="snr-chip-selector" id="snr-period-selector">
+                                <button class="snr-chip active" data-period="daily">Daily (Kemarin)</button>
+                                <button class="snr-chip" data-period="weekly">Weekly (1 Pekan)</button>
+                            </div>
+                        </div>
+                        <div class="snr-config-group">
+                            <span class="snr-config-label">Tipe Rumus:</span>
+                            <div class="snr-chip-selector" id="snr-formula-selector">
+                                <button class="snr-chip active" data-formula="classic">Classic (Floor)</button>
+                                <button class="snr-chip" data-formula="fibonacci">Fibonacci (Golden Ratio)</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="ind-row">
+                    <div class="ind-info">
+                        <span class="ind-name">EMA Ribbon (20, 50, 200)</span>
+                        <span class="ind-desc">Tren dinamis utama swing trader IDX</span>
+                    </div>
+                    <button id="toggle-ema" class="ind-toggle-btn" data-active="false">OFF</button>
+                </div>
+
+                <div class="ind-row">
+                    <div class="ind-info">
+                        <span class="ind-name">Bollinger Bands (BOLL)</span>
+                        <span class="ind-desc">Volatilitas dan deviasi batas harga</span>
+                    </div>
+                    <button id="toggle-boll" class="ind-toggle-btn" data-active="false">OFF</button>
+                </div>
+
+                <div class="ind-row">
+                    <div class="ind-info">
+                        <span class="ind-name">MACD Sub-Pane</span>
+                        <span class="ind-desc">Momentum Golden & Dead Cross</span>
+                    </div>
+                    <button id="toggle-macd" class="ind-toggle-btn" data-active="false">OFF</button>
+                </div>
+
+                <div class="ind-row">
+                    <div class="ind-info">
+                        <span class="ind-name">RSI (14) Sub-Pane</span>
+                        <span class="ind-desc">Indeks kekuatan relatif (30 oversold / 70 overbought)</span>
+                    </div>
+                    <button id="toggle-rsi" class="ind-toggle-btn" data-active="false">OFF</button>
+                </div>
+
+                <!-- 6. Harga Modal Bandar (HMB) -->
+                <div class="ind-row">
+                    <div class="ind-info">
+                        <span class="ind-name">Harga Modal Bandar (HMB)</span>
+                        <span class="ind-desc" id="hmb-desc-label">Rata-rata modal Top 5 Akumulator (20 Hari)</span>
+                    </div>
+                    <button id="toggle-hmb" class="ind-toggle-btn" data-active="false">OFF</button>
+                </div>
+
+                <!-- 7. Bandar Net Flow Sub-Pane -->
+                <div class="ind-row">
+                    <div class="ind-info">
+                        <span class="ind-name">Bandar Net Flow Sub-Pane</span>
+                        <span class="ind-desc" id="netflow-desc-label">Inflow akumulasi hijau vs outflow merah (Top 3)</span>
+                    </div>
+                    <button id="toggle-netflow" class="ind-toggle-btn" data-active="false">OFF</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 8. Broker Summary (Broksum) Bottom Sheet -->
+        <div id="broksum-sheet" class="bottom-sheet broksum-sheet hidden">
+            <div class="sheet-handle"></div>
+            <div class="sheet-header">
+                <div class="broksum-title-row">
+                    <div>
+                        <h3 class="sheet-title" id="broksum-title">Broker Summary BBRI</h3>
+                        <p class="sheet-subtitle" id="broksum-subtitle">Tanggal: 2026-09-23 • End of Day</p>
+                    </div>
+                    <span id="broksum-status-pill" class="bandar-badge distrib">Distribusi</span>
+                </div>
+                <button id="close-broksum-sheet" class="sheet-close">✕</button>
+            </div>
+
+            <div class="broksum-content-scroll">
+                <!-- Date Range Selector (Instant / No "Cek" Button) -->
+                <div class="broksum-filter-bar">
+                    <div class="broksum-presets" id="broksum-presets">
+                        <button class="broksum-chip active" data-preset="1d">1D</button>
+                        <button class="broksum-chip" data-preset="1w">1W</button>
+                        <button class="broksum-chip" data-preset="2w">2W</button>
+                        <button class="broksum-chip" data-preset="1m">1M</button>
+                        <button class="broksum-chip" data-preset="3m">3M</button>
+                        <button class="broksum-chip" data-preset="6m">6M</button>
+                    </div>
+                    <div class="broksum-date-inputs">
+                        <div class="date-input-wrap">
+                            <label for="broksum-date-from">Dari</label>
+                            <input type="date" id="broksum-date-from" class="broksum-date-picker">
+                        </div>
+                        <span class="date-sep">→</span>
+                        <div class="date-input-wrap">
+                            <label for="broksum-date-to">Sampai</label>
+                            <input type="date" id="broksum-date-to" class="broksum-date-picker">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Metrics Bar -->
+                <div class="broksum-metrics-card">
+                    <div class="broksum-metric-item">
+                        <span class="metric-label">Net Flow Bandar</span>
+                        <span class="metric-val" id="broksum-netflow">-Rp 80.7 B</span>
+                    </div>
+                    <div class="broksum-metric-item">
+                        <span class="metric-label">Harga Modal (HMB)</span>
+                        <span class="metric-val gold" id="broksum-hmb">Rp 3.351</span>
+                    </div>
+                    <div class="broksum-metric-item">
+                        <span class="metric-label">Rasio Buy / Sell</span>
+                        <span class="metric-val" id="broksum-ratio">42% / 58%</span>
+                    </div>
+                </div>
+
+                <!-- Comparison Ratio Bar -->
+                <div class="broksum-ratio-bar-container">
+                    <div id="broksum-ratio-buy" class="ratio-buy-bar" style="width: 50%;"></div>
+                    <div id="broksum-ratio-sell" class="ratio-sell-bar" style="width: 50%;"></div>
+                </div>
+
+                <!-- Two-Column Side-by-Side Tables -->
+                <div class="broksum-columns">
+                    <!-- Left Column: Top Buyers (Hijau) -->
+                    <div class="broksum-col buyer-col">
+                        <div class="col-header">
+                            <span class="col-title green">🟢 TOP BUYERS</span>
+                            <span class="col-sub" id="broksum-total-buy">Total: Rp 0 B</span>
+                        </div>
+                        <div class="table-header">
+                            <span class="th-broker">Broker</span>
+                            <span class="th-vol">Lot</span>
+                            <span class="th-val">Val</span>
+                            <span class="th-avg">Avg</span>
+                        </div>
+                        <div class="broksum-list" id="broksum-buyers-list">
+                            <!-- Populated dynamically via JS -->
+                        </div>
+                    </div>
+
+                    <!-- Right Column: Top Sellers (Merah) -->
+                    <div class="broksum-col seller-col">
+                        <div class="col-header">
+                            <span class="col-title red">🔴 TOP SELLERS</span>
+                            <span class="col-sub" id="broksum-total-sell">Total: Rp 0 B</span>
+                        </div>
+                        <div class="table-header">
+                            <span class="th-broker">Broker</span>
+                            <span class="th-vol">Lot</span>
+                            <span class="th-val">Val</span>
+                            <span class="th-avg">Avg</span>
+                        </div>
+                        <div class="broksum-list" id="broksum-sellers-list">
+                            <!-- Populated dynamically via JS -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div> <!-- /#broksum-sheet -->
+        </div> <!-- /#chart-view -->
+
+        <!-- ======================================================== -->
+        <!-- 9. Filter & Strategy Modal (Popup Ringkas Khas v1)       -->
+        <!-- ======================================================== -->
+        <div id="filter-modal-backdrop" class="filter-modal-backdrop hidden"></div>
+        <div id="filter-modal" class="filter-modal hidden">
+            <div class="filter-modal-header">
+                <div class="filter-modal-title-group">
+                    <h3 class="filter-modal-title">⚡ Filter &amp; Strategi Saham</h3>
+                    <p class="filter-modal-subtitle">Pilih preset teknikal untuk screening cepat</p>
+                </div>
+                <button id="close-filter-modal" class="sheet-close" title="Tutup">✕</button>
+            </div>
+
+            <div class="filter-modal-body" id="screener-presets-container">
+                <div class="preset-card active screener-preset-chip" data-preset="all">
+                    <div class="preset-card-left">
+                        <div class="preset-card-title">🌐 Semua Saham</div>
+                        <div class="preset-card-desc">Tampilkan seluruh 880+ emiten IDX tanpa filter</div>
+                    </div>
+                    <span class="preset-check">✓</span>
+                </div>
+
+                <div class="preset-card screener-preset-chip" data-preset="swing">
+                    <div class="preset-card-left">
+                        <div class="preset-card-title">🚀 Swing Setup</div>
+                        <div class="preset-card-desc">Trend EMA20 &gt; EMA50 &amp; RSI netral-bullish (45–65)</div>
+                    </div>
+                    <span class="preset-check">✓</span>
+                </div>
+
+                <div class="preset-card screener-preset-chip" data-preset="breakout">
+                    <div class="preset-card-left">
+                        <div class="preset-card-title">💥 Breakout R1</div>
+                        <div class="preset-card-desc">Harga menembus level Pivot Resistance 1 bulanan</div>
+                    </div>
+                    <span class="preset-check">✓</span>
+                </div>
+
+                <div class="preset-card screener-preset-chip" data-preset="vol_bb">
+                    <div class="preset-card-left">
+                        <div class="preset-card-title">💎 Akumulasi BB</div>
+                        <div class="preset-card-desc">Volume surge &gt; 1.2x di area Lower Bollinger Band</div>
+                    </div>
+                    <span class="preset-check">✓</span>
+                </div>
+
+                <div class="preset-card screener-preset-chip" data-preset="oversold">
+                    <div class="preset-card-left">
+                        <div class="preset-card-title">⚡ Oversold RSI</div>
+                        <div class="preset-card-desc">Potensi pantulan teknikal oversold (RSI &lt; 35)</div>
+                    </div>
+                    <span class="preset-check">✓</span>
+                </div>
+
+                <div class="preset-card screener-preset-chip" data-preset="bigcap">
+                    <div class="preset-card-left">
+                        <div class="preset-card-title">🏆 Big Cap Flow</div>
+                        <div class="preset-card-desc">Emiten kapitalisasi pasar besar (&gt; Rp 50 T)</div>
+                    </div>
+                    <span class="preset-check">✓</span>
+                </div>
+            </div>
+
+            <div class="filter-modal-footer">
+                <button id="btn-reset-filters" class="filter-btn-secondary">Reset ke Semua</button>
+                <button id="btn-apply-filters" class="filter-btn-primary">Terapkan Filter</button>
+            </div>
+        </div>
+
+        <!-- ======================================================== -->
+        <!-- 4. JOURNAL & TRADING PLAN VIEW                           -->
+        <!-- ======================================================== -->
+        <div id="journal-view" class="app-view hidden">
+            <header class="watchlist-header compact-hdr">
+                <div class="watchlist-brand-row">
+                    <div class="brand-section">
+                        <span class="brand-logo">Journal &amp; Plan 🎯</span>
+                        <span class="watchlist-count-badge" id="journal-count-badge">0 Posisi</span>
+                    </div>
+                    <div class="watchlist-header-actions">
+                        <button id="btn-open-create-plan" class="filter-btn-primary" style="padding: 5px 12px; font-size: 11px;">
+                            + Buat Plan
+                        </button>
+                    </div>
+                </div>
+            </header>
+
+            <main class="journal-content">
+                <!-- 1. Portfolio & Execution Summary Cards -->
+                <div class="journal-stats-grid">
+                    <div class="j-stat-card">
+                        <div class="j-stat-label">Posisi Aktif (Holding)</div>
+                        <div class="j-stat-val" id="stat-holding-count">0</div>
+                        <div class="j-stat-sub">Modal: <span id="stat-holding-invested">Rp 0</span></div>
+                    </div>
+                    <div class="j-stat-card">
+                        <div class="j-stat-label">Unrealized PnL</div>
+                        <div class="j-stat-val gold" id="stat-unrealized-pnl">+Rp 0</div>
+                        <div class="j-stat-sub">Sinyal TP: <span id="stat-tp-signals" class="green">0 Hit</span></div>
+                    </div>
+                    <div class="j-stat-card">
+                        <div class="j-stat-label">Antri Order</div>
+                        <div class="j-stat-val" id="stat-antri-count">0</div>
+                        <div class="j-stat-sub">Limit di broker</div>
+                    </div>
+                    <div class="j-stat-card">
+                        <div class="j-stat-label">Win Rate &amp; Selesai</div>
+                        <div class="j-stat-val" id="stat-win-rate">0%</div>
+                        <div class="j-stat-sub">Realized: <span id="stat-realized-pnl">Rp 0</span></div>
+                    </div>
+                </div>
+
+                <!-- 2. Status Filter Tabs -->
+                <div class="journal-filter-bar">
+                    <button class="journal-status-chip active" data-status="ALL">Semua Plan</button>
+                    <button class="journal-status-chip" data-status="HOLDING">🚀 Holding (Aktif)</button>
+                    <button class="journal-status-chip" data-status="ANTRI">📋 Antri Order</button>
+                    <button class="journal-status-chip" data-status="TP_HIT">🎯 TP Hit</button>
+                    <button class="journal-status-chip" data-status="CLOSED">🏁 Selesai (Closed)</button>
+                </div>
+
+                <!-- 3. Trading Plan List Container -->
+                <div id="journal-list" class="journal-list">
+                    <!-- Populated dynamically via JS -->
+                </div>
+
+                <!-- Empty State -->
+                <div id="journal-empty" class="watchlist-empty-state hidden">
+                    <div class="empty-icon">🎯</div>
+                    <h3 class="empty-title">Belum Ada Trading Plan</h3>
+                    <p class="empty-desc">Buat rencana trading pertama Anda untuk mengatur alokasi lot, target profit, dan stop loss secara disiplin.</p>
+                    <button id="btn-empty-create-plan" class="filter-btn-primary" style="margin-top: 10px;">
+                        + Buat Rencana Trading
+                    </button>
+                </div>
+            </main>
+        </div>
+
+        <!-- ======================================================== -->
+        <!-- 5. SETTINGS VIEW (PENGATURAN FEED & RISIKO)              -->
+        <!-- ======================================================== -->
+        <div id="settings-view" class="app-view hidden">
+            <header class="screener-header compact-hdr">
+                <div class="screener-brand-row">
+                    <div class="brand-section">
+                        <span class="brand-logo">Pengaturan ⚙️</span>
+                        <span class="screener-count-badge">Preferensi Akun</span>
+                    </div>
+                </div>
+            </header>
+
+            <main class="settings-content">
+                <!-- 1. Data Feed Candlestick Harian (1D) -->
+                <div class="settings-card">
+                    <div class="settings-card-hdr">
+                        <span class="settings-card-icon">📡</span>
+                        <div>
+                            <h4 class="settings-card-title">Sumber Data Candlestick Harian (1D)</h4>
+                            <p class="settings-card-desc">Pilih feed data utama untuk timeframe 1D di chart</p>
+                        </div>
+                    </div>
+                    <div class="source-toggle-group">
+                        <label class="source-radio-card" id="source-card-neon">
+                            <input type="radio" name="daily_source" value="neon_db" id="radio-source-neon" checked>
+                            <div class="source-radio-content">
+                                <div class="source-radio-title">
+                                    <span class="source-radio-badge neon">Neon DB</span>
+                                    <span>Cloud Postgres (Glory Engine)</span>
+                                </div>
+                                <p class="source-radio-sub">Terintegrasi langsung dengan database master emiten &amp; sinkronisasi broksum instan.</p>
+                            </div>
+                        </label>
+                        <label class="source-radio-card" id="source-card-yahoo">
+                            <input type="radio" name="daily_source" value="yahoo" id="radio-source-yahoo">
+                            <div class="source-radio-content">
+                                <div class="source-radio-title">
+                                    <span class="source-radio-badge yahoo">Yahoo Finance</span>
+                                    <span>Direct Live Feed</span>
+                                </div>
+                                <p class="source-radio-sub">Mengambil candlestick harian langsung dari Yahoo Finance API sebagai pembanding.</p>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- 2. Manajemen Risiko Swing Trading -->
+                <div class="settings-card">
+                    <div class="settings-card-hdr">
+                        <span class="settings-card-icon">🛡️</span>
+                        <div>
+                            <h4 class="settings-card-title">Manajemen Risiko Portofolio</h4>
+                            <p class="settings-card-desc">Pengaturan modal trading &amp; batas toleransi risiko per posisi</p>
+                        </div>
+                    </div>
+
+                    <div class="form-modal-body">
+                        <div class="form-group">
+                            <label class="form-label" for="setting-input-capital">Total Modal Portofolio (Rp)</label>
+                            <input type="number" id="setting-input-capital" class="form-input mono" min="1000000" step="1000000" value="100000000">
+                            <div class="form-hint" id="setting-capital-hint">Rp 100.000.000</div>
+                        </div>
+
+                        <div class="form-group">
+                            <div class="form-label-row">
+                                <label class="form-label" for="setting-slider-pct">Toleransi Risiko per Posisi (% Modal)</label>
+                                <span class="risk-pct-badge" id="setting-pct-badge">1.0%</span>
+                            </div>
+                            <input type="range" id="setting-slider-pct" class="form-slider" min="0.25" max="5.0" step="0.25" value="1.0">
+                            <div class="slider-ticks">
+                                <span>0.5% (Aman)</span>
+                                <span>1.0% (Standar)</span>
+                                <span>2.0% (Agresif)</span>
+                            </div>
+                        </div>
+
+                        <!-- Live Auto-Calculated Risk Nominal Card -->
+                        <div class="risk-calc-card">
+                            <div class="risk-calc-row">
+                                <span class="calc-label">Maksimal Risiko per Posisi:</span>
+                                <span class="calc-value gold" id="setting-preview-nominal">Rp 1.000.000</span>
+                            </div>
+                            <p class="calc-desc">
+                                💡 Batas maksimal kerugian rupiah per swing setup (modal × toleransi %). Gunakan nilai ini untuk menghitung alokasi lot dan stop loss.
+                            </p>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="setting-select-category">Kategori Watchlist Default</label>
+                            <div class="custom-select-wrap">
+                                <select id="setting-select-category" class="form-select">
+                                    <option value="Breakout" selected>💥 Breakout</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <button id="btn-save-all-settings" class="filter-btn-primary" style="margin-top: 8px;">
+                            💾 Simpan Pengaturan
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 3. Info Sistem & Arsitektur -->
+                <div class="settings-card">
+                    <div class="settings-card-hdr">
+                        <span class="settings-card-icon">⚡</span>
+                        <div>
+                            <h4 class="settings-card-title">Informasi Sistem Candlify</h4>
+                            <p class="settings-card-desc">Arsitektur terpadu IDX Analytics</p>
+                        </div>
+                    </div>
+                    <div class="settings-info-grid">
+                        <div class="info-row">
+                            <span class="info-label">Versi:</span>
+                            <span class="info-val">Candlify v2.2 (PWA Standalone)</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Database Cloud:</span>
+                            <span class="info-val">Neon PostgreSQL Serverless</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Harvester Engine:</span>
+                            <span class="info-val">Glory Engine v2 Service</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Chart Engine:</span>
+                            <span class="info-val">KLineCharts v9 + Canvas Overlays</span>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+        <!-- ======================================================== -->
+        <!-- 10. Watchlist Add / Edit Modal (Dipanggil dari Chart ⭐)   -->
+        <!-- ======================================================== -->
+        <div id="watchlist-modal-backdrop" class="filter-modal-backdrop hidden"></div>
+        <div id="watchlist-modal" class="filter-modal form-modal hidden">
+            <div class="filter-modal-header">
+                <div class="filter-modal-title-group">
+                    <h3 class="filter-modal-title" id="wl-modal-title">⭐ Simpan ke Watchlist</h3>
+                    <p class="filter-modal-subtitle">Pilih watchlist dan masukkan rencana trading Anda</p>
+                </div>
+                <button id="close-wl-modal" class="sheet-close" title="Tutup">✕</button>
+            </div>
+
+            <div class="form-modal-body">
+                <input type="hidden" id="wl-modal-item-id" value="">
+                
+                <div class="form-group">
+                    <label class="form-label" for="wl-input-symbol">Kode Saham (Ticker)</label>
+                    <input type="text" id="wl-input-symbol" class="form-input mono" placeholder="e.g. BBRI" maxlength="10" autocomplete="off" autocapitalize="characters">
+                </div>
+
+                <div class="form-group">
+                    <div class="form-label-row">
+                        <label class="form-label">Pilih Watchlist</label>
+                        <span class="label-opt" id="wl-selected-cat-count">Pilih 1 atau lebih</span>
+                    </div>
+                    <div id="wl-category-buttons" class="wl-category-btn-group">
+                        <!-- Populated dynamically via JS: toggle chips for each category -->
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="wl-input-target-entry">Target Entry (Rp) <span class="label-opt">(Opsional)</span></label>
+                    <input type="number" id="wl-input-target-entry" class="form-input mono" placeholder="e.g. 4850" step="1" min="1">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="wl-input-notes">Catatan Setup &amp; Stop Loss <span class="label-opt">(Opsional)</span></label>
+                    <textarea id="wl-input-notes" class="form-textarea" rows="3" placeholder="e.g. Breakout R1 bulanan 4850, akumulasi broker BK/CC masif, SL di 4700..."></textarea>
+                </div>
+            </div>
+
+            <div class="filter-modal-footer">
+                <button id="btn-cancel-wl" class="filter-btn-secondary">Batal</button>
+                <button id="btn-submit-wl" class="filter-btn-primary">Simpan ke Watchlist</button>
+            </div>
+        </div>
+
+        <!-- ======================================================== -->
+        <!-- 10B. Watchlist Category Management Modal (CRUD)          -->
+        <!-- ======================================================== -->
+        <div id="category-mgmt-backdrop" class="filter-modal-backdrop hidden"></div>
+        <div id="category-mgmt-modal" class="filter-modal form-modal hidden">
+            <div class="filter-modal-header">
+                <div class="filter-modal-title-group">
+                    <h3 class="filter-modal-title">⚙️ Kelola Kategori Watchlist</h3>
+                    <p class="filter-modal-subtitle">Tambah, ubah nama, atau hapus kategori pantauan</p>
+                </div>
+                <button id="close-category-mgmt-modal" class="sheet-close" title="Tutup">✕</button>
+            </div>
+
+            <div class="form-modal-body">
+                <!-- Tambah Kategori Baru -->
+                <div class="form-group">
+                    <label class="form-label" for="input-new-category">Tambah Watchlist Baru</label>
+                    <div class="cat-add-row">
+                        <input type="text" id="input-new-category" class="form-input" placeholder="e.g. Gap Up Morning, Akumulasi Asing..." maxlength="40" autocomplete="off">
+                        <button id="btn-submit-add-cat" class="filter-btn-primary cat-add-btn">+ Tambah</button>
+                    </div>
+                </div>
+
+                <!-- Daftar Kategori Aktif -->
+                <div class="form-group" style="margin-top: 14px;">
+                    <label class="form-label">Daftar Watchlist Tersedia</label>
+                    <div id="category-mgmt-items" class="category-mgmt-list">
+                        <!-- Populated dynamically via JS -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="filter-modal-footer">
+                <button id="btn-close-category-mgmt" class="filter-btn-secondary" style="width: 100%;">Tutup</button>
+            </div>
+        </div>
+
+        <!-- ======================================================== -->
+        <!-- 11. Risk Management Settings Modal (Quick Access)        -->
+        <!-- ======================================================== -->
+        <div id="risk-modal-backdrop" class="filter-modal-backdrop hidden"></div>
+        <div id="risk-modal" class="filter-modal form-modal hidden">
+            <div class="filter-modal-header">
+                <div class="filter-modal-title-group">
+                    <h3 class="filter-modal-title">⚙️ Manajemen Risiko Akun</h3>
+                    <p class="filter-modal-subtitle">Pengaturan modal swing trading &amp; batas risiko per trade</p>
+                </div>
+                <button id="close-risk-modal" class="sheet-close" title="Tutup">✕</button>
+            </div>
+
+            <div class="form-modal-body">
+                <div class="form-group">
+                    <label class="form-label" for="risk-input-capital">Total Modal Portofolio (Rp)</label>
+                    <input type="number" id="risk-input-capital" class="form-input mono" min="1000000" step="1000000" value="100000000">
+                    <div class="form-hint" id="risk-capital-hint">Rp 100.000.000</div>
+                </div>
+
+                <div class="form-group">
+                    <div class="form-label-row">
+                        <label class="form-label" for="risk-slider-pct">Toleransi Risiko per Posisi (% Modal)</label>
+                        <span class="risk-pct-badge" id="risk-pct-badge">1.0%</span>
+                    </div>
+                    <input type="range" id="risk-slider-pct" class="form-slider" min="0.25" max="5.0" step="0.25" value="1.0">
+                    <div class="slider-ticks">
+                        <span>0.5% (Aman)</span>
+                        <span>1.0% (Standar)</span>
+                        <span>2.0% (Agresif)</span>
+                    </div>
+                </div>
+
+                <!-- Live Auto-Calculated Risk Nominal Card -->
+                <div class="risk-calc-card">
+                    <div class="risk-calc-row">
+                        <span class="calc-label">Maksimal Risiko per Posisi:</span>
+                        <span class="calc-value gold" id="risk-preview-nominal">Rp 1.000.000</span>
+                    </div>
+                    <p class="calc-desc">
+                        💡 Toleransi risiko ini adalah batas kerugian maksimal per swing setup (modal × toleransi %).
+                    </p>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="risk-select-category">Kategori Watchlist Default</label>
+                    <div class="custom-select-wrap">
+                        <select id="risk-select-category" class="form-select">
+                            <option value="Breakout" selected>💥 Breakout</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="filter-modal-footer">
+                <button id="btn-cancel-risk" class="filter-btn-secondary">Batal</button>
+                <button id="btn-submit-risk" class="filter-btn-primary">Simpan Pengaturan</button>
+            </div>
+        </div>
+
+        <!-- ======================================================== -->
+        <!-- 12. Trading Plan Modal (Create / Edit Plan)              -->
+        <!-- ======================================================== -->
+        <div id="plan-modal-backdrop" class="filter-modal-backdrop hidden"></div>
+        <div id="plan-modal" class="filter-modal form-modal hidden">
+            <div class="filter-modal-header">
+                <div class="filter-modal-title-group">
+                    <h3 class="filter-modal-title" id="plan-modal-title">🎯 Buat Trading Plan Baru</h3>
+                    <p class="filter-modal-subtitle">Auto position-sizing &amp; kalkulasi alokasi lot</p>
+                </div>
+                <button id="close-plan-modal" class="sheet-close" title="Tutup">✕</button>
+            </div>
+
+            <div class="form-modal-body">
+                <input type="hidden" id="plan-modal-id" value="">
+                
+                <div class="form-row-2">
+                    <div class="form-group">
+                        <label class="form-label" for="plan-input-symbol">Kode Saham (Ticker)</label>
+                        <input type="text" id="plan-input-symbol" class="form-input mono" placeholder="e.g. BBCA, BBRI" maxlength="10" autocomplete="off" autocapitalize="characters">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="plan-select-category">Kategori Setup</label>
+                        <div class="custom-select-wrap">
+                            <select id="plan-select-category" class="form-select">
+                                <option value="Breakout" selected>💥 Breakout</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-row-2">
+                    <div class="form-group">
+                        <label class="form-label" for="plan-select-status">Status Rencana</label>
+                        <div class="custom-select-wrap">
+                            <select id="plan-select-status" class="form-select">
+                                <option value="ANTRI" selected>📋 Antri Order (Limit di Broker)</option>
+                                <option value="HOLDING">🚀 Holding (Sudah Match / Masuk)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="plan-select-order-type">Tipe Order</label>
+                        <div class="custom-select-wrap">
+                            <select id="plan-select-order-type" class="form-select">
+                                <option value="LIMIT" selected>Limit Order</option>
+                                <option value="MARKET">Market / HAKA</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-row-3">
+                    <div class="form-group">
+                        <label class="form-label" for="plan-input-entry">Entry Price (Rp)</label>
+                        <input type="number" id="plan-input-entry" class="form-input mono" placeholder="e.g. 10000" step="1" min="1">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="plan-input-sl" style="color: #f87171;">Stop Loss (Rp)</label>
+                        <input type="number" id="plan-input-sl" class="form-input mono" placeholder="e.g. 9600" step="1" min="1">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="plan-input-tp1" style="color: #34d399;">Target TP1 (Rp)</label>
+                        <input type="number" id="plan-input-tp1" class="form-input mono" placeholder="e.g. 11000" step="1" min="1">
+                    </div>
+                </div>
+
+                <!-- Position Sizing Box -->
+                <div class="plan-calc-box">
+                    <div class="calc-box-title">
+                        <span>⚖️ Money Management &amp; Alokasi Lot</span>
+                        <span id="plan-calc-setting-hint" class="calc-box-sub">Modal Rp 100jt (Risk 1%)</span>
+                    </div>
+                    <div class="plan-calc-row">
+                        <div class="plan-calc-item">
+                            <span class="calc-item-label">Alokasi Lot</span>
+                            <div class="lot-input-wrap">
+                                <input type="number" id="plan-input-lot" class="form-input mono lot-input" value="25" min="1" step="1">
+                                <span class="lot-unit">Lot</span>
+                            </div>
+                        </div>
+                        <div class="plan-calc-item">
+                            <span class="calc-item-label">Total Modal</span>
+                            <span class="calc-item-val" id="plan-calc-invested">Rp 25.000.000</span>
+                        </div>
+                        <div class="plan-calc-item">
+                            <span class="calc-item-label">Risk : Reward</span>
+                            <span class="calc-item-val gold" id="plan-calc-rr">1 : 2.50</span>
+                        </div>
+                    </div>
+                    <div class="plan-calc-subrow">
+                        <span class="calc-sub-risk">Potensi Rugi (SL): <strong id="plan-calc-risk-rp">-Rp 1.000.000 (-4.0%)</strong></span>
+                        <span class="calc-sub-reward">Potensi Untung (TP): <strong id="plan-calc-reward-rp">+Rp 2.500.000 (+10.0%)</strong></span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="plan-input-notes">Catatan &amp; Conviction Setup <span class="label-opt">(Opsional)</span></label>
+                    <textarea id="plan-input-notes" class="form-textarea" rows="2" placeholder="e.g. Breakout R1 volume tinggi, broker BK akumulasi, cut loss jika jebol support..."></textarea>
+                </div>
+            </div>
+
+            <div class="filter-modal-footer">
+                <button id="btn-cancel-plan" class="filter-btn-secondary">Batal</button>
+                <button id="btn-submit-plan" class="filter-btn-primary">Simpan Trading Plan</button>
+            </div>
+        </div>
+
+        <!-- ======================================================== -->
+        <!-- 13. Trailing Stop Modal                                  -->
+        <!-- ======================================================== -->
+        <div id="trailing-modal-backdrop" class="filter-modal-backdrop hidden"></div>
+        <div id="trailing-modal" class="filter-modal form-modal hidden">
+            <div class="filter-modal-header">
+                <div class="filter-modal-title-group">
+                    <h3 class="filter-modal-title" id="trailing-modal-title">🛡️ Naikkan Trailing Stop</h3>
+                    <p class="filter-modal-subtitle">Kunci keuntungan dan lindungi modal trading Anda</p>
+                </div>
+                <button id="close-trailing-modal" class="sheet-close" title="Tutup">✕</button>
+            </div>
+
+            <div class="form-modal-body">
+                <input type="hidden" id="trailing-modal-id" value="">
+                <div class="trailing-info-box">
+                    <div class="trailing-info-row">
+                        <span>Harga Beli (Entry):</span>
+                        <strong id="trailing-info-entry">Rp 0</strong>
+                    </div>
+                    <div class="trailing-info-row">
+                        <span>Stop Loss Saat Ini:</span>
+                        <strong id="trailing-info-curr-sl" style="color: #f87171;">Rp 0</strong>
+                    </div>
+                    <div class="trailing-info-row">
+                        <span>Harga Realtime Sekarang:</span>
+                        <strong id="trailing-info-live-price" class="gold">Rp 0</strong>
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-top: 10px;">
+                    <label class="form-label" for="trailing-input-sl">Stop Loss Baru (Trailing Stop)</label>
+                    <input type="number" id="trailing-input-sl" class="form-input mono" placeholder="e.g. 10200" step="1" min="1">
+                    <div class="form-hint" id="trailing-sl-hint">Pastikan Stop Loss baru lebih tinggi dari SL lama untuk mengunci profit.</div>
+                </div>
+            </div>
+
+            <div class="filter-modal-footer">
+                <button id="btn-cancel-trailing" class="filter-btn-secondary">Batal</button>
+                <button id="btn-submit-trailing" class="filter-btn-primary">Simpan Trailing Stop</button>
+            </div>
+        </div>
+
+        <!-- ======================================================== -->
+        <!-- 14. Exit / Close Position Modal (Journaling Post-Mortem) -->
+        <!-- ======================================================== -->
+        <div id="exit-modal-backdrop" class="filter-modal-backdrop hidden"></div>
+        <div id="exit-modal" class="filter-modal form-modal hidden">
+            <div class="filter-modal-header">
+                <div class="filter-modal-title-group">
+                    <h3 class="filter-modal-title" id="exit-modal-title">🏁 Selesaikan &amp; Bukukan Posisi</h3>
+                    <p class="filter-modal-subtitle">Catat hasil trading ke dalam jurnal evaluasi</p>
+                </div>
+                <button id="close-exit-modal" class="sheet-close" title="Tutup">✕</button>
+            </div>
+
+            <div class="form-modal-body">
+                <input type="hidden" id="exit-modal-id" value="">
+                
+                <div class="form-group">
+                    <label class="form-label" for="exit-select-status">Hasil Posisi</label>
+                    <div class="custom-select-wrap">
+                        <select id="exit-select-status" class="form-select">
+                            <option value="CLOSED_WIN" selected>🎯 Take Profit (Win)</option>
+                            <option value="CLOSED_LOSS">🛑 Cut Loss / Stop Loss (Loss)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="exit-input-price">Harga Jual / Exit (Rp)</label>
+                    <input type="number" id="exit-input-price" class="form-input mono" placeholder="e.g. 11000" step="1" min="1">
+                </div>
+
+                <div class="exit-pnl-preview-box">
+                    <div class="exit-pnl-row">
+                        <span>Estimasi Realized PnL:</span>
+                        <strong id="exit-pnl-preview" style="color: #34d399;">+Rp 0 (+0.0%)</strong>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="exit-input-notes">Evaluasi &amp; Catatan Post-Mortem</label>
+                    <textarea id="exit-input-notes" class="form-textarea" rows="3" placeholder="Apa yang berjalan sesuai rencana? Apakah disiplin eksekusi TP/SL?"></textarea>
+                </div>
+            </div>
+
+            <div class="filter-modal-footer">
+                <button id="btn-cancel-exit" class="filter-btn-secondary">Batal</button>
+                <button id="btn-submit-exit" class="filter-btn-primary">Bukukan ke Jurnal</button>
+            </div>
+        </div>
+
+        <!-- ======================================================== -->
+        <!-- Floating Glass Bottom Navigation (5 Tabs PWA)           -->
+        <!-- ======================================================== -->
+        <nav id="floating-bottom-nav" class="glass-bottom-nav">
+            <button class="nav-btn" data-view="database" title="Database IDX">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+                    <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
+                    <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
+                </svg>
+                <span class="nav-label">Database</span>
+            </button>
+            <button class="nav-btn active" data-view="screener" title="Candlify Screener">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="20" x2="18" y2="10"></line>
+                    <line x1="12" y1="20" x2="12" y2="4"></line>
+                    <line x1="6" y1="20" x2="6" y2="14"></line>
+                </svg>
+                <span class="nav-label">Candlify</span>
+            </button>
+            <button class="nav-btn" data-view="watchlist" title="Watchlist Swing">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                </svg>
+                <span class="nav-label">Watchlist</span>
+            </button>
+            <button class="nav-btn" data-view="journal" title="Journal & Plan">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                    <polyline points="10 9 9 9 8 9"></polyline>
+                </svg>
+                <span class="nav-label">Journal</span>
+            </button>
+            <button class="nav-btn" data-view="settings" title="Pengaturan">
+                <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="3"></circle>
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                </svg>
+                <span class="nav-label">Settings</span>
+            </button>
+        </nav>
+    </div> <!-- /#app -->
+
+    <!-- Scripts -->
+    <script src="js/klinecharts.min.js"></script>
+    <script src="js/chart.js"></script>
+    
+    <!-- PWA Service Worker Registration (Sesuai pwa_config.md) -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(reg => console.log('✅ PWA Service Worker aktif! Scope:', reg.scope))
+                    .catch(err => console.warn('⚠️ Gagal daftarkan Service Worker:', err));
+            });
+        }
+    </script>
+</body>
+</html>
