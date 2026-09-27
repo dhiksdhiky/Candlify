@@ -28,6 +28,8 @@ def get_engine():
         db_url = os.getenv("DATABASE_URL")
         if not db_url:
             raise RuntimeError("DATABASE_URL belum diatur di file .env")
+        if db_url.startswith("postgres://"):
+            db_url = db_url.replace("postgres://", "postgresql://", 1)
         _ENGINE = create_engine(
             db_url,
             pool_pre_ping=True,

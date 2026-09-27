@@ -4094,17 +4094,39 @@ class CandlifyChart {
 
                 // Render Calendar Heatmap
                 this.renderSyncCalendar(d.history || []);
+            } else {
+                throw new Error(json.detail || json.error || `HTTP ${res.status}`);
             }
         } catch (err) {
             console.warn('Gagal memuat status database health:', err);
             if (this.dom.dbEngineStatus) {
-                this.dom.dbEngineStatus.textContent = 'Neon DB Idle';
+                this.dom.dbEngineStatus.textContent = 'DB Terputus';
+                this.dom.dbEngineStatus.style.color = '#f87171';
             }
             if (this.dom.dbServerStatus) {
                 this.dom.dbServerStatus.textContent = 'Offline';
+                this.dom.dbServerStatus.style.color = '#f87171';
+                this.dom.dbServerStatus.style.opacity = '1';
             }
             if (this.dom.dbEngineDot) {
-                this.dom.dbEngineDot.style.background = '#f59e0b';
+                this.dom.dbEngineDot.style.background = '#ef4444';
+                this.dom.dbEngineDot.style.boxShadow = '0 0 6px rgba(239, 68, 68, 0.6)';
+            }
+            if (this.dom.dbLastSyncBadge) {
+                this.dom.dbLastSyncBadge.textContent = 'Gagal Konek DB';
+                this.dom.dbLastSyncBadge.className = 'status-badge badge-red';
+            }
+            if (this.dom.dbStatTotalEmiten) this.dom.dbStatTotalEmiten.textContent = 'Error';
+            if (this.dom.dbStatActivePrice) this.dom.dbStatActivePrice.textContent = 'Error';
+            if (this.dom.dbStatActiveBroksum) this.dom.dbStatActiveBroksum.textContent = 'Error';
+            if (this.dom.dbStatDateRange) this.dom.dbStatDateRange.textContent = 'Koneksi database gagal';
+            if (this.dom.calendarGrid) {
+                this.dom.calendarGrid.innerHTML = `
+                    <div style="grid-column: 1 / -1; text-align: center; padding: 24px 10px; color: #f87171; font-size: 11px;">
+                        ⚠️ Gagal terhubung ke Database Neon.<br>
+                        <span style="color: var(--text-muted); font-size: 10px;">${err.message || 'Cek konfigurasi DATABASE_URL di Vercel.'}</span>
+                    </div>
+                `;
             }
         }
     }
