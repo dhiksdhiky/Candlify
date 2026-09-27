@@ -568,6 +568,7 @@ class CandlifyChart {
             dbStatTotalEmiten: document.getElementById('db-stat-total-emiten'),
             dbStatActivePrice: document.getElementById('db-stat-active-price'),
             dbStatActiveBroksum: document.getElementById('db-stat-active-broksum'),
+            dbStatDateRange: document.getElementById('db-stat-date-range'),
             dbStatWlCount: document.getElementById('db-stat-wl-count'),
             dbStatRiskNominal: document.getElementById('db-stat-risk-nominal'),
             dbStatCapitalSub: document.getElementById('db-stat-capital-sub'),
@@ -577,6 +578,28 @@ class CandlifyChart {
             btnDbGoSettingsRisk: document.getElementById('btn-db-go-settings-risk'),
             btnDbGoSettingsFeed: document.getElementById('btn-db-go-settings-feed'),
             homeWatchlistCount: document.getElementById('db-stat-wl-count') || document.getElementById('home-watchlist-count'),
+            calendarGrid: document.getElementById('calendar-grid'),
+            calendarMonthTitle: document.getElementById('calendar-month-title'),
+            btnActionSuspend: document.getElementById('btnActionSuspend'),
+            btnActionLogs: document.getElementById('btnActionLogs'),
+            btnActionUpload: document.getElementById('btnActionUpload'),
+            badgeSuspendCount: document.getElementById('badgeSuspendCount'),
+            badgeLogsCount: document.getElementById('badgeLogsCount'),
+            uploadModal: document.getElementById('uploadModal'),
+            suspendModal: document.getElementById('suspendModal'),
+            logsModal: document.getElementById('logsModal'),
+            closeUploadModal: document.querySelector('.close-upload-modal'),
+            closeSuspendModal: document.querySelector('.close-suspend-modal'),
+            closeLogsModal: document.querySelector('.close-logs-modal'),
+            suspendModalContent: document.getElementById('suspendModalContent'),
+            logsModalContent: document.getElementById('logsModalContent'),
+            dbDropzone: document.getElementById('db-dropzone'),
+            dbFileInput: document.getElementById('db-fileInput'),
+            dbFileNameDisplay: document.getElementById('db-fileNameDisplay'),
+            uploadForm: document.getElementById('uploadForm'),
+            btnDbUploadSubmit: document.getElementById('btnDbUploadSubmit'),
+            dbUploadStatus: document.getElementById('db-uploadStatus'),
+            liveClock: document.getElementById('live-clock'),
 
             // ── Settings View Elements ──
             settingsView: document.getElementById('settings-view'),
@@ -776,6 +799,7 @@ class CandlifyChart {
         this.setupWatchlistEvents();
         this.setupSettingsEvents();
         this.setupJournalEvents();
+        this.setupDatabaseEvents();
         this.updateSnrUi();
         
         // 4. Periksa apakah user membuka langsung emiten spesifik via URL Hash (misal: #BBRI)
@@ -2344,6 +2368,21 @@ class CandlifyChart {
                     this.closeExitModal();
                     return;
                 }
+                if (this.dom.uploadModal && !this.dom.uploadModal.classList.contains('hidden')) {
+                    e.preventDefault();
+                    this.closeUploadModal();
+                    return;
+                }
+                if (this.dom.suspendModal && !this.dom.suspendModal.classList.contains('hidden')) {
+                    e.preventDefault();
+                    this.closeSuspendModal();
+                    return;
+                }
+                if (this.dom.logsModal && !this.dom.logsModal.classList.contains('hidden')) {
+                    e.preventDefault();
+                    this.closeLogsModal();
+                    return;
+                }
             }
 
             if (this.currentView === 'chart') {
@@ -2599,6 +2638,161 @@ class CandlifyChart {
         if (this.dom.btnDbGoSettingsFeed) {
             this.dom.btnDbGoSettingsFeed.addEventListener('click', () => this.switchView('settings'));
         }
+    }
+
+    setupDatabaseEvents() {
+        // 1. Live Clock WIB
+        setInterval(() => {
+            const now = new Date();
+            if (this.dom.liveClock) {
+                this.dom.liveClock.innerText = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            }
+        }, 1000);
+
+        // 2. Open Modal Actions
+        if (this.dom.btnActionUpload) {
+            this.dom.btnActionUpload.addEventListener('click', () => this.openUploadModal());
+        }
+        if (this.dom.btnActionSuspend) {
+            this.dom.btnActionSuspend.addEventListener('click', () => this.openSuspendModal());
+        }
+        if (this.dom.btnActionLogs) {
+            this.dom.btnActionLogs.addEventListener('click', () => this.openLogsModal());
+        }
+
+        // 3. Close Modal Handlers (Buttons & Backdrop)
+        if (this.dom.closeUploadModal) {
+            this.dom.closeUploadModal.addEventListener('click', () => this.closeUploadModal());
+        }
+        if (this.dom.uploadModal) {
+            this.dom.uploadModal.addEventListener('click', (e) => {
+                if (e.target === this.dom.uploadModal) this.closeUploadModal();
+            });
+        }
+
+        if (this.dom.closeSuspendModal) {
+            this.dom.closeSuspendModal.addEventListener('click', () => this.closeSuspendModal());
+        }
+        if (this.dom.suspendModal) {
+            this.dom.suspendModal.addEventListener('click', (e) => {
+                if (e.target === this.dom.suspendModal) this.closeSuspendModal();
+            });
+        }
+
+        if (this.dom.closeLogsModal) {
+            this.dom.closeLogsModal.addEventListener('click', () => this.closeLogsModal());
+        }
+        if (this.dom.logsModal) {
+            this.dom.logsModal.addEventListener('click', (e) => {
+                if (e.target === this.dom.logsModal) this.closeLogsModal();
+            });
+        }
+
+        // 4. Dropzone & File Input Logic
+        if (this.dom.dbDropzone && this.dom.dbFileInput) {
+            this.dom.dbDropzone.addEventListener('click', () => this.dom.dbFileInput.click());
+            this.dom.dbDropzone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                this.dom.dbDropzone.classList.add('dragover');
+            });
+            this.dom.dbDropzone.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                this.dom.dbDropzone.classList.remove('dragover');
+            });
+            this.dom.dbDropzone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                this.dom.dbDropzone.classList.remove('dragover');
+                if (e.dataTransfer.files.length) {
+                    this.dom.dbFileInput.files = e.dataTransfer.files;
+                    if (this.dom.dbFileNameDisplay) {
+                        this.dom.dbFileNameDisplay.innerText = e.dataTransfer.files[0].name;
+                    }
+                }
+            });
+            this.dom.dbFileInput.addEventListener('change', () => {
+                if (this.dom.dbFileInput.files.length && this.dom.dbFileNameDisplay) {
+                    this.dom.dbFileNameDisplay.innerText = this.dom.dbFileInput.files[0].name;
+                }
+            });
+        }
+
+        // 5. Upload Master Form Submission
+        if (this.dom.uploadForm) {
+            this.dom.uploadForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                if (!this.dom.dbFileInput || !this.dom.dbFileInput.files.length) {
+                    this.showToast('Silakan pilih file .xlsx terlebih dahulu', 'warning');
+                    return;
+                }
+
+                const btnUpload = this.dom.btnDbUploadSubmit;
+                const statusEl = this.dom.dbUploadStatus;
+
+                if (btnUpload) {
+                    btnUpload.disabled = true;
+                    btnUpload.innerHTML = 'Mengunggah &amp; Memproses...';
+                }
+                if (statusEl) statusEl.innerHTML = '<span style="color: var(--accent-cyan);">Memproses data emiten ke database Neon...</span>';
+
+                const formData = new FormData();
+                formData.append('file', this.dom.dbFileInput.files[0]);
+
+                try {
+                    const res = await fetch('/api/database/upload', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const result = await res.json();
+                    if (res.ok && result.status === 'success') {
+                        if (statusEl) statusEl.innerHTML = `<span style="color: var(--accent-emerald);">✅ ${result.message}</span>`;
+                        this.showToast(`✅ ${result.message}`, 'success');
+                        this.updateDatabaseOverview();
+                        setTimeout(() => {
+                            this.closeUploadModal();
+                            if (statusEl) statusEl.innerHTML = '';
+                            if (this.dom.dbFileNameDisplay) this.dom.dbFileNameDisplay.innerText = 'Pilih File Excel (.xlsx)';
+                            if (this.dom.dbFileInput) this.dom.dbFileInput.value = '';
+                        }, 1800);
+                    } else {
+                        const msg = result.detail || result.error || result.message || 'Gagal memproses file';
+                        if (statusEl) statusEl.innerHTML = `<span style="color: var(--accent-rose);">❌ ${msg}</span>`;
+                        this.showToast(`❌ ${msg}`, 'error');
+                    }
+                } catch (err) {
+                    if (statusEl) statusEl.innerHTML = `<span style="color: var(--accent-rose);">❌ Error: ${err.message}</span>`;
+                    this.showToast(`❌ Error: ${err.message}`, 'error');
+                } finally {
+                    if (btnUpload) {
+                        btnUpload.disabled = false;
+                        btnUpload.innerHTML = 'Upload &amp; Sinkronkan';
+                    }
+                }
+            });
+        }
+    }
+
+    openUploadModal() {
+        if (this.dom.uploadModal) this.dom.uploadModal.classList.remove('hidden');
+    }
+
+    closeUploadModal() {
+        if (this.dom.uploadModal) this.dom.uploadModal.classList.add('hidden');
+    }
+
+    openSuspendModal() {
+        if (this.dom.suspendModal) this.dom.suspendModal.classList.remove('hidden');
+    }
+
+    closeSuspendModal() {
+        if (this.dom.suspendModal) this.dom.suspendModal.classList.add('hidden');
+    }
+
+    openLogsModal() {
+        if (this.dom.logsModal) this.dom.logsModal.classList.remove('hidden');
+    }
+
+    closeLogsModal() {
+        if (this.dom.logsModal) this.dom.logsModal.classList.add('hidden');
     }
 
 
@@ -3786,7 +3980,7 @@ class CandlifyChart {
         }
     }
 
-    updateDatabaseOverview() {
+    async updateDatabaseOverview() {
         const capital = this.riskSettings?.total_capital || 100000000;
         const riskPct = this.riskSettings?.risk_pct || 1.0;
         const nominal = this.riskSettings?.risk_nominal || Math.round(capital * (riskPct / 100.0));
@@ -3804,18 +3998,156 @@ class CandlifyChart {
         if (this.dom.dbStatFeedSource) {
             this.dom.dbStatFeedSource.textContent = source === 'yahoo' ? 'Yahoo Finance (Direct Live)' : 'Neon DB (Glory Engine)';
         }
-        if (this.dom.dbStatTotalEmiten) {
-            const total = this.screenerStocks?.length || 880;
-            this.dom.dbStatTotalEmiten.textContent = total > 0 ? `${total}+` : '880+';
+
+        try {
+            const res = await fetch('/api/database/health');
+            const json = await res.json();
+            if (res.ok && json.status === 'success') {
+                const d = json.data;
+                const master = d.saham || { total: 0, last_update: 'N/A' };
+                const stats = d.archive?.stats || { total_harga: 0, total_broksum: 0, min_date: 'N/A', max_date: 'N/A' };
+
+                if (this.dom.dbStatTotalEmiten) {
+                    this.dom.dbStatTotalEmiten.textContent = master.total ? `${master.total}` : '0';
+                }
+                if (this.dom.dbStatActivePrice) {
+                    this.dom.dbStatActivePrice.textContent = (stats.total_harga || 0).toLocaleString('id-ID');
+                }
+                if (this.dom.dbStatActiveBroksum) {
+                    this.dom.dbStatActiveBroksum.textContent = (stats.total_broksum || 0).toLocaleString('id-ID');
+                }
+                if (this.dom.dbStatDateRange) {
+                    this.dom.dbStatDateRange.textContent = `${stats.min_date || '-'} s.d. ${stats.max_date || '-'}`;
+                }
+
+                // Badges for Actions
+                const gaps = d.gaps || [];
+                if (this.dom.badgeSuspendCount) {
+                    if (gaps.length > 0) {
+                        this.dom.badgeSuspendCount.textContent = gaps.length;
+                        this.dom.badgeSuspendCount.style.display = 'flex';
+                    } else {
+                        this.dom.badgeSuspendCount.style.display = 'none';
+                    }
+                }
+
+                const errors = d.errors || [];
+                if (this.dom.badgeLogsCount) {
+                    if (errors.length > 0) {
+                        this.dom.badgeLogsCount.textContent = errors.length;
+                        this.dom.badgeLogsCount.style.display = 'flex';
+                    } else {
+                        this.dom.badgeLogsCount.style.display = 'none';
+                    }
+                }
+
+                // Modal: Suspend List
+                if (this.dom.suspendModalContent) {
+                    if (gaps.length === 0) {
+                        this.dom.suspendModalContent.innerHTML = `<div style="text-align: center; color: var(--accent-emerald); padding: 1.5rem 0; font-size: 0.85rem;">Normal 🟢 (0 saham suspensi / gap anomali tercatat)</div>`;
+                    } else {
+                        this.dom.suspendModalContent.innerHTML = gaps.map(g => `
+                            <div class="gap-item">
+                                <div class="gap-meta">
+                                    <span class="gap-ticker">${g.ticker}</span>
+                                    <span class="gap-date">Tanggal: ${g.date} • ${g.attempts}x dicoba (${g.last_attempt || '-'})</span>
+                                </div>
+                                <span class="gap-badge">${g.reason || 'Data Kosong'}</span>
+                            </div>
+                        `).join('');
+                    }
+                }
+
+                // Modal: Logs List
+                if (this.dom.logsModalContent) {
+                    if (errors.length === 0) {
+                        this.dom.logsModalContent.innerHTML = `<div style="text-align: center; color: var(--accent-emerald); padding: 1.5rem 0; font-size: 0.85rem;">Normal 🟢 (Tidak ada error dalam 48 jam)</div>`;
+                    } else {
+                        this.dom.logsModalContent.innerHTML = errors.map(e => {
+                            const color = (e.level === 'CRITICAL' || e.level === 'ERROR') ? 'var(--accent-rose)' : 'var(--accent-yellow)';
+                            return `
+                                <div class="error-item" style="margin-bottom: 10px; padding: 10px; background: rgba(0,0,0,0.3); border-left: 3px solid ${color}; border-radius: 6px;">
+                                    <div style="font-size: 0.72rem; color: var(--text-muted); margin-bottom: 4px;">[${e.bot_name || 'bot'}] ${e.time || '-'}</div>
+                                    <div style="font-size: 0.82rem; color: var(--text-main);">${e.message}</div>
+                                </div>
+                            `;
+                        }).join('');
+                    }
+                }
+
+                // Render Calendar Heatmap
+                this.renderSyncCalendar(d.history || []);
+            }
+        } catch (err) {
+            console.warn('Gagal memuat status database health:', err);
         }
-        if (this.dom.dbStatActivePrice) {
-            const count = this.screenerStocks?.length || 880;
-            this.dom.dbStatActivePrice.textContent = count;
+    }
+
+    renderSyncCalendar(historyData) {
+        if (!this.dom.calendarGrid) return;
+
+        const today = new Date();
+        const currentYear = today.getFullYear();
+        const currentMonth = today.getMonth(); // 0-11
+        const monthNames = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+
+        if (this.dom.calendarMonthTitle) {
+            this.dom.calendarMonthTitle.innerText = `${monthNames[currentMonth]} ${currentYear} Sync History`;
         }
-        if (this.dom.dbStatActiveBroksum) {
-            const count = this.screenerStocks?.length || 880;
-            this.dom.dbStatActiveBroksum.textContent = count;
+
+        const historyMap = {};
+        if (historyData) {
+            historyData.forEach(item => {
+                historyMap[item.date] = item;
+            });
         }
+
+        const firstDayDate = new Date(currentYear, currentMonth, 1);
+        let firstDayIndex = firstDayDate.getDay() - 1; // 0 = Senin, 6 = Minggu
+        if (firstDayIndex === -1) firstDayIndex = 6;
+
+        const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+        let html = '';
+
+        for (let i = 0; i < firstDayIndex; i++) {
+            html += `<div class="cal-box cal-box-empty"></div>`;
+        }
+
+        for (let day = 1; day <= daysInMonth; day++) {
+            const monthStr = String(currentMonth + 1).padStart(2, '0');
+            const dayStr = String(day).padStart(2, '0');
+            const dateStr = `${currentYear}-${monthStr}-${dayStr}`;
+
+            const hist = historyMap[dateStr];
+            let boxClass = 'cal-box-empty';
+            let contentHtml = `<div class="cal-stats" style="margin-top: 6px; opacity: 0.35;">-</div>`;
+
+            if (hist) {
+                if (hist.broksum_synced >= hist.target_harvester && hist.broksum_synced > 0) {
+                    boxClass = 'cal-box-green';
+                } else if (hist.ohlcv_scraped > 0) {
+                    boxClass = 'cal-box-red';
+                }
+
+                contentHtml = `
+                    <div class="cal-stats">
+                        <span>Harga: <strong>${hist.ohlcv_scraped}</strong></span>
+                        <span>Broksum: <strong>${hist.broksum_synced}</strong></span>
+                    </div>
+                `;
+            }
+
+            const isToday = (day === today.getDate()) ? 'border: 1px solid var(--accent-emerald);' : '';
+
+            html += `
+                <div class="cal-box ${boxClass}" style="${isToday}">
+                    <div class="cal-date">${day}</div>
+                    ${contentHtml}
+                </div>
+            `;
+        }
+
+        this.dom.calendarGrid.innerHTML = html;
     }
 
     async deleteWatchlistItem(itemId, symbol) {

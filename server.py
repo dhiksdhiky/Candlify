@@ -17,7 +17,7 @@ if sys.platform == "win32":
     sys.stdout.reconfigure(encoding='utf-8')
 
 from typing import Optional, List
-from fastapi import FastAPI, Query, Header, Response, HTTPException, status
+from fastapi import FastAPI, Query, Header, Response, HTTPException, status, File, UploadFile
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
@@ -27,11 +27,11 @@ import uvicorn
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, BASE_DIR)
 
-from typing import Optional
 from pydantic import BaseModel, Field
 from lib.history import get_candlesticks
 from lib.bandarmologi import get_bandarmologi, get_broksum_range
 from lib.screener import get_screened_stocks
+from lib.database_monitor import get_database_metrics, process_saham_excel
 from lib.portfolio import (
     get_all_watchlists,
     add_to_watchlist,
@@ -466,6 +466,36 @@ def api_delete_trading_plan(plan_id: int):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(val_err))
     except Exception as err:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Gagal menghapus trading plan: {err}")
+
+# ── Database & Glory Engine Monitor Endpoints ───────────────
+
+@app.get("/api/database/health")
+def api_database_health():
+    """Ambil status kesehatan, total baris emiten, dan riwayat sinkronisasi Neon DB."""
+    try:
+        metrics = get_database_metrics()
+        return metrics
+    except Exception as err:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Gagal memuat status database: {err}")
+
+@app.post("/api/database/upload")
+def api_database_upload(file: UploadFile = File(...)):
+    """Upload dan replace master data emiten dari file Excel IDX (.xlsx)."""
+    if not file.filename.lower().endswith(".xlsx"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File harus berformat Excel (.xlsx)")
+    try:
+        contents = file.file.read()
+        res = process_saham_excel(excel_bytes=contents, filename=file.filename)
+        return res
+    except ValueError as val_err:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(val_err))
+    except Exception as err:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Gagal memproses file Excel: {err}")
+
+@app.get("/api/stock")
+def api_stock_alias(action: Optional[str] = Query("health")):
+    """Alias endpoint kompatibilitas stock engine."""
+    return get_database_metrics()
 
 @app.get("/api/health")
 def health():

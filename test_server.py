@@ -171,4 +171,52 @@ def test_api_screen():
     assert res_sort_rsi.status_code == 200
     assert res_sort_rsi.json().get("success") is True
 
+def test_api_database_health():
+    res = client.get("/api/database/health")
+    assert res.status_code == 200
+    data = res.json()
+    assert data.get("status") == "success"
+    assert "data" in data
+    d = data["data"]
+    assert "saham" in d
+    assert d["saham"]["total"] >= 900
+    assert "archive" in d
+    assert "stats" in d["archive"]
+    assert d["archive"]["stats"]["total_harga"] > 0
+    assert "history" in d
+    assert isinstance(d["history"], list)
+    assert len(d["history"]) > 0
+
+    # Also test legacy /api/stock?action=health alias
+    res_alias = client.get("/api/stock?action=health")
+    assert res_alias.status_code == 200
+    assert res_alias.json().get("status") == "success"
+
+def test_database_ui_elements():
+    res = client.get("/")
+    assert res.status_code == 200
+    html = res.text
+    assert "database-view" in html
+    assert "live-clock" in html
+    assert "db-stat-total-emiten" in html
+    assert "db-stat-active-price" in html
+    assert "db-stat-active-broksum" in html
+    assert "db-stat-date-range" in html
+    assert "calendar-grid" in html
+    assert "calendar-month-title" in html
+    assert "btnActionSuspend" in html
+    assert "btnActionLogs" in html
+    assert "btnActionUpload" in html
+    assert "uploadModal" in html
+    assert "suspendModal" in html
+    assert "logsModal" in html
+    assert "db-dropzone" in html
+
+    res_js = client.get("/js/chart.js")
+    assert res_js.status_code == 200
+    assert "setupDatabaseEvents" in res_js.text
+    assert "renderSyncCalendar" in res_js.text
+    assert "openUploadModal" in res_js.text
+
+
 

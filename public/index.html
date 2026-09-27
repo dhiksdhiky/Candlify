@@ -33,10 +33,13 @@
                         <span class="brand-logo">Database Overview 🗄️</span>
                         <span class="screener-count-badge" id="db-server-status">Neon DB Online</span>
                     </div>
-                    <span class="source-status-pill">
-                        <span class="source-dot"></span>
-                        <span id="db-engine-status">Engine Aktif</span>
-                    </span>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span id="live-clock" style="font-family: var(--font-mono); font-size: 11px; font-weight: 700; color: var(--text-secondary); background: rgba(255,255,255,0.06); padding: 2px 7px; border-radius: 6px;">--:--</span>
+                        <span class="source-status-pill">
+                            <span class="source-dot"></span>
+                            <span id="db-engine-status">Engine Aktif</span>
+                        </span>
+                    </div>
                 </div>
             </header>
 
@@ -44,9 +47,9 @@
                 <!-- Welcome / System Architecture Hero Card -->
                 <div class="home-hero-card">
                     <div class="hero-left">
-                        <span class="hero-tag">STOCK ENGINE &amp; CANDLIFY UNIFIED</span>
-                        <h2 class="hero-title">Data Overview IDX</h2>
-                        <p class="hero-desc">Pusat data master emiten BEI, broker summary harian, dan manajemen pantauan swing trading.</p>
+                        <span class="hero-tag">GLORY ENGINE &amp; CANDLIFY UNIFIED</span>
+                        <h2 class="hero-title">Database Monitor IDX</h2>
+                        <p class="hero-desc">Pusat data master emiten BEI, broker summary harian, dan pemantauan sinkronisasi Neon DB Serverless.</p>
                     </div>
                 </div>
 
@@ -55,10 +58,10 @@
                     <div class="db-metric-card" id="btn-db-go-screener" title="Buka Candlify Screener">
                         <div class="db-metric-top">
                             <span class="db-metric-label">Total Emiten</span>
-                            <span class="db-metric-tag blue">BEI Master</span>
+                            <span class="db-metric-tag blue" id="db-stat-emiten-tag">BEI Master</span>
                         </div>
-                        <div class="db-metric-val" id="db-stat-total-emiten">880+</div>
-                        <div class="db-metric-sub">Seluruh saham terdaftar</div>
+                        <div class="db-metric-val" id="db-stat-total-emiten">--</div>
+                        <div class="db-metric-sub" id="db-stat-emiten-sub">Seluruh saham terdaftar</div>
                     </div>
 
                     <div class="db-metric-card">
@@ -66,8 +69,8 @@
                             <span class="db-metric-label">Harga Aktif</span>
                             <span class="db-metric-tag emerald">Real-time</span>
                         </div>
-                        <div class="db-metric-val" id="db-stat-active-price">880</div>
-                        <div class="db-metric-sub">Candlestick feed terupdate</div>
+                        <div class="db-metric-val" id="db-stat-active-price">--</div>
+                        <div class="db-metric-sub" id="db-stat-price-sub">Candlestick feed terupdate</div>
                     </div>
 
                     <div class="db-metric-card">
@@ -75,18 +78,55 @@
                             <span class="db-metric-label">Broksum Aktif</span>
                             <span class="db-metric-tag purple">Net Flow</span>
                         </div>
-                        <div class="db-metric-val" id="db-stat-active-broksum">880</div>
-                        <div class="db-metric-sub">HMB &amp; akumulasi bandar</div>
+                        <div class="db-metric-val" id="db-stat-active-broksum">--</div>
+                        <div class="db-metric-sub" id="db-stat-broksum-sub">HMB &amp; akumulasi bandar</div>
                     </div>
 
                     <div class="db-metric-card">
                         <div class="db-metric-top">
-                            <span class="db-metric-label">Cloud Database</span>
-                            <span class="db-metric-tag amber">Serverless</span>
+                            <span class="db-metric-label">Rentang Data</span>
+                            <span class="db-metric-tag amber">Neon DB</span>
                         </div>
-                        <div class="db-metric-val font-sm">Neon DB</div>
-                        <div class="db-metric-sub">PostgreSQL Cloud Storage</div>
+                        <div class="db-metric-val font-sm" id="db-stat-date-range">--</div>
+                        <div class="db-metric-sub" id="db-stat-range-sub">PostgreSQL Cloud Storage</div>
                     </div>
+                </div>
+
+                <!-- Month Calendar Heatmap Card (STANDOUT FEATURE FROM STOCK ENGINE) -->
+                <div class="db-calendar-card">
+                    <div class="db-cal-header-row">
+                        <div class="db-cal-title-wrap">
+                            <span class="db-cal-icon">📅</span>
+                            <h4 id="calendar-month-title" class="db-cal-title">Sync History</h4>
+                        </div>
+                        <span class="status-badge badge-green" id="calendar-sync-badge">Auto Sync Active</span>
+                    </div>
+                    <div class="calendar-header">
+                        <div>Sen</div><div>Sel</div><div>Rab</div><div>Kam</div><div>Jum</div><div>Sab</div><div>Min</div>
+                    </div>
+                    <div id="calendar-grid" class="calendar-grid">
+                        <div style="grid-column: 1 / -1; text-align: center; padding: 20px; font-size: 11px; color: var(--text-muted);">Memuat riwayat kalender...</div>
+                    </div>
+                </div>
+
+                <!-- Action Bar: 3 Tombol Fitur dari Stock Engine -->
+                <div class="db-action-bar">
+                    <button id="btnActionSuspend" class="db-action-btn" title="Lihat Saham Suspensi & Gap IPOT">
+                        <span class="action-btn-badge hidden" id="badgeSuspendCount">0</span>
+                        <span class="action-btn-icon">⚡</span>
+                        <span class="action-btn-text">Info Suspensi</span>
+                    </button>
+
+                    <button id="btnActionLogs" class="db-action-btn" title="Lihat Catatan Bot & Error 48 Jam">
+                        <span class="action-btn-badge red hidden" id="badgeLogsCount">0</span>
+                        <span class="action-btn-icon">📋</span>
+                        <span class="action-btn-text">Bot Issues</span>
+                    </button>
+
+                    <button id="btnActionUpload" class="db-action-btn primary" title="Upload File Excel Master Emiten dari IDX">
+                        <span class="action-btn-icon">📥</span>
+                        <span class="action-btn-text">Upload Master</span>
+                    </button>
                 </div>
 
                 <!-- Small Info Cards (Permintaan Khusus Mas Dhika) -->
@@ -127,20 +167,6 @@
                             <span class="mini-info-arrow">›</span>
                         </div>
                     </div>
-                </div>
-
-                <!-- Stock Engine Unified Sync Card -->
-                <div class="home-info-card" style="margin-top: 10px;">
-                    <div class="info-card-header">
-                        <span class="info-icon">⚡</span>
-                        <div>
-                            <h4 class="info-title">Penyatuan Candlify &amp; Stock Engine</h4>
-                            <p class="info-sub">Railway Backend + Neon Cloud + KLineCharts</p>
-                        </div>
-                    </div>
-                    <p class="info-text">
-                        Data master emiten, broker summary harian, dan harga saham terhubung ke database Neon serverless. Siap untuk sinkronisasi total saat PWA Database diintegrasikan penuh.
-                    </p>
                 </div>
             </main>
         </div>
@@ -1257,6 +1283,69 @@
             <div class="filter-modal-footer">
                 <button id="btn-cancel-exit" class="filter-btn-secondary">Batal</button>
                 <button id="btn-submit-exit" class="filter-btn-primary">Bukukan ke Jurnal</button>
+            </div>
+        </div>
+
+        <!-- ======================================================== -->
+        <!-- 15. Upload Master Data Emiten Modal                      -->
+        <!-- ======================================================== -->
+        <div id="uploadModal" class="filter-modal-backdrop hidden" style="z-index: 110;">
+            <div class="filter-modal form-modal" style="max-width: 440px;" onclick="event.stopPropagation()">
+                <div class="filter-modal-header">
+                    <div class="filter-modal-title-group">
+                        <h3 class="filter-modal-title">📥 Update Master Data Emiten</h3>
+                        <p class="filter-modal-subtitle">Upload file .xlsx resmi dari Bursa Efek Indonesia (IDX)</p>
+                    </div>
+                    <button class="sheet-close close-upload-modal" title="Tutup">✕</button>
+                </div>
+                <div class="form-modal-body">
+                    <form id="uploadForm">
+                        <div class="dropzone" id="db-dropzone">
+                            <div style="font-size: 32px; margin-bottom: 8px;">📊</div>
+                            <h4 id="db-fileNameDisplay" style="font-size: 13px; font-weight: 700; color: #fff; margin-bottom: 4px;">Pilih File Excel (.xlsx)</h4>
+                            <p style="font-size: 11px; color: var(--text-muted); margin: 0;">Klik untuk browse atau seret file ke area ini</p>
+                            <input type="file" name="file" id="db-fileInput" accept=".xlsx" style="display: none;" required>
+                        </div>
+                        <button type="submit" id="btnDbUploadSubmit" class="filter-btn-primary" style="width: 100%;">Upload &amp; Sinkronkan</button>
+                    </form>
+                    <div id="db-uploadStatus" style="margin-top: 12px; font-size: 12px; text-align: center; font-weight: 600;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ======================================================== -->
+        <!-- 16. Saham Suspensi & Gap IPOT Modal                      -->
+        <!-- ======================================================== -->
+        <div id="suspendModal" class="filter-modal-backdrop hidden" style="z-index: 110;">
+            <div class="filter-modal form-modal" style="max-width: 480px; max-height: 85vh; display: flex; flex-direction: column;" onclick="event.stopPropagation()">
+                <div class="filter-modal-header">
+                    <div class="filter-modal-title-group">
+                        <h3 class="filter-modal-title">⚡ Saham Suspensi &amp; Gap IPOT</h3>
+                        <p class="filter-modal-subtitle">Monitoring anomali penarikan broker summary</p>
+                    </div>
+                    <button class="sheet-close close-suspend-modal" title="Tutup">✕</button>
+                </div>
+                <div class="form-modal-body" style="overflow-y: auto; flex: 1;">
+                    <div id="suspendModalContent" class="gap-list"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ======================================================== -->
+        <!-- 17. Bot Logs & Issues Modal                             -->
+        <!-- ======================================================== -->
+        <div id="logsModal" class="filter-modal-backdrop hidden" style="z-index: 110;">
+            <div class="filter-modal form-modal" style="max-width: 500px; max-height: 85vh; display: flex; flex-direction: column;" onclick="event.stopPropagation()">
+                <div class="filter-modal-header">
+                    <div class="filter-modal-title-group">
+                        <h3 class="filter-modal-title">📋 Recent Bot Issues (48h)</h3>
+                        <p class="filter-modal-subtitle">Log peringatan &amp; error sistem harvester</p>
+                    </div>
+                    <button class="sheet-close close-logs-modal" title="Tutup">✕</button>
+                </div>
+                <div class="form-modal-body" style="overflow-y: auto; flex: 1;">
+                    <div id="logsModalContent" class="error-list"></div>
+                </div>
             </div>
         </div>
 
