@@ -600,6 +600,10 @@ class CandlifyChart {
             btnDbUploadSubmit: document.getElementById('btnDbUploadSubmit'),
             dbUploadStatus: document.getElementById('db-uploadStatus'),
             liveClock: document.getElementById('live-clock'),
+            dbServerStatus: document.getElementById('db-server-status'),
+            dbEngineStatus: document.getElementById('db-engine-status'),
+            dbEngineDot: document.getElementById('db-engine-dot'),
+            dbLastSyncBadge: document.getElementById('db-last-sync-badge'),
 
             // ── Settings View Elements ──
             settingsView: document.getElementById('settings-view'),
@@ -4007,6 +4011,19 @@ class CandlifyChart {
                 const master = d.saham || { total: 0, last_update: 'N/A' };
                 const stats = d.archive?.stats || { total_harga: 0, total_broksum: 0, min_date: 'N/A', max_date: 'N/A' };
 
+                if (this.dom.dbLastSyncBadge) {
+                    this.dom.dbLastSyncBadge.textContent = `Last Synced: ${master.last_update || '-'}`;
+                }
+                if (this.dom.dbEngineStatus) {
+                    this.dom.dbEngineStatus.textContent = 'Neon DB Aktif';
+                }
+                if (this.dom.dbServerStatus) {
+                    this.dom.dbServerStatus.textContent = 'Neon DB Online';
+                }
+                if (this.dom.dbEngineDot) {
+                    this.dom.dbEngineDot.style.background = '#10b981';
+                }
+
                 if (this.dom.dbStatTotalEmiten) {
                     this.dom.dbStatTotalEmiten.textContent = master.total ? `${master.total}` : '0';
                 }
@@ -4080,6 +4097,15 @@ class CandlifyChart {
             }
         } catch (err) {
             console.warn('Gagal memuat status database health:', err);
+            if (this.dom.dbEngineStatus) {
+                this.dom.dbEngineStatus.textContent = 'Neon DB Idle';
+            }
+            if (this.dom.dbServerStatus) {
+                this.dom.dbServerStatus.textContent = 'Offline';
+            }
+            if (this.dom.dbEngineDot) {
+                this.dom.dbEngineDot.style.background = '#f59e0b';
+            }
         }
     }
 

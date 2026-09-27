@@ -35,64 +35,46 @@
                     </div>
                     <div style="display: flex; align-items: center; gap: 8px;">
                         <span id="live-clock" style="font-family: var(--font-mono); font-size: 11px; font-weight: 700; color: var(--text-secondary); background: rgba(255,255,255,0.06); padding: 2px 7px; border-radius: 6px;">--:--</span>
-                        <span class="source-status-pill">
-                            <span class="source-dot"></span>
-                            <span id="db-engine-status">Engine Aktif</span>
+                        <span class="source-status-pill" id="db-engine-pill">
+                            <span class="source-dot" id="db-engine-dot"></span>
+                            <span id="db-engine-status">Neon DB Aktif</span>
                         </span>
                     </div>
                 </div>
             </header>
 
-            <main class="home-content-scroll">
-                <!-- Welcome / System Architecture Hero Card -->
-                <div class="home-hero-card">
-                    <div class="hero-left">
-                        <span class="hero-tag">GLORY ENGINE &amp; CANDLIFY UNIFIED</span>
-                        <h2 class="hero-title">Database Monitor IDX</h2>
-                        <p class="hero-desc">Pusat data master emiten BEI, broker summary harian, dan pemantauan sinkronisasi Neon DB Serverless.</p>
+            <main class="home-content-scroll" style="display: flex; flex-direction: column; gap: 12px; padding: 14px 12px 90px;">
+                <!-- 1. Data Overview Card (Versi Asli Stock Engine - Simpel & Bersih) -->
+                <div class="db-overview-card">
+                    <div class="db-overview-header">
+                        <div class="db-overview-title">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"></path><path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"></path></svg>
+                            <span>Data Overview</span>
+                        </div>
+                        <span class="status-badge badge-green" id="db-last-sync-badge">Last Synced: --</span>
+                    </div>
+                    
+                    <div class="stat-grid">
+                        <div class="stat-box">
+                            <div class="stat-box-title">Total Emiten</div>
+                            <div class="stat-box-value" id="db-stat-total-emiten">--</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-box-title">Harga Aktif</div>
+                            <div class="stat-box-value" id="db-stat-active-price">--</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-box-title">Broksum Aktif</div>
+                            <div class="stat-box-value" id="db-stat-active-broksum">--</div>
+                        </div>
+                    </div>
+                    
+                    <div class="db-overview-range">
+                        Rentang data: <strong id="db-stat-date-range">-- s.d. --</strong>
                     </div>
                 </div>
 
-                <!-- 4 Master Data Stats (Sesuai Desain Stock Engine PWA) -->
-                <div class="db-metrics-grid">
-                    <div class="db-metric-card" id="btn-db-go-screener" title="Buka Candlify Screener">
-                        <div class="db-metric-top">
-                            <span class="db-metric-label">Total Emiten</span>
-                            <span class="db-metric-tag blue" id="db-stat-emiten-tag">BEI Master</span>
-                        </div>
-                        <div class="db-metric-val" id="db-stat-total-emiten">--</div>
-                        <div class="db-metric-sub" id="db-stat-emiten-sub">Seluruh saham terdaftar</div>
-                    </div>
-
-                    <div class="db-metric-card">
-                        <div class="db-metric-top">
-                            <span class="db-metric-label">Harga Aktif</span>
-                            <span class="db-metric-tag emerald">Real-time</span>
-                        </div>
-                        <div class="db-metric-val" id="db-stat-active-price">--</div>
-                        <div class="db-metric-sub" id="db-stat-price-sub">Candlestick feed terupdate</div>
-                    </div>
-
-                    <div class="db-metric-card">
-                        <div class="db-metric-top">
-                            <span class="db-metric-label">Broksum Aktif</span>
-                            <span class="db-metric-tag purple">Net Flow</span>
-                        </div>
-                        <div class="db-metric-val" id="db-stat-active-broksum">--</div>
-                        <div class="db-metric-sub" id="db-stat-broksum-sub">HMB &amp; akumulasi bandar</div>
-                    </div>
-
-                    <div class="db-metric-card">
-                        <div class="db-metric-top">
-                            <span class="db-metric-label">Rentang Data</span>
-                            <span class="db-metric-tag amber">Neon DB</span>
-                        </div>
-                        <div class="db-metric-val font-sm" id="db-stat-date-range">--</div>
-                        <div class="db-metric-sub" id="db-stat-range-sub">PostgreSQL Cloud Storage</div>
-                    </div>
-                </div>
-
-                <!-- Month Calendar Heatmap Card (STANDOUT FEATURE FROM STOCK ENGINE) -->
+                <!-- 2. Month Calendar Heatmap Card (STANDOUT FEATURE FROM STOCK ENGINE) -->
                 <div class="db-calendar-card">
                     <div class="db-cal-header-row">
                         <div class="db-cal-title-wrap">
@@ -109,7 +91,7 @@
                     </div>
                 </div>
 
-                <!-- Action Bar: 3 Tombol Fitur dari Stock Engine -->
+                <!-- 3. Action Bar: 3 Tombol Fitur dari Stock Engine -->
                 <div class="db-action-bar">
                     <button id="btnActionSuspend" class="db-action-btn" title="Lihat Saham Suspensi & Gap IPOT">
                         <span class="action-btn-badge hidden" id="badgeSuspendCount">0</span>
@@ -127,46 +109,6 @@
                         <span class="action-btn-icon">📥</span>
                         <span class="action-btn-text">Upload Master</span>
                     </button>
-                </div>
-
-                <!-- Small Info Cards (Permintaan Khusus Mas Dhika) -->
-                <div class="db-info-section">
-                    <h4 class="db-section-title">📊 Info Pantauan &amp; Konfigurasi Akun</h4>
-                    
-                    <div class="db-info-cards-row">
-                        <!-- Info Card 1: Jumlah Saham di Watchlist -->
-                        <div class="db-mini-info-card" id="btn-db-go-watchlist" title="Buka Tab Watchlist">
-                            <div class="mini-info-icon gold">⭐</div>
-                            <div class="mini-info-body">
-                                <span class="mini-info-lbl">Saham di Watchlist</span>
-                                <span class="mini-info-val gold" id="db-stat-wl-count">0 Saham</span>
-                                <span class="mini-info-hint">Setup aktif yang dipantau</span>
-                            </div>
-                            <span class="mini-info-arrow">›</span>
-                        </div>
-
-                        <!-- Info Card 2: Toleransi Risiko Posisi -->
-                        <div class="db-mini-info-card" id="btn-db-go-settings-risk" title="Atur Toleransi Risiko di Pengaturan">
-                            <div class="mini-info-icon emerald">🛡️</div>
-                            <div class="mini-info-body">
-                                <span class="mini-info-lbl">Batas Risiko per Posisi</span>
-                                <span class="mini-info-val emerald" id="db-stat-risk-nominal">Rp 1.000.000 (1.0%)</span>
-                                <span class="mini-info-hint" id="db-stat-capital-sub">Modal: Rp 100.000.000</span>
-                            </div>
-                            <span class="mini-info-arrow">›</span>
-                        </div>
-
-                        <!-- Info Card 3: Sumber Feed Candlestick 1D -->
-                        <div class="db-mini-info-card" id="btn-db-go-settings-feed" title="Ubah Sumber Feed di Pengaturan">
-                            <div class="mini-info-icon blue">📡</div>
-                            <div class="mini-info-body">
-                                <span class="mini-info-lbl">Data Feed Harian (1D)</span>
-                                <span class="mini-info-val blue" id="db-stat-feed-source">Neon DB (Glory Engine)</span>
-                                <span class="mini-info-hint">Timeframe 1D Candlestick</span>
-                            </div>
-                            <span class="mini-info-arrow">›</span>
-                        </div>
-                    </div>
                 </div>
             </main>
         </div>

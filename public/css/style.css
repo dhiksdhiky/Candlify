@@ -3194,6 +3194,86 @@ select option:checked,
 }
 
 /* ======================================================== */
+/* DATABASE OVERVIEW CARD (ORIGINAL STOCK ENGINE STYLE)     */
+/* ======================================================== */
+.db-overview-card {
+    background: rgba(18, 24, 38, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    padding: 14px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+}
+
+.db-overview-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+
+.db-overview-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+}
+
+.stat-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+}
+
+.stat-box {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+    padding: 10px 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 2px;
+}
+
+.stat-box-title {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.stat-box-value {
+    font-size: 16px;
+    font-weight: 800;
+    font-family: var(--font-mono);
+    color: #fff;
+}
+
+.stat-box-sub {
+    font-size: 9px;
+    color: var(--accent-cyan);
+}
+
+.db-overview-range {
+    font-size: 10.5px;
+    color: var(--text-muted);
+    margin-top: 10px;
+    text-align: center;
+}
+
+.db-overview-range strong {
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+}
+
+/* ======================================================== */
 /* DATABASE CALENDAR SYNC HEATMAP & ACTION BAR             */
 /* ======================================================== */
 .db-calendar-card {
