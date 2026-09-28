@@ -4455,7 +4455,7 @@ class CandlifyChart {
         const monthNames = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
 
         if (this.dom.calendarMonthTitle) {
-            this.dom.calendarMonthTitle.innerText = `${monthNames[currentMonth]} ${currentYear} Sync History`;
+            this.dom.calendarMonthTitle.innerText = `${monthNames[currentMonth]} ${currentYear}`;
         }
 
         // Update nav buttons disabled state
