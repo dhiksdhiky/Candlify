@@ -390,6 +390,40 @@ html, body {
     height: 100%;
 }
 
+/* Floating Auto-Scale Reset Button for Price Y-Axis */
+.auto-scale-btn {
+    position: absolute;
+    bottom: 50px;
+    right: 75px;
+    z-index: 30;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(15, 23, 42, 0.88);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(59, 130, 246, 0.45);
+    color: #60a5fa;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 5px 12px;
+    border-radius: 20px;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+    transition: all 0.15s ease;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.auto-scale-btn:active {
+    transform: scale(0.94);
+    background: rgba(59, 130, 246, 0.25);
+}
+
+.auto-scale-btn.hidden {
+    display: none !important;
+}
+
 /* Compact Floating Object Contextual Toolbar (TradingView / Figma Style) */
 .overlay-action-popup {
     position: absolute;

@@ -13,7 +13,7 @@ concurrency:
 jobs:
   run-harvester:
     runs-on: ubuntu-latest
-    timeout-minutes: 360 # Setup timeout batas maksimal 6 jam
+    timeout-minutes: 200 # Timeout job total maksimal 3.3 jam
     
     steps:
     - name: Checkout repository
@@ -31,10 +31,12 @@ jobs:
         pip install -r worker/requirements.txt
         
     - name: Run Stock Engine (Pipeline + Harvester)
+      timeout-minutes: 180 # Strict step timeout: runner actively kills if step reaches 3 jam
       env:
+        PYTHONUNBUFFERED: "1"
         DATABASE_URL: ${{ secrets.DATABASE_URL }}
         TELE_BOT_DHIKSDHIKY: ${{ secrets.TELE_BOT_DHIKSDHIKY }}
         TELE_CHAT_ID_DHIKA: ${{ secrets.TELE_CHAT_ID_DHIKA }}
       run: |
         cd worker
-        python run.py
+        python -u run.py

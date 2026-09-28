@@ -164,13 +164,6 @@ class BatchHarvester:
             ticker, target_date = row[0], row[1]
             status = self.process_target(ticker, target_date)
 
-            # Heartbeat ping for serverless DB (Keep-alive)
-            try:
-                with engine.connect() as conn:
-                    conn.execute(text("SELECT 1"))
-            except Exception as e:
-                logger.warning(f"⚠️ Heartbeat ping failed: {e}")
-
             if status == 'success':
                 success_count += 1
                 consecutive_failures = 0

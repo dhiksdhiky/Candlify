@@ -793,11 +793,14 @@ class CandlifyChart {
             this.chart.setTimezone('Asia/Jakarta');
         }
         
-        // 2. Tambahkan Sub-Pane Volume (VOL) secara default
-        this.chart.createIndicator('VOL', false, { id: 'pane_vol', height: 75 });
+        // 2. Tambahkan Sub-Pane Volume (VOL) secara default (Tinggi responsif untuk mobile PWA)
+        const isMobile = window.innerWidth <= 768;
+        const defaultVolHeight = isMobile ? 110 : 85;
+        this.chart.createIndicator('VOL', false, { id: 'pane_vol', height: defaultVolHeight });
         
-        // 3. Pasang Event Listeners & Sinkronkan UI SnR
+        // 3. Pasang Event Listeners, Mobile Gestures, & Sinkronkan UI SnR
         this.setupEvents();
+        this.setupMobileChartGestures();
         this.setupToolEvents();
         this.setupScreenerEvents();
         this.setupWatchlistEvents();
@@ -945,6 +948,12 @@ class CandlifyChart {
                     text: { color: '#ffffff', backgroundColor: '#334155' }
                 }
             },
+            separator: {
+                size: 2,
+                color: 'rgba(255, 255, 255, 0.16)',
+                fill: true,
+                activeBackgroundColor: 'rgba(59, 130, 246, 0.4)'
+            },
             overlay: {
                 point: {
                     color: '#10b981',
@@ -962,6 +971,155 @@ class CandlifyChart {
         };
     }
     
+    setupMobileChartGestures() {
+        const container = document.getElementById('chart-container');
+        if (!container || !this.chart) return;
+
+        let activeGesture = null; // 'vol_resize' | 'yaxis_scale'
+        let startTouchY = 0;
+        let startVolHeight = 110;
+        let startExtremum = null;
+        let lastYAxisTapTime = 0;
+
+        // Subtle floating button "Auto Skala" when vertical price axis is manually zoomed/scaled
+        let autoScaleBtn = document.getElementById('btn-auto-scale-y');
+        if (!autoScaleBtn) {
+            autoScaleBtn = document.createElement('button');
+            autoScaleBtn.id = 'btn-auto-scale-y';
+            autoScaleBtn.className = 'auto-scale-btn hidden';
+            autoScaleBtn.innerHTML = '<span>⟲ Auto Skala</span>';
+            autoScaleBtn.title = 'Kembalikan skala harga vertikal ke otomatis';
+            if (container.parentElement) {
+                container.parentElement.appendChild(autoScaleBtn);
+            }
+
+            autoScaleBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.resetPriceAxisScale();
+            });
+        }
+
+        const resetScale = () => {
+            const candlePane = this.chart.getCandlePane ? this.chart.getCandlePane() : null;
+            if (candlePane) {
+                const axis = candlePane.getAxisComponent ? candlePane.getAxisComponent() : null;
+                if (axis) {
+                    axis.setAutoCalcTickFlag(true);
+                    this.chart.adjustPaneViewport(false, true, true, true);
+                    if (autoScaleBtn) autoScaleBtn.classList.add('hidden');
+                }
+            }
+        };
+        this.resetPriceAxisScale = resetScale;
+
+        // Double-click on price scale (mouse or tap) resets auto-scale
+        container.addEventListener('dblclick', (e) => {
+            const rect = container.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            if (x >= rect.width - 70) {
+                resetScale();
+            }
+        });
+
+        // Touch gestures for mobile PWA
+        container.addEventListener('touchstart', (e) => {
+            if (e.touches.length !== 1) return;
+            const touch = e.touches[0];
+            const rect = container.getBoundingClientRect();
+            const x = touch.clientX - rect.left;
+            const y = touch.clientY - rect.top;
+
+            // 1. Right side Price Y-Axis (Width ~65px)
+            if (x >= rect.width - 65) {
+                const now = Date.now();
+                if (now - lastYAxisTapTime < 350) {
+                    // Double tap on price scale -> reset auto-scale!
+                    resetScale();
+                    lastYAxisTapTime = 0;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    return;
+                }
+                lastYAxisTapTime = now;
+
+                const candlePane = this.chart.getCandlePane ? this.chart.getCandlePane() : null;
+                const axis = candlePane && candlePane.getAxisComponent ? candlePane.getAxisComponent() : null;
+                if (axis) {
+                    activeGesture = 'yaxis_scale';
+                    startTouchY = touch.clientY;
+                    const ext = axis.getExtremum ? axis.getExtremum() : null;
+                    startExtremum = ext ? { ...ext } : null;
+                    e.stopPropagation();
+                }
+                return;
+            }
+
+            // 2. Near Volume Pane Divider line (Touch tolerance +/- 28px)
+            const volPane = this.chart.getDrawPaneById ? this.chart.getDrawPaneById('pane_vol') : null;
+            if (volPane && volPane.getBounding) {
+                const volBound = volPane.getBounding();
+                const dividerY = volBound.top;
+                if (Math.abs(y - dividerY) <= 28) {
+                    activeGesture = 'vol_resize';
+                    startTouchY = touch.clientY;
+                    startVolHeight = volBound.height || 110;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    return;
+                }
+            }
+        }, { capture: true, passive: false });
+
+        container.addEventListener('touchmove', (e) => {
+            if (!activeGesture || e.touches.length !== 1) return;
+            const touch = e.touches[0];
+            const rect = container.getBoundingClientRect();
+
+            if (activeGesture === 'vol_resize') {
+                e.preventDefault();
+                e.stopPropagation();
+                const deltaY = startTouchY - touch.clientY; // drag up -> increase height
+                const maxH = Math.floor(rect.height * 0.55);
+                const newH = Math.max(50, Math.min(maxH, Math.round(startVolHeight + deltaY)));
+                this.chart.setPaneOptions({ id: 'pane_vol', height: newH });
+            } else if (activeGesture === 'yaxis_scale' && startExtremum && startExtremum.range) {
+                e.preventDefault();
+                e.stopPropagation();
+                const deltaY = touch.clientY - startTouchY;
+                // Move down -> compress (larger range), Move up -> expand (smaller range)
+                const factor = Math.exp(deltaY / 160);
+                const newRange = startExtremum.range * factor;
+                const diff = (newRange - startExtremum.range) / 2;
+                const newMin = startExtremum.min - diff;
+                const newMax = startExtremum.max + diff;
+
+                const candlePane = this.chart.getCandlePane ? this.chart.getCandlePane() : null;
+                const axis = candlePane && candlePane.getAxisComponent ? candlePane.getAxisComponent() : null;
+                if (axis) {
+                    const rMin = typeof axis.convertToRealValue === 'function' ? axis.convertToRealValue(newMin) : newMin;
+                    const rMax = typeof axis.convertToRealValue === 'function' ? axis.convertToRealValue(newMax) : newMax;
+                    axis.setExtremum({
+                        min: newMin,
+                        max: newMax,
+                        range: newRange,
+                        realMin: rMin,
+                        realMax: rMax,
+                        realRange: rMax - rMin
+                    });
+                    this.chart.adjustPaneViewport(false, true, true, true);
+                    if (autoScaleBtn) autoScaleBtn.classList.remove('hidden');
+                }
+            }
+        }, { capture: true, passive: false });
+
+        const endGesture = () => {
+            activeGesture = null;
+            startExtremum = null;
+        };
+        container.addEventListener('touchend', endGesture, { capture: true });
+        container.addEventListener('touchcancel', endGesture, { capture: true });
+    }
+
     setupEvents() {
         // Resize Window
         window.addEventListener('resize', () => {
@@ -3362,10 +3520,18 @@ class CandlifyChart {
     getHumanAge(createdAtStr) {
         if (!createdAtStr) return 'Baru';
         try {
-            const created = new Date(createdAtStr.endsWith('Z') ? createdAtStr : createdAtStr + 'Z');
+            let s = String(createdAtStr).trim();
+            let created;
+            if (s.endsWith('Z') || /[+-]\d{2}:?\d{2}$/.test(s)) {
+                created = new Date(s);
+            } else {
+                created = new Date(s.replace(' ', 'T') + 'Z');
+            }
+            if (isNaN(created.getTime())) return 'Baru';
+
             const now = new Date();
             const diffMs = now - created;
-            if (isNaN(diffMs) || diffMs < 0) return 'Baru';
+            if (diffMs < 0) return 'Baru saja';
             
             const diffMins = Math.floor(diffMs / (1000 * 60));
             if (diffMins < 60) {
@@ -3429,7 +3595,7 @@ class CandlifyChart {
             const changeSign = isUp ? '+' : '';
             const changeClass = isUp ? 'up' : 'down';
             const name = item.name && item.name !== sym ? item.name : 'Emiten IDX';
-            const ageStr = this.getHumanAge(item.created_at);
+            const ageStr = (item.created_at ? this.getHumanAge(item.created_at) : (item.age || 'Baru'));
             const isFresh = ageStr.includes('Baru') || ageStr.includes('j lalu') || ageStr === 'Kemarin';
 
             return `

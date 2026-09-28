@@ -49,17 +49,27 @@ def _format_age(created_at: datetime) -> str:
         created_at = created_at.replace(tzinfo=timezone.utc)
     
     delta = now - created_at
+    if delta.total_seconds() < 0:
+        return "Baru saja"
+
     days = delta.days
     hours = delta.seconds // 3600
+    minutes = delta.seconds // 60
 
     if days == 0:
-        if hours < 1:
+        if minutes <= 5:
             return "Baru saja"
+        if hours < 1:
+            return f"{minutes}m lalu"
         return f"{hours}j lalu"
     elif days == 1:
         return "Kemarin"
-    else:
+    elif days < 7:
         return f"{days}h lalu"
+    elif days < 28:
+        return f"{days // 7}mgg lalu"
+    else:
+        return f"{max(1, days // 30)}bln lalu"
 
 
 def get_all_watchlists(category: Optional[str] = None) -> List[Dict[str, Any]]:

@@ -133,7 +133,7 @@ class BroksumScraper:
             }
 
             response = self.session.get(
-                self.base_url, params=params, headers=headers, timeout=15
+                self.base_url, params=params, headers=headers, timeout=(5, 15)
             )
             response.raise_for_status()
 

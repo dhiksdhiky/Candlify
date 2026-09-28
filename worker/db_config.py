@@ -102,14 +102,21 @@ else:
     elif DATABASE_URL.startswith("postgresql://"):
         DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://", 1)
 
-    # Inisialisasi Engine dengan Retry (Exponential Backoff)
+    # Inisialisasi Engine dengan Retry (Exponential Backoff) & Anti-Hang Socket Keepalive
     temp_engine = create_engine(
         DATABASE_URL,
         pool_pre_ping=True,
         pool_size=2,
         max_overflow=2,
         pool_recycle=300,
-        connect_args={"connect_timeout": 15}
+        connect_args={
+            "connect_timeout": 15,
+            "keepalives": 1,
+            "keepalives_idle": 30,
+            "keepalives_interval": 10,
+            "keepalives_count": 5,
+            "options": "-c statement_timeout=30000"
+        }
     )
 
     max_retries = 6
