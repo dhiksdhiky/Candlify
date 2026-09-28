@@ -580,6 +580,9 @@ class CandlifyChart {
             homeWatchlistCount: document.getElementById('db-stat-wl-count') || document.getElementById('home-watchlist-count'),
             calendarGrid: document.getElementById('calendar-grid'),
             calendarMonthTitle: document.getElementById('calendar-month-title'),
+            dbCalendarCard: document.getElementById('db-calendar-card'),
+            btnCalPrev: document.getElementById('btn-cal-prev'),
+            btnCalNext: document.getElementById('btn-cal-next'),
             btnActionSuspend: document.getElementById('btnActionSuspend'),
             btnActionLogs: document.getElementById('btnActionLogs'),
             btnActionUpload: document.getElementById('btnActionUpload'),
@@ -2931,6 +2934,56 @@ class CandlifyChart {
                 }
             });
         }
+
+        // 6. Calendar Month Navigation (< and > buttons)
+        if (this.dom.btnCalPrev) {
+            this.dom.btnCalPrev.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.navigateCalendarMonth(-1);
+            });
+        }
+        if (this.dom.btnCalNext) {
+            this.dom.btnCalNext.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.navigateCalendarMonth(1);
+            });
+        }
+
+        // 7. Calendar Touch Swipe Gestures (Mobile / PWA)
+        const calContainer = this.dom.dbCalendarCard || this.dom.calendarGrid;
+        if (calContainer) {
+            let touchStartX = 0;
+            let touchStartY = 0;
+            let touchStartTime = 0;
+
+            calContainer.addEventListener('touchstart', (e) => {
+                if (!e.changedTouches || e.changedTouches.length === 0) return;
+                touchStartX = e.changedTouches[0].screenX;
+                touchStartY = e.changedTouches[0].screenY;
+                touchStartTime = Date.now();
+            }, { passive: true });
+
+            calContainer.addEventListener('touchend', (e) => {
+                if (!e.changedTouches || e.changedTouches.length === 0) return;
+                const touchEndX = e.changedTouches[0].screenX;
+                const touchEndY = e.changedTouches[0].screenY;
+                const touchDuration = Date.now() - touchStartTime;
+
+                const diffX = touchEndX - touchStartX;
+                const diffY = touchEndY - touchStartY;
+
+                // Gerakan horizontal jelas (> 35px), lebih besar dari vertikal, durasi gestur < 800ms
+                if (Math.abs(diffX) > 35 && Math.abs(diffX) > Math.abs(diffY) * 1.3 && touchDuration < 800) {
+                    if (diffX > 0) {
+                        // Geser kanan (swipe right) -> Bulan sebelumnya
+                        this.navigateCalendarMonth(-1);
+                    } else {
+                        // Geser kiri (swipe left) -> Bulan berikutnya
+                        this.navigateCalendarMonth(1);
+                    }
+                }
+            }, { passive: true });
+        }
     }
 
     openUploadModal() {
@@ -4258,8 +4311,15 @@ class CandlifyChart {
                     }
                 }
 
+                // Simpan metadata kalender dan cache
+                this.calendarAvailableMonths = d.available_months || ['2026-09', '2026-08', '2026-07', '2026-06', '2026-05', '2026-04', '2026-03'];
+                const activeMonth = d.current_month || this.calendarAvailableMonths[0] || '2026-09';
+                this.currentCalMonthStr = activeMonth;
+                if (!this.calendarCache) this.calendarCache = {};
+                this.calendarCache[activeMonth] = d.history || [];
+
                 // Render Calendar Heatmap
-                this.renderSyncCalendar(d.history || []);
+                this.renderSyncCalendar(d.history || [], activeMonth);
             } else {
                 throw new Error(json.detail || json.error || `HTTP ${res.status}`);
             }
@@ -4297,16 +4357,117 @@ class CandlifyChart {
         }
     }
 
-    renderSyncCalendar(historyData) {
+    async navigateCalendarMonth(direction) {
+        // direction: -1 (mundur / bulan lampau), +1 (maju / bulan terbaru)
+        if (!this.calendarAvailableMonths || this.calendarAvailableMonths.length === 0) return;
+
+        const currentIdx = this.calendarAvailableMonths.indexOf(this.currentCalMonthStr);
+        if (currentIdx === -1) return;
+
+        // calendarAvailableMonths diurutkan DESC: index 0 paling baru, index length-1 paling lama
+        // direction -1 (mundur ke masa lalu) -> index naik (+1)
+        // direction +1 (maju ke masa kini) -> index turun (-1)
+        const targetIdx = currentIdx - direction;
+        if (targetIdx < 0 || targetIdx >= this.calendarAvailableMonths.length) {
+            return; // Di luar jangkauan bulan
+        }
+
+        const targetMonth = this.calendarAvailableMonths[targetIdx];
+        await this.loadAndRenderCalendarMonth(targetMonth, direction);
+    }
+
+    async loadAndRenderCalendarMonth(monthStr, animDirection = 0) {
+        if (!monthStr) return;
+        this.currentCalMonthStr = monthStr;
+
+        // Update disabled buttons
+        const currentIdx = this.calendarAvailableMonths.indexOf(monthStr);
+        if (this.dom.btnCalPrev) {
+            this.dom.btnCalPrev.disabled = (currentIdx >= this.calendarAvailableMonths.length - 1);
+        }
+        if (this.dom.btnCalNext) {
+            this.dom.btnCalNext.disabled = (currentIdx <= 0);
+        }
+
+        // Trigger animasi CSS
+        if (this.dom.calendarGrid && animDirection !== 0) {
+            this.dom.calendarGrid.classList.remove('cal-anim-left', 'cal-anim-right');
+            void this.dom.calendarGrid.offsetWidth; // Force reflow
+            if (animDirection > 0) {
+                this.dom.calendarGrid.classList.add('cal-anim-left');
+            } else {
+                this.dom.calendarGrid.classList.add('cal-anim-right');
+            }
+        }
+
+        // Gunakan cache jika sudah pernah diload
+        if (this.calendarCache && this.calendarCache[monthStr]) {
+            this.renderSyncCalendar(this.calendarCache[monthStr], monthStr);
+            return;
+        }
+
+        // Tampilkan indikator loading di grid kalender
+        if (this.dom.calendarGrid) {
+            this.dom.calendarGrid.innerHTML = `
+                <div style="grid-column: 1 / -1; text-align: center; padding: 24px 10px; font-size: 11px; color: var(--text-muted);">
+                    <span class="spinner" style="display:inline-block; width:12px; height:12px; margin-right:6px; border:2px solid var(--accent-emerald); border-top-color:transparent; border-radius:50%; animation:spin 0.6s linear infinite; vertical-align:middle;"></span>
+                    Memuat riwayat sinkronisasi ${monthStr}...
+                </div>
+            `;
+        }
+
+        try {
+            const res = await fetch(`/api/database/calendar?month=${encodeURIComponent(monthStr)}`);
+            const json = await res.json();
+            if (res.ok && json.status === 'success') {
+                if (!this.calendarCache) this.calendarCache = {};
+                this.calendarCache[monthStr] = json.history || [];
+                this.renderSyncCalendar(json.history || [], monthStr);
+            } else {
+                throw new Error(json.detail || 'Gagal memuat kalender');
+            }
+        } catch (err) {
+            console.warn(`Gagal memuat data kalender ${monthStr}:`, err);
+            if (this.dom.calendarGrid) {
+                this.dom.calendarGrid.innerHTML = `
+                    <div style="grid-column: 1 / -1; text-align: center; padding: 20px; font-size: 11px; color: var(--accent-rose);">
+                        ⚠️ Gagal memuat data ${monthStr} (${err.message})
+                    </div>
+                `;
+            }
+        }
+    }
+
+    renderSyncCalendar(historyData, monthStr = null) {
         if (!this.dom.calendarGrid) return;
 
-        const today = new Date();
-        const currentYear = today.getFullYear();
-        const currentMonth = today.getMonth(); // 0-11
+        let currentYear, currentMonth;
+        if (monthStr && monthStr.includes('-')) {
+            const parts = monthStr.split('-');
+            currentYear = parseInt(parts[0], 10);
+            currentMonth = parseInt(parts[1], 10) - 1; // 0-11
+        } else {
+            const today = new Date();
+            currentYear = today.getFullYear();
+            currentMonth = today.getMonth();
+        }
+
         const monthNames = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
 
         if (this.dom.calendarMonthTitle) {
             this.dom.calendarMonthTitle.innerText = `${monthNames[currentMonth]} ${currentYear} Sync History`;
+        }
+
+        // Update nav buttons disabled state
+        if (this.calendarAvailableMonths && this.calendarAvailableMonths.length > 0) {
+            const activeStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`;
+            const currentIdx = this.calendarAvailableMonths.indexOf(activeStr);
+            if (this.dom.btnCalPrev) {
+                this.dom.btnCalPrev.disabled = (currentIdx >= this.calendarAvailableMonths.length - 1);
+            }
+            if (this.dom.btnCalNext) {
+                this.dom.btnCalNext.disabled = (currentIdx <= 0);
+            }
         }
 
         const historyMap = {};
@@ -4327,10 +4488,13 @@ class CandlifyChart {
             html += `<div class="cal-box cal-box-empty"></div>`;
         }
 
+        const today = new Date();
+        const isCurrentRealMonth = (today.getFullYear() === currentYear && today.getMonth() === currentMonth);
+
         for (let day = 1; day <= daysInMonth; day++) {
-            const monthStr = String(currentMonth + 1).padStart(2, '0');
-            const dayStr = String(day).padStart(2, '0');
-            const dateStr = `${currentYear}-${monthStr}-${dayStr}`;
+            const monthPadded = String(currentMonth + 1).padStart(2, '0');
+            const dayPadded = String(day).padStart(2, '0');
+            const dateStr = `${currentYear}-${monthPadded}-${dayPadded}`;
 
             const hist = historyMap[dateStr];
             let boxClass = 'cal-box-empty';
@@ -4351,7 +4515,7 @@ class CandlifyChart {
                 `;
             }
 
-            const isToday = (day === today.getDate()) ? 'border: 1px solid var(--accent-emerald);' : '';
+            const isToday = (isCurrentRealMonth && day === today.getDate()) ? 'border: 1px solid var(--accent-emerald);' : '';
 
             html += `
                 <div class="cal-box ${boxClass}" style="${isToday}">

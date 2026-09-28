@@ -75,11 +75,15 @@
                 </div>
 
                 <!-- 2. Month Calendar Heatmap Card (STANDOUT FEATURE FROM STOCK ENGINE) -->
-                <div class="db-calendar-card">
+                <div class="db-calendar-card" id="db-calendar-card">
                     <div class="db-cal-header-row">
                         <div class="db-cal-title-wrap">
                             <span class="db-cal-icon">📅</span>
-                            <h4 id="calendar-month-title" class="db-cal-title">Sync History</h4>
+                            <div class="db-cal-nav-group">
+                                <button type="button" id="btn-cal-prev" class="cal-nav-btn" title="Bulan Sebelumnya (Geser Kanan)">◀</button>
+                                <h4 id="calendar-month-title" class="db-cal-title">Sync History</h4>
+                                <button type="button" id="btn-cal-next" class="cal-nav-btn" title="Bulan Berikutnya (Geser Kiri)">▶</button>
+                            </div>
                         </div>
                         <span class="status-badge badge-green" id="calendar-sync-badge">Auto Sync Active</span>
                     </div>

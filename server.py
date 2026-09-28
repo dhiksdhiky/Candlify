@@ -31,7 +31,7 @@ from pydantic import BaseModel, Field
 from lib.history import get_candlesticks
 from lib.bandarmologi import get_bandarmologi, get_broksum_range
 from lib.screener import get_screened_stocks
-from lib.database_monitor import get_database_metrics, process_saham_excel
+from lib.database_monitor import get_database_metrics, process_saham_excel, get_calendar_history
 from lib.portfolio import (
     get_all_watchlists,
     add_to_watchlist,
@@ -470,13 +470,21 @@ def api_delete_trading_plan(plan_id: int):
 # ── Database & Glory Engine Monitor Endpoints ───────────────
 
 @app.get("/api/database/health")
-def api_database_health():
+def api_database_health(month: Optional[str] = None):
     """Ambil status kesehatan, total baris emiten, dan riwayat sinkronisasi Neon DB."""
     try:
-        metrics = get_database_metrics()
+        metrics = get_database_metrics(target_month=month)
         return metrics
     except Exception as err:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Gagal memuat status database: {err}")
+
+@app.get("/api/database/calendar")
+def api_database_calendar(month: str = Query(...)):
+    """Ambil data riwayat sinkronisasi kalender per bulan (YYYY-MM)."""
+    try:
+        return get_calendar_history(month_str=month)
+    except Exception as err:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Gagal memuat kalender: {err}")
 
 @app.post("/api/database/upload")
 def api_database_upload(file: UploadFile = File(...)):

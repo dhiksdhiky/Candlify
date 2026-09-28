@@ -20,7 +20,68 @@ from lib.portfolio import get_engine
 logger = logging.getLogger("candlify.database_monitor")
 
 
-def get_database_metrics() -> Dict[str, Any]:
+def get_calendar_history(month_str: str) -> Dict[str, Any]:
+    """
+    Ambil riwayat sinkronisasi harian khusus bulan tertentu (YYYY-MM).
+    Sangat cepat & ringan untuk navigasi kalender.
+    """
+    engine = get_engine()
+    try:
+        parts = month_str.split('-')
+        year = int(parts[0])
+        month = int(parts[1])
+        first_day = date(year, month, 1)
+        if month == 12:
+            next_month_first_day = date(year + 1, 1, 1)
+        else:
+            next_month_first_day = date(year, month + 1, 1)
+    except Exception as e:
+        logger.warning(f"Format month_str tidak valid ({month_str}): {e}")
+        today = date.today()
+        first_day = today.replace(day=1)
+        if today.month == 12:
+            next_month_first_day = today.replace(year=today.year + 1, month=1, day=1)
+        else:
+            next_month_first_day = today.replace(month=today.month + 1, day=1)
+        month_str = first_day.strftime("%Y-%m")
+
+    history_data: List[Dict[str, Any]] = []
+    with engine.connect() as db:
+        try:
+            sql_history = text("""
+                SELECT 
+                    h.tanggal as date,
+                    COUNT(DISTINCT h.ticker) as harga_total,
+                    SUM(CASE WHEN h.volume > 0 THEN 1 ELSE 0 END) as target_harvester,
+                    (SELECT COUNT(DISTINCT b.ticker) FROM broker_summary b WHERE b.date = h.tanggal) as broker_total
+                FROM harga_saham h
+                WHERE h.tanggal >= :first_day AND h.tanggal < :next_month_first_day
+                GROUP BY h.tanggal
+                ORDER BY h.tanggal ASC
+            """)
+            hist_rows = db.execute(sql_history, {
+                "first_day": first_day, 
+                "next_month_first_day": next_month_first_day
+            }).fetchall()
+
+            for r in hist_rows:
+                history_data.append({
+                    "date": str(r.date),
+                    "ohlcv_scraped": int(r.harga_total) if r.harga_total else 0,
+                    "target_harvester": int(r.target_harvester) if r.target_harvester else 0,
+                    "broksum_synced": int(r.broker_total) if r.broker_total else 0
+                })
+        except Exception as e:
+            logger.warning(f"Error fetching calendar history for {month_str}: {e}")
+
+    return {
+        "status": "success",
+        "month": month_str,
+        "history": history_data
+    }
+
+
+def get_database_metrics(target_month: Optional[str] = None) -> Dict[str, Any]:
     """
     Ambil status kesehatan, kapasitas baris, dan riwayat sinkronisasi Neon DB.
     """
@@ -37,13 +98,43 @@ def get_database_metrics() -> Dict[str, Any]:
             saham_total = 0
             saham_date = "N/A"
 
-        # 2. Kalender & Pipeline Bulan Berjalan
-        today = date.today()
-        first_day = today.replace(day=1)
-        if today.month == 12:
-            next_month_first_day = today.replace(year=today.year + 1, month=1, day=1)
+        # 2. Daftar Bulan yang Tersedia (Available Months)
+        is_sqlite = engine.dialect.name == "sqlite"
+        if is_sqlite:
+            sql_months = text("SELECT DISTINCT strftime('%Y-%m', tanggal) as m FROM harga_saham WHERE tanggal IS NOT NULL ORDER BY m DESC")
         else:
-            next_month_first_day = today.replace(month=today.month + 1, day=1)
+            sql_months = text("SELECT DISTINCT TO_CHAR(tanggal, 'YYYY-MM') as m FROM harga_saham WHERE tanggal IS NOT NULL ORDER BY m DESC")
+        try:
+            available_months = [str(r[0]) for r in db.execute(sql_months).fetchall() if r[0]]
+        except Exception as e:
+            logger.warning(f"Error fetching available months: {e}")
+            available_months = []
+
+        # Tentukan bulan aktif kalender
+        if target_month and target_month in available_months:
+            active_month = target_month
+        elif available_months:
+            active_month = available_months[0]
+        else:
+            active_month = date.today().strftime("%Y-%m")
+
+        try:
+            parts = active_month.split('-')
+            year = int(parts[0])
+            month = int(parts[1])
+            first_day = date(year, month, 1)
+            if month == 12:
+                next_month_first_day = date(year + 1, 1, 1)
+            else:
+                next_month_first_day = date(year, month + 1, 1)
+        except Exception:
+            today = date.today()
+            first_day = today.replace(day=1)
+            if today.month == 12:
+                next_month_first_day = today.replace(year=today.year + 1, month=1, day=1)
+            else:
+                next_month_first_day = today.replace(month=today.month + 1, day=1)
+            active_month = first_day.strftime("%Y-%m")
 
         history_data: List[Dict[str, Any]] = []
         try:
@@ -161,6 +252,8 @@ def get_database_metrics() -> Dict[str, Any]:
     return {
         "status": "success",
         "data": {
+            "current_month": active_month,
+            "available_months": available_months,
             "saham": {"total": saham_total, "last_update": saham_date},
             "pipeline": pipeline_data,
             "history": history_data,

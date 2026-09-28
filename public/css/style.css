@@ -3333,6 +3333,45 @@ select option:checked,
     gap: 8px;
 }
 
+.db-cal-nav-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.cal-nav-btn {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    color: var(--text-main);
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 10px;
+    transition: all 0.2s ease;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    padding: 0;
+}
+
+.cal-nav-btn:hover:not(:disabled) {
+    background: rgba(16, 185, 129, 0.2);
+    border-color: rgba(16, 185, 129, 0.5);
+    color: #34d399;
+}
+
+.cal-nav-btn:active:not(:disabled) {
+    transform: scale(0.92);
+}
+
+.cal-nav-btn:disabled {
+    opacity: 0.25;
+    cursor: not-allowed;
+}
+
 .db-cal-icon {
     font-size: 16px;
 }
@@ -3342,6 +3381,7 @@ select option:checked,
     font-weight: 800;
     color: #34d399;
     margin: 0;
+    white-space: nowrap;
 }
 
 .calendar-header {
@@ -3359,6 +3399,25 @@ select option:checked,
     display: grid;
     grid-template-columns: repeat(7, 1fr);
     gap: 5px;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.calendar-grid.cal-anim-left {
+    animation: calSlideInLeft 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.calendar-grid.cal-anim-right {
+    animation: calSlideInRight 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes calSlideInLeft {
+    from { opacity: 0.3; transform: translateX(-16px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes calSlideInRight {
+    from { opacity: 0.3; transform: translateX(16px); }
+    to { opacity: 1; transform: translateX(0); }
 }
 
 .cal-box {

@@ -186,6 +186,17 @@ def test_api_database_health():
     assert "history" in d
     assert isinstance(d["history"], list)
     assert len(d["history"]) > 0
+    assert "available_months" in d
+    assert len(d["available_months"]) >= 7
+    assert "current_month" in d
+
+    # Test /api/database/calendar endpoint for specific historical month (August 2026)
+    res_cal = client.get("/api/database/calendar?month=2026-08")
+    assert res_cal.status_code == 200
+    cal_data = res_cal.json()
+    assert cal_data.get("status") == "success"
+    assert cal_data.get("month") == "2026-08"
+    assert len(cal_data.get("history", [])) == 19
 
     # Also test legacy /api/stock?action=health alias
     res_alias = client.get("/api/stock?action=health")
@@ -204,6 +215,8 @@ def test_database_ui_elements():
     assert "db-stat-date-range" in html
     assert "calendar-grid" in html
     assert "calendar-month-title" in html
+    assert "btn-cal-prev" in html
+    assert "btn-cal-next" in html
     assert "btnActionSuspend" in html
     assert "btnActionLogs" in html
     assert "btnActionUpload" in html
@@ -216,6 +229,7 @@ def test_database_ui_elements():
     assert res_js.status_code == 200
     assert "setupDatabaseEvents" in res_js.text
     assert "renderSyncCalendar" in res_js.text
+    assert "navigateCalendarMonth" in res_js.text
     assert "openUploadModal" in res_js.text
 
 
