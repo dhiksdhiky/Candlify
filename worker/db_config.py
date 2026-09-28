@@ -63,10 +63,11 @@ def get_backfill_floor() -> date:
     """
     Batas bawah penarikan data (start_dt):
     - Minimal 1 hari setelah akhir bulan yang sudah completed
-    - Dikunci minimal today - 45 hari (safety net)
+    - Dikunci minimal today - (30 * RETENTION_MONTHS) hari (safety net)
     """
     today = today_jkt()
-    min_allowed = today - timedelta(days=45)
+    retention_months = int(os.environ.get("RETENTION_MONTHS", "7"))
+    min_allowed = today - timedelta(days=30 * retention_months)
     last_m = get_last_completed_month()
     if last_m:
         try:

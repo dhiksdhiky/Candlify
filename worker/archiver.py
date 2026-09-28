@@ -111,22 +111,43 @@ def _mark_completed(month_str: str, status_str: str, dialect: str):
         logger.error(f"❌ Gagal update archive_status {month_str}: {e}")
 
 
+def get_retention_cutoff_start(retention_months: int = 7) -> date:
+    """
+    Menghitung batas awal bulan yang masih dipertahankan di database.
+    Contoh: Today = September 2026, RETENTION_MONTHS = 7:
+    Bulan yang dipertahankan: Sep, Ags, Jul, Jun, Mei, Apr, Mar.
+    Cutoff = 2026-03-01.
+    Hanya bulan < 2026-03-01 (Februari 2026 ke bawah) yang boleh diarsipkan & dihapus.
+    """
+    today = today_jkt()
+    y = today.year
+    m = today.month
+    months_to_subtract = max(1, retention_months - 1)
+    for _ in range(months_to_subtract):
+        m -= 1
+        if m == 0:
+            m = 12
+            y -= 1
+    return date(y, m, 1)
+
+
 def archive_and_delete_old_data():
     """
-    Arsipkan data bulan lalu secara atomic per-bulan (OLDEST -> NEWEST).
+    Arsipkan data bulan lampau di luar rolling retention window (OLDEST -> NEWEST).
     Hanya menghapus dan menandai COMPLETED jika KEDUA tabel (harga & broksum) sukses.
     """
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         logger.info("📦 Archiver: Telegram credentials tidak ada, skip.")
         return False
 
-    logger.info("📦 Memulai Smart Archiver Bulanan (Per-Bulan Atomic)...")
+    retention_months = int(os.environ.get("RETENTION_MONTHS", "7"))
+    retention_cutoff = get_retention_cutoff_start(retention_months)
+    logger.info(f"📦 Memulai Smart Archiver (Rolling {retention_months} Bulan, Batas Aman: >= {retention_cutoff})...")
     today = today_jkt()
-    current_month_start = today.replace(day=1)
     dialect = get_dialect()
 
     with engine.connect() as conn:
-        # 1. Cari bulan kandidat < current_month yang ada datanya di DB
+        # 1. Cari bulan kandidat < retention_cutoff yang ada datanya di DB
         if dialect == "sqlite":
             sql_months = """
                 SELECT DISTINCT strftime('%Y-%m', tanggal) as m FROM harga_saham WHERE tanggal < :c
@@ -140,7 +161,7 @@ def archive_and_delete_old_data():
                 SELECT DISTINCT TO_CHAR(date, 'YYYY-MM') as m FROM broker_summary WHERE date < :c
             """
 
-        months_in_db = set(conn.execute(text(sql_months), {"c": current_month_start}).scalars().all())
+        months_in_db = set(conn.execute(text(sql_months), {"c": retention_cutoff}).scalars().all())
         completed_months = set(conn.execute(
             text("SELECT month FROM archive_status WHERE status IN ('completed', 'completed_force')")
         ).scalars().all())
