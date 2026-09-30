@@ -113,10 +113,13 @@ app = FastAPI(title="Candlify v2 API", version="2.0.0")
 # 1. GZip Compression Middleware (P1 #10)
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
-# 2. CORS Middleware (Sanitized)
+# 2. CORS Middleware (Sanitized & Configurable)
+cors_env = os.getenv("CORS_ORIGINS", "*").strip()
+cors_origins = [o.strip() for o in cors_env.split(",") if o.strip()] if cors_env != "*" else ["*"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=cors_origins,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
@@ -507,7 +510,28 @@ def api_stock_alias(action: Optional[str] = Query("health")):
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "version": "v2-lean", "engine": "Candlify Unified Hardened"}
+    db_status = "unconfigured"
+    try:
+        from lib.db import get_db_engine
+        engine = get_db_engine()
+        if engine:
+            from sqlalchemy import text
+            with engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+            db_status = "connected"
+        else:
+            db_status = "no_url"
+    except Exception as err:
+        db_status = f"error: {str(err)[:60]}"
+
+    from lib.utils import now_wib
+    return {
+        "status": "ok" if db_status in ("connected", "unconfigured") else "degraded",
+        "version": "v2-lean",
+        "engine": "Candlify Unified Hardened",
+        "database": db_status,
+        "timestamp": now_wib().isoformat()
+    }
 
 # ── Mount Frontend Static Files ─────────────────────────────
 PUBLIC_DIR = os.path.join(BASE_DIR, "public")

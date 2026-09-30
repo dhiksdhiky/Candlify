@@ -17,27 +17,9 @@ from sqlalchemy import create_engine, text
 from dotenv import load_dotenv
 
 load_dotenv()
-logger = logging.getLogger("candlify.portfolio")
-
-_ENGINE = None
-
-def get_engine():
-    """Singleton database engine dengan connection recycling yang aman untuk serverless Neon DB."""
-    global _ENGINE
-    if _ENGINE is None:
-        db_url = os.getenv("DATABASE_URL")
-        if not db_url:
-            raise RuntimeError("DATABASE_URL belum diatur di file .env")
-        if db_url.startswith("postgres://"):
-            db_url = db_url.replace("postgres://", "postgresql://", 1)
-        _ENGINE = create_engine(
-            db_url,
-            pool_pre_ping=True,
-            pool_recycle=300,
-            pool_size=5,
-            max_overflow=10
-        )
-    return _ENGINE
+# Centralized DB engine & utils
+from lib.db import get_engine, get_db_engine
+from lib.utils import clean_symbol
 
 def _format_age(created_at: datetime) -> str:
     """Format human-readable age untuk review berkala watchlist."""
@@ -130,9 +112,7 @@ def get_all_watchlists(category: Optional[str] = None) -> List[Dict[str, Any]]:
 
 def add_to_watchlist(symbol: str, category: str = "Breakout", notes: str = "", target_entry: Optional[float] = None) -> Dict[str, Any]:
     """Tambah saham ke watchlist Neon DB (atau update jika kombinasi simbol & kategori sudah ada)."""
-    clean_sym = symbol.replace("IDX:", "").replace(".JK", "").upper().strip()
-    if not clean_sym or len(clean_sym) > 10:
-        raise ValueError(f"Kode simbol tidak valid: {symbol}")
+    clean_sym = clean_symbol(symbol)
 
     clean_category = (category or "Breakout").strip()
     engine = get_engine()
@@ -416,8 +396,9 @@ def delete_watchlist_category(name: str) -> List[str]:
 
 def get_stock_watchlists(symbol: str) -> Dict[str, Any]:
     """Ambil seluruh kategori watchlist aktif untuk suatu saham tertentu beserta notes & target entry."""
-    clean_sym = symbol.replace("IDX:", "").replace(".JK", "").upper().strip()
-    if not clean_sym:
+    try:
+        clean_sym = clean_symbol(symbol)
+    except ValueError:
         return {"success": False, "symbol": symbol, "categories": [], "items": []}
 
     engine = get_engine()
@@ -461,9 +442,7 @@ def sync_stock_watchlists(
     Sinkronisasi multi-watchlist untuk suatu saham (tambah, update, atau hapus kategori).
     Jika categories kosong [], saham dihapus dari seluruh watchlist.
     """
-    clean_sym = symbol.replace("IDX:", "").replace(".JK", "").upper().strip()
-    if not clean_sym or len(clean_sym) > 10:
-        raise ValueError(f"Kode simbol tidak valid: {symbol}")
+    clean_sym = clean_symbol(symbol)
 
     cleaned_cats = []
     for c in categories:
@@ -642,9 +621,7 @@ def create_trading_plan(
     notes: str = ""
 ) -> Dict[str, Any]:
     """Buat rencana trading baru dengan auto position-sizing."""
-    clean_sym = symbol.replace("IDX:", "").replace(".JK", "").upper().strip()
-    if not clean_sym:
-        raise ValueError("Kode simbol tidak valid")
+    clean_sym = clean_symbol(symbol)
     if entry_price <= 0:
         raise ValueError("Harga entry harus lebih besar dari 0")
     if sl_price <= 0:

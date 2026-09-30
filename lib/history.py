@@ -28,45 +28,12 @@ logger = logging.getLogger("CandlifyHistoryV2")
 if not logger.handlers:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
-# ── Timezone & Market Hours Helper ────────────────────────────
-WIB_TZ = timezone(timedelta(hours=7))  # Asia/Jakarta (UTC+7)
-
-def now_wib() -> datetime:
-    return datetime.now(WIB_TZ)
-
-def is_idx_market_open() -> bool:
-    """Cek apakah saat ini jam operasional Bursa Efek Indonesia (Mon-Fri 08:45 - 16:30 WIB)."""
-    now = now_wib()
-    # 0 = Monday, 4 = Friday, 5 = Saturday, 6 = Sunday
-    if now.weekday() > 4:
-        return False
-    current_minute = now.hour * 60 + now.minute
-    market_open = 8 * 60 + 45   # 08:45 WIB
-    market_close = 16 * 60 + 30 # 16:30 WIB
-    return market_open <= current_minute <= market_close
-
-def get_smart_ttl(interval: str) -> int:
-    """Hitung TTL dinamis: pendek saat jam bursa, panjang saat bursa tutup."""
-    market_open = is_idx_market_open()
-    
-    if not market_open:
-        # Saat bursa tutup / akhir pekan, candle tidak bergerak -> cache panjang (1-2 jam)
-        return 3600
-        
-    # Saat jam bursa aktif:
-    ttl_map = {
-        "1m": 30,    # 30 detik untuk 1m (khusus BYOT Stockbit)
-        "2m": 60,
-        "5m": 120,   # 2 menit
-        "15m": 300,  # 5 menit
-        "30m": 300,
-        "1h": 600,   # 10 menit
-        "4h": 900,   # 15 menit
-        "1d": 900,   # 15 menit
-        "1wk": 1800, # 30 menit
-        "1mo": 3600  # 1 jam
-    }
-    return ttl_map.get(interval.lower(), 300)
+# Import centralized DB engine & utility helpers
+from lib.db import get_db_engine
+from lib.utils import (
+    WIB_TZ, now_wib, is_idx_market_open, get_smart_ttl,
+    SYMBOL_REGEX, clean_symbol
+)
 
 # ── HTTP Session with Retry & Backoff ────────────────────────
 def create_resilient_session() -> requests.Session:
@@ -89,42 +56,6 @@ _CACHE: Dict[str, Tuple[float, Dict[str, Any]]] = {}
 _CACHE_LOCK = threading.Lock()
 _CACHE_MAX_ENTRIES = 256
 
-# Database Thread-Safe Lazy Initialization
-_db_engine = None
-_db_lock = threading.Lock()
-
-def get_db_engine():
-    global _db_engine
-    if _db_engine is not None:
-        return _db_engine
-        
-    with _db_lock:
-        if _db_engine is not None:
-            return _db_engine
-            
-        db_url = os.getenv("DATABASE_URL")
-        if not db_url:
-            return None
-        
-        if db_url.startswith("postgres://"):
-            db_url = db_url.replace("postgres://", "postgresql://", 1)
-            
-        try:
-            from sqlalchemy import create_engine
-            _db_engine = create_engine(
-                db_url,
-                pool_pre_ping=True,
-                pool_recycle=300,
-                connect_args={"connect_timeout": 5}
-            )
-            return _db_engine
-        except Exception as e:
-            logger.warning(f"⚠️ Gagal menghubungkan ke Neon DB: {e}")
-            return None
-
-# ── Input Validation ──────────────────────────────────────────
-SYMBOL_REGEX = re.compile(r'^[A-Z0-9]{1,10}$')
-
 INTERVAL_MAP = {
     "1m": ("1m", "5d"),    # Opsional/khusus Stockbit BYOT
     "2m": ("2m", "1mo"),
@@ -144,15 +75,6 @@ INTERVAL_MAP = {
 }
 
 VALID_RANGES = {"1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "ytd", "max"}
-
-def clean_symbol(symbol: str) -> str:
-    """Membersihkan dan memvalidasi ticker saham IDX."""
-    if not symbol:
-        raise ValueError("Kode simbol tidak boleh kosong.")
-    cleaned = symbol.replace("IDX:", "").replace(".JK", "").upper().strip()
-    if not SYMBOL_REGEX.match(cleaned):
-        raise ValueError(f"Kode simbol '{cleaned}' tidak valid. Harus alfanumerik 1-10 karakter.")
-    return cleaned
 
 def resample_1h_to_4h(candles_1h: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """

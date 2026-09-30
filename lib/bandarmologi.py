@@ -27,70 +27,17 @@ logger = logging.getLogger("CandlifyBandarV2")
 if not logger.handlers:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
-WIB_TZ = timezone(timedelta(hours=7))  # Asia/Jakarta (UTC+7)
-
-def now_wib() -> datetime:
-    return datetime.now(WIB_TZ)
-
-def is_idx_market_open() -> bool:
-    """Cek apakah saat ini jam operasional BEI (Mon-Fri 08:45 - 16:30 WIB)."""
-    now = now_wib()
-    if now.weekday() > 4:
-        return False
-    current_minute = now.hour * 60 + now.minute
-    return (8 * 60 + 45) <= current_minute <= (16 * 60 + 30)
-
-def get_bandar_ttl() -> int:
-    """TTL cache: pendek saat jam bursa (2 menit), panjang di luar jam bursa (1 jam)."""
-    return 120 if is_idx_market_open() else 3600
+# Import centralized DB engine & utility helpers
+from lib.db import get_db_engine
+from lib.utils import (
+    WIB_TZ, now_wib, is_idx_market_open, get_bandar_ttl,
+    SYMBOL_REGEX, clean_symbol
+)
 
 # In-Memory Cache: { cache_key: (timestamp, data_dict) }
 _BANDAR_CACHE: Dict[str, Tuple[float, Dict[str, Any]]] = {}
 _BANDAR_CACHE_LOCK = threading.Lock()
 _CACHE_MAX_ENTRIES = 128
-
-# Database Engine Lazy Initialization
-_db_engine = None
-_db_lock = threading.Lock()
-
-def get_db_engine():
-    global _db_engine
-    if _db_engine is not None:
-        return _db_engine
-
-    with _db_lock:
-        if _db_engine is not None:
-            return _db_engine
-
-        db_url = os.getenv("DATABASE_URL")
-        if not db_url:
-            logger.warning("DATABASE_URL belum diatur di .env")
-            return None
-
-        if db_url.startswith("postgres://"):
-            db_url = db_url.replace("postgres://", "postgresql://", 1)
-
-        try:
-            _db_engine = create_engine(
-                db_url,
-                pool_pre_ping=True,
-                pool_size=3,
-                max_overflow=3,
-                pool_recycle=300,
-                connect_args={"connect_timeout": 8}
-            )
-            return _db_engine
-        except Exception as e:
-            logger.error(f"Gagal menghubungkan ke Neon DB untuk Bandarmologi: {e}")
-            return None
-
-SYMBOL_REGEX = re.compile(r'^[A-Z0-9]{1,10}$')
-
-def clean_symbol(sym: str) -> str:
-    cleaned = sym.upper().replace(".JK", "").replace("IDX:", "").strip()
-    if not SYMBOL_REGEX.match(cleaned):
-        raise ValueError(f"Kode saham '{sym}' tidak valid.")
-    return cleaned
 
 # Raw DataFrame cache per symbol: {symbol: (timestamp, df)}
 _RAW_DF_CACHE: Dict[str, Tuple[float, pd.DataFrame]] = {}

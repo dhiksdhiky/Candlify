@@ -19,7 +19,6 @@ from bs4 import BeautifulSoup
 from sqlalchemy import text
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
-from urllib3.util.retry import Retry
 
 from db_config import engine, SessionLocal, get_dialect, TEST_MODE
 from models import BrokerSummary

@@ -15,7 +15,7 @@ from datetime import datetime, date
 from typing import Dict, Any, List, Optional
 import pandas as pd
 from sqlalchemy import text
-from lib.portfolio import get_engine
+from lib.db import get_engine
 
 logger = logging.getLogger("candlify.database_monitor")
 
@@ -354,6 +354,19 @@ def process_saham_excel(excel_bytes: bytes, filename: str) -> Dict[str, Any]:
         raise ValueError("Tidak ada data emiten valid yang ditemukan dalam file Excel.")
 
     with engine.begin() as conn:
+        # Safety net: cek jumlah data emiten aktif sebelum wipe
+        try:
+            curr_count = conn.execute(text("SELECT COUNT(*) FROM daftar_saham")).scalar() or 0
+        except Exception:
+            curr_count = 0
+
+        # Jika data lama >= 500 tapi data upload baru < 500, batalkan transaksi demi keamanan
+        if curr_count >= 500 and len(insert_rows) < 500:
+            raise ValueError(
+                f"Proses dibatalkan demi keamanan: Data baru ({len(insert_rows)} emiten) terlalu sedikit "
+                f"dibandingkan master data aktif ({curr_count} emiten). Minimal 500 emiten valid."
+            )
+
         # Wipe tabel daftar_saham
         conn.execute(text("DELETE FROM daftar_saham"))
 
