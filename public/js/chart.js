@@ -22,6 +22,15 @@ function hexToRgba(hex, alpha = 0.15) {
     const g = (num >> 8) & 255;
     const b = num & 255;
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+// Helper: HTML Escaper (Anti-XSS Sanitizer)
+function escapeHtml(str) {
+    if (str == null) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
 }
 
 // ── 0. Registrasi Custom Overlays KLineCharts v9 ────────────────────────────
@@ -3951,8 +3960,8 @@ class CandlifyChart {
         let html = '';
         cats.forEach(c => {
             const isActive = this.activeWatchlistCategory === c;
-            const label = c === 'Breakout' ? '💥 Breakout' : c;
-            html += `<button class="watchlist-cat-chip ${isActive ? 'active' : ''}" data-category="${c}">${label}</button>`;
+            const label = c === 'Breakout' ? '💥 Breakout' : escapeHtml(c);
+            html += `<button class="watchlist-cat-chip ${isActive ? 'active' : ''}" data-category="${escapeHtml(c)}">${label}</button>`;
         });
         
         // Tambahkan chip 'Semua'
@@ -3980,7 +3989,7 @@ class CandlifyChart {
         if (this.dom.wlInputCategory) {
             const currentVal = this.dom.wlInputCategory.value;
             this.dom.wlInputCategory.innerHTML = cats.map(c => 
-                `<option value="${c}">${c === 'Breakout' ? '💥 Breakout' : c}</option>`
+                `<option value="${escapeHtml(c)}">${c === 'Breakout' ? '💥 Breakout' : escapeHtml(c)}</option>`
             ).join('');
             if (cats.includes(currentVal)) {
                 this.dom.wlInputCategory.value = currentVal;
@@ -3991,7 +4000,7 @@ class CandlifyChart {
         if (this.dom.settingSelectCategory) {
             const currentVal = this.dom.settingSelectCategory.value;
             this.dom.settingSelectCategory.innerHTML = cats.map(c => 
-                `<option value="${c}">${c === 'Breakout' ? '💥 Breakout' : c}</option>`
+                `<option value="${escapeHtml(c)}">${c === 'Breakout' ? '💥 Breakout' : escapeHtml(c)}</option>`
             ).join('');
             if (cats.includes(currentVal)) {
                 this.dom.settingSelectCategory.value = currentVal;
@@ -4002,7 +4011,7 @@ class CandlifyChart {
         if (this.dom.riskSelectCategory) {
             const currentVal = this.dom.riskSelectCategory.value;
             this.dom.riskSelectCategory.innerHTML = cats.map(c => 
-                `<option value="${c}">${c === 'Breakout' ? '💥 Breakout' : c}</option>`
+                `<option value="${escapeHtml(c)}">${c === 'Breakout' ? '💥 Breakout' : escapeHtml(c)}</option>`
             ).join('');
             if (cats.includes(currentVal)) {
                 this.dom.riskSelectCategory.value = currentVal;
@@ -4013,7 +4022,7 @@ class CandlifyChart {
         if (this.dom.planSelectCategory) {
             const currentVal = this.dom.planSelectCategory.value;
             this.dom.planSelectCategory.innerHTML = cats.map(c => 
-                `<option value="${c}">${c === 'Breakout' ? '💥 Breakout' : c}</option>`
+                `<option value="${escapeHtml(c)}">${c === 'Breakout' ? '💥 Breakout' : escapeHtml(c)}</option>`
             ).join('');
             if (cats.includes(currentVal)) {
                 this.dom.planSelectCategory.value = currentVal;
@@ -4058,13 +4067,13 @@ class CandlifyChart {
                 `;
             } else {
                 html += `
-                    <div class="cat-item-row" data-name="${c}" id="cat-row-${encodeURIComponent(c)}">
+                    <div class="cat-item-row" data-name="${escapeHtml(c)}" id="cat-row-${encodeURIComponent(c)}">
                         <div class="cat-item-left">
-                            <span class="cat-item-name">${c}</span>
+                            <span class="cat-item-name">${escapeHtml(c)}</span>
                         </div>
                         <div class="cat-item-actions">
-                            <button class="cat-action-btn btn-rename-cat" data-name="${c}" title="Ubah Nama">✏️</button>
-                            <button class="cat-action-btn btn-delete-cat" data-name="${c}" title="Hapus Kategori">🗑️</button>
+                            <button class="cat-action-btn btn-rename-cat" data-name="${escapeHtml(c)}" title="Ubah Nama">✏️</button>
+                            <button class="cat-action-btn btn-delete-cat" data-name="${escapeHtml(c)}" title="Hapus Kategori">🗑️</button>
                         </div>
                     </div>
                 `;
@@ -4124,7 +4133,7 @@ class CandlifyChart {
 
         row.innerHTML = `
             <div class="cat-item-left" style="width: 100%;">
-                <input type="text" class="cat-rename-input" id="input-rename-${encodeURIComponent(oldName)}" value="${oldName}" maxlength="40">
+                <input type="text" class="cat-rename-input" id="input-rename-${encodeURIComponent(oldName)}" value="${escapeHtml(oldName)}" maxlength="40">
             </div>
             <div class="cat-item-actions">
                 <button class="cat-action-btn btn-save-rename" title="Simpan">💾</button>
@@ -4537,6 +4546,11 @@ class CandlifyChart {
             if (res.ok && json.success) {
                 this.showToast(`🗑️ ${symbol} dihapus dari Watchlist`, 'info');
                 this.watchlistItems = this.watchlistItems.filter(i => i.id !== itemId);
+                const cleanSym = (symbol || '').toUpperCase().trim();
+                const stillHasSymbol = this.watchlistItems.some(i => (i.symbol || '').toUpperCase().trim() === cleanSym);
+                if (!stillHasSymbol && this.allWatchlistSymbols) {
+                    this.allWatchlistSymbols.delete(cleanSym);
+                }
                 this.renderWatchlist();
                 this.checkWatchlistStatus(this.currentSymbol);
             } else {

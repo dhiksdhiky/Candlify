@@ -16,12 +16,15 @@ import sys
 if sys.platform == "win32":
     sys.stdout.reconfigure(encoding='utf-8')
 
+import logging
 from typing import Optional, List
-from fastapi import FastAPI, Query, Header, Response, HTTPException, status, File, UploadFile
+from fastapi import FastAPI, Query, Header, Response, HTTPException, status, File, UploadFile, Depends
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 import uvicorn
+
+logger = logging.getLogger("CandlifyServer")
 
 # Pastikan path import v2 terbaca
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -108,7 +111,40 @@ class PlanUpdateReq(BaseModel):
     exit_date: Optional[str] = None
     notes: Optional[str] = None
 
-app = FastAPI(title="Candlify v2 API", version="2.0.0")
+is_prod = os.getenv("ENV", "").lower() == "production" or os.getenv("DISABLE_DOCS", "false").lower() == "true"
+app = FastAPI(
+    title="Candlify v2 API",
+    version="2.0.0",
+    docs_url=None if is_prod else "/docs",
+    redoc_url=None if is_prod else "/redoc",
+    openapi_url=None if is_prod else "/openapi.json"
+)
+
+# ── Security & Mutation Auth Dependency ──────────────────────
+def verify_mutation_auth(
+    authorization: Optional[str] = Header(None),
+    x_api_key: Optional[str] = Header(None)
+):
+    """
+    Guard autentikasi sederhana untuk endpoint mutasi (POST, PUT, DELETE) & upload data.
+    Jika CANDLIFY_API_KEY diset di environment, request wajib menyertakan API Key
+    via header 'X-API-Key' atau 'Authorization: Bearer <token>'.
+    Jika tidak diset (default lokal / personal dev), request langsung diizinkan.
+    """
+    expected = os.getenv("CANDLIFY_API_KEY", "").strip()
+    if not expected:
+        return True
+
+    token = (x_api_key or "").strip()
+    if not token and authorization and authorization.startswith("Bearer "):
+        token = authorization[7:].strip()
+
+    if token != expected:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Akses ditolak: API Key tidak valid atau belum disertakan."
+        )
+    return True
 
 # 1. GZip Compression Middleware (P1 #10)
 app.add_middleware(GZipMiddleware, minimum_size=1000)
@@ -264,7 +300,7 @@ def api_get_watchlist(
     except Exception as err:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Gagal memuat watchlist: {err}")
 
-@app.post("/api/watchlist")
+@app.post("/api/watchlist", dependencies=[Depends(verify_mutation_auth)])
 def api_add_watchlist(payload: WatchlistCreateReq):
     """Tambah saham ke watchlist."""
     try:
@@ -278,9 +314,10 @@ def api_add_watchlist(payload: WatchlistCreateReq):
     except ValueError as val_err:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(val_err))
     except Exception as err:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Gagal menambahkan ke watchlist: {err}")
+        logger.error(f"Error in api_add_watchlist: {err}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Gagal menambahkan ke watchlist")
 
-@app.put("/api/watchlist/{item_id}")
+@app.put("/api/watchlist/{item_id}", dependencies=[Depends(verify_mutation_auth)])
 def api_update_watchlist(item_id: int, payload: WatchlistUpdateReq):
     """Update catatan atau target entry watchlist item."""
     try:
@@ -294,9 +331,10 @@ def api_update_watchlist(item_id: int, payload: WatchlistUpdateReq):
     except ValueError as val_err:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(val_err))
     except Exception as err:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Gagal memperbarui watchlist: {err}")
+        logger.error(f"Error in api_update_watchlist: {err}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Gagal memperbarui watchlist")
 
-@app.delete("/api/watchlist/{item_id}")
+@app.delete("/api/watchlist/{item_id}", dependencies=[Depends(verify_mutation_auth)])
 def api_delete_watchlist(item_id: int):
     """Hapus saham dari watchlist."""
     try:
@@ -305,7 +343,8 @@ def api_delete_watchlist(item_id: int):
     except ValueError as val_err:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(val_err))
     except Exception as err:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Gagal menghapus watchlist: {err}")
+        logger.error(f"Error in api_delete_watchlist: {err}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Gagal menghapus watchlist")
 
 # ── Watchlist Categories Endpoints ────────────────────────────
 
@@ -316,9 +355,10 @@ def api_get_categories():
         cats = get_watchlist_categories()
         return {"success": True, "categories": cats}
     except Exception as err:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Gagal memuat kategori: {err}")
+        logger.error(f"Error in api_get_categories: {err}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Gagal memuat kategori")
 
-@app.post("/api/watchlist/categories")
+@app.post("/api/watchlist/categories", dependencies=[Depends(verify_mutation_auth)])
 def api_add_category(payload: CategoryCreateReq):
     """Tambah kategori watchlist baru."""
     try:
@@ -327,9 +367,10 @@ def api_add_category(payload: CategoryCreateReq):
     except ValueError as val_err:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(val_err))
     except Exception as err:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Gagal menambahkan kategori: {err}")
+        logger.error(f"Error in api_add_category: {err}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Gagal menambahkan kategori")
 
-@app.put("/api/watchlist/categories/{name}")
+@app.put("/api/watchlist/categories/{name}", dependencies=[Depends(verify_mutation_auth)])
 def api_rename_category(name: str, payload: CategoryRenameReq):
     """Ubah nama kategori watchlist."""
     try:
@@ -338,9 +379,10 @@ def api_rename_category(name: str, payload: CategoryRenameReq):
     except ValueError as val_err:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(val_err))
     except Exception as err:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Gagal mengubah kategori: {err}")
+        logger.error(f"Error in api_rename_category: {err}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Gagal mengubah kategori")
 
-@app.delete("/api/watchlist/categories/{name}")
+@app.delete("/api/watchlist/categories/{name}", dependencies=[Depends(verify_mutation_auth)])
 def api_delete_category(name: str):
     """Hapus kategori watchlist dan fallback saham ke Breakout."""
     try:
@@ -349,7 +391,8 @@ def api_delete_category(name: str):
     except ValueError as val_err:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(val_err))
     except Exception as err:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Gagal menghapus kategori: {err}")
+        logger.error(f"Error in api_delete_category: {err}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Gagal menghapus kategori")
 
 # ── Stock Multi-Watchlist Sync Endpoints ──────────────────────
 
@@ -362,7 +405,7 @@ def api_get_stock_watchlists(symbol: str):
     except Exception as err:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Gagal memuat status watchlist saham: {err}")
 
-@app.post("/api/watchlist/sync-stock")
+@app.post("/api/watchlist/sync-stock", dependencies=[Depends(verify_mutation_auth)])
 def api_sync_stock_watchlists(payload: StockWatchlistSyncReq):
     """Sinkronisasi multi-watchlist untuk suatu saham."""
     try:
@@ -376,7 +419,8 @@ def api_sync_stock_watchlists(payload: StockWatchlistSyncReq):
     except ValueError as val_err:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(val_err))
     except Exception as err:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Gagal sinkronisasi watchlist: {err}")
+        logger.error(f"Error in api_sync_stock_watchlists: {err}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Gagal sinkronisasi watchlist")
 
 # ── User Risk Settings Endpoints ──────────────────────────────
 
@@ -387,9 +431,10 @@ def api_get_risk_settings():
         settings = get_risk_settings()
         return {"success": True, "data": settings}
     except Exception as err:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Gagal memuat settings: {err}")
+        logger.error(f"Error in api_get_risk_settings: {err}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Gagal memuat settings")
 
-@app.post("/api/settings/risk")
+@app.post("/api/settings/risk", dependencies=[Depends(verify_mutation_auth)])
 def api_save_risk_settings(payload: RiskSettingsReq):
     """Simpan pengaturan modal, toleransi risiko akun, dan data source."""
     try:
@@ -403,7 +448,8 @@ def api_save_risk_settings(payload: RiskSettingsReq):
     except ValueError as val_err:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(val_err))
     except Exception as err:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Gagal menyimpan settings: {err}")
+        logger.error(f"Error in api_save_risk_settings: {err}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Gagal menyimpan settings")
 
 # ── Trading Plan & Journal Endpoints ─────────────────────────
 
@@ -414,7 +460,8 @@ def api_get_trading_plans(status_param: Optional[str] = Query(None, alias="statu
         items = get_all_trading_plans(status_filter=status_param)
         return {"success": True, "count": len(items), "data": items}
     except Exception as err:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Gagal memuat trading plan: {err}")
+        logger.error(f"Error in api_get_trading_plans: {err}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Gagal memuat trading plan")
 
 @app.get("/api/trading-plans/stats")
 def api_get_trading_plan_stats():
@@ -423,9 +470,10 @@ def api_get_trading_plan_stats():
         stats_data = get_trading_plan_stats()
         return stats_data
     except Exception as err:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Gagal memuat statistik trading plan: {err}")
+        logger.error(f"Error in api_get_trading_plan_stats: {err}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Gagal memuat statistik trading plan")
 
-@app.post("/api/trading-plans")
+@app.post("/api/trading-plans", dependencies=[Depends(verify_mutation_auth)])
 def api_create_trading_plan(payload: PlanCreateReq):
     """Buat trading plan baru dengan alokasi lot otomatis."""
     try:
@@ -445,9 +493,10 @@ def api_create_trading_plan(payload: PlanCreateReq):
     except ValueError as val_err:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(val_err))
     except Exception as err:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Gagal membuat trading plan: {err}")
+        logger.error(f"Error in api_create_trading_plan: {err}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Gagal membuat trading plan")
 
-@app.put("/api/trading-plans/{plan_id}")
+@app.put("/api/trading-plans/{plan_id}", dependencies=[Depends(verify_mutation_auth)])
 def api_update_trading_plan(plan_id: int, payload: PlanUpdateReq):
     """Update trading plan (status, trailing stop, TP, exit, atau catatan)."""
     try:
@@ -457,9 +506,10 @@ def api_update_trading_plan(plan_id: int, payload: PlanUpdateReq):
     except ValueError as val_err:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(val_err))
     except Exception as err:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Gagal memperbarui trading plan: {err}")
+        logger.error(f"Error in api_update_trading_plan: {err}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Gagal memperbarui trading plan")
 
-@app.delete("/api/trading-plans/{plan_id}")
+@app.delete("/api/trading-plans/{plan_id}", dependencies=[Depends(verify_mutation_auth)])
 def api_delete_trading_plan(plan_id: int):
     """Hapus trading plan."""
     try:
@@ -468,7 +518,8 @@ def api_delete_trading_plan(plan_id: int):
     except ValueError as val_err:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(val_err))
     except Exception as err:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Gagal menghapus trading plan: {err}")
+        logger.error(f"Error in api_delete_trading_plan: {err}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Gagal menghapus trading plan")
 
 # ── Database & Glory Engine Monitor Endpoints ───────────────
 
@@ -479,7 +530,8 @@ def api_database_health(month: Optional[str] = None):
         metrics = get_database_metrics(target_month=month)
         return metrics
     except Exception as err:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Gagal memuat status database: {err}")
+        logger.error(f"Error in api_database_health: {err}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Gagal memuat status database")
 
 @app.get("/api/database/calendar")
 def api_database_calendar(month: str = Query(...)):
@@ -487,9 +539,10 @@ def api_database_calendar(month: str = Query(...)):
     try:
         return get_calendar_history(month_str=month)
     except Exception as err:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Gagal memuat kalender: {err}")
+        logger.error(f"Error in api_database_calendar: {err}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Gagal memuat kalender")
 
-@app.post("/api/database/upload")
+@app.post("/api/database/upload", dependencies=[Depends(verify_mutation_auth)])
 def api_database_upload(file: UploadFile = File(...)):
     """Upload dan replace master data emiten dari file Excel IDX (.xlsx)."""
     if not file.filename.lower().endswith(".xlsx"):
@@ -501,7 +554,8 @@ def api_database_upload(file: UploadFile = File(...)):
     except ValueError as val_err:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(val_err))
     except Exception as err:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Gagal memproses file Excel: {err}")
+        logger.error(f"Error in api_database_upload: {err}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Gagal memproses file Excel")
 
 @app.get("/api/stock")
 def api_stock_alias(action: Optional[str] = Query("health")):

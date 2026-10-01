@@ -58,6 +58,7 @@ _CACHE_MAX_ENTRIES = 256
 
 INTERVAL_MAP = {
     "1m": ("1m", "5d"),    # Opsional/khusus Stockbit BYOT
+    "intraday": ("1m", "5d"),
     "2m": ("2m", "1mo"),
     "5m": ("5m", "1mo"),
     "15m": ("15m", "1mo"),
@@ -188,10 +189,14 @@ def fetch_from_neon_db(symbol: str) -> Optional[Dict[str, Any]]:
     clean_sym = clean_symbol(symbol)
     query = """
         SELECT tanggal, open, high, low, close, volume 
-        FROM harga_saham 
-        WHERE ticker = :ticker 
+        FROM (
+            SELECT tanggal, open, high, low, close, volume 
+            FROM harga_saham 
+            WHERE ticker = :ticker 
+            ORDER BY tanggal DESC 
+            LIMIT 1000
+        ) sub 
         ORDER BY tanggal ASC
-        LIMIT 1000
     """
     try:
         from sqlalchemy import text
@@ -413,8 +418,7 @@ def get_candlesticks(
         if cache_key in _CACHE:
             _, stale_data = _CACHE[cache_key]
             logger.warning(f"⚠️ Menyajikan STALE data untuk {cache_key} karena upstream gagal ({yf_res.get('error')})")
-            stale_data["stale"] = True
-            return stale_data
+            return {**stale_data, "stale": True}
 
     return yf_res
 

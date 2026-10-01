@@ -62,7 +62,7 @@ def get_raw_broker_df(clean_sym: str) -> Optional[pd.DataFrame]:
 
     try:
         sql = text("""
-            SELECT date, broker_code, net_vol, net_val, buy_vol, buy_val
+            SELECT date, broker_code, net_vol, net_val, buy_vol, buy_val, sell_vol, sell_val
             FROM broker_summary
             WHERE ticker = :ticker
             ORDER BY date ASC
@@ -72,6 +72,9 @@ def get_raw_broker_df(clean_sym: str) -> Optional[pd.DataFrame]:
 
         if not df.empty:
             df['date'] = pd.to_datetime(df['date'])
+            for col in ['buy_vol', 'buy_val', 'sell_vol', 'sell_val']:
+                if col not in df.columns:
+                    df[col] = 0
 
         with _RAW_DF_LOCK:
             if len(_RAW_DF_CACHE) >= _CACHE_MAX_ENTRIES:
@@ -115,10 +118,22 @@ def get_bandarmologi(symbol: str, days_lookback: int = 180) -> Dict[str, Any]:
         return empty_res
 
     try:
-        dates = sorted(df['date'].unique())
+        all_dates = sorted(df['date'].unique())
+        if not all_dates:
+            return empty_res
+
+        # Filter days_lookback jika ditentukan (default 180 hari)
+        if days_lookback and days_lookback > 0:
+            cutoff_dt = pd.to_datetime(now_wib().date()) - pd.Timedelta(days=days_lookback)
+            target_dates = [d for d in all_dates if pd.to_datetime(d) >= cutoff_dt]
+            if not target_dates:
+                target_dates = all_dates[-days_lookback:] if len(all_dates) >= days_lookback else all_dates
+        else:
+            target_dates = all_dates
+
         series: List[Dict[str, Any]] = []
 
-        for d in dates:
+        for d in target_dates:
             d_dt = pd.to_datetime(d)
             # Timestamp UTC+7 00:00:00 WIB dalam epoch milliseconds
             epoch_ms = int(datetime.combine(d_dt.date(), datetime.min.time(), tzinfo=WIB_TZ).timestamp() * 1000)
@@ -134,9 +149,10 @@ def get_bandarmologi(symbol: str, days_lookback: int = 180) -> Dict[str, Any]:
             top3_sell = float(sellers['net_val'].sum())
             net_flow = round(top3_buy + top3_sell) # Jika buy > sell bernilai positif (akumulasi)
             
-            # Rolling 20 hari s.d hari d untuk HMB (Harga Modal Akumulator)
-            start_dt = d_dt - pd.Timedelta(days=20)
-            df_window = df[(df['date'] <= d) & (df['date'] >= start_dt)]
+            # Rolling 20 hari bursa s.d hari d untuk HMB (Harga Modal Akumulator)
+            d_idx = all_dates.index(d)
+            window_dates = all_dates[max(0, d_idx - 19):d_idx + 1]
+            df_window = df[df['date'].isin(window_dates)]
             
             acc_window = df_window.groupby('broker_code').agg({
                 'net_vol': 'sum',
@@ -161,7 +177,7 @@ def get_bandarmologi(symbol: str, days_lookback: int = 180) -> Dict[str, Any]:
             })
 
         # Ambil breakdown broker hari terakhir untuk summary default (Top 8 Pembeli vs Top 8 Penjual)
-        latest_d = dates[-1]
+        latest_d = all_dates[-1]
         df_latest = df[df['date'] == latest_d]
         latest_buyers = df_latest[df_latest['net_val'] > 0].nlargest(8, 'net_val')
         latest_sellers = df_latest[df_latest['net_val'] < 0].nsmallest(8, 'net_val')
@@ -173,7 +189,9 @@ def get_bandarmologi(symbol: str, days_lookback: int = 180) -> Dict[str, Any]:
         for _, r in latest_buyers.iterrows():
             vol = int(r.net_vol)
             val = float(r.net_val)
-            avg_p = round(val / (vol * 100)) if vol > 0 else 0
+            buy_vol = int(r['buy_vol']) if 'buy_vol' in r and pd.notna(r['buy_vol']) else 0
+            buy_val = float(r['buy_val']) if 'buy_val' in r and pd.notna(r['buy_val']) else 0.0
+            avg_p = round(buy_val / (buy_vol * 100)) if buy_vol > 0 else (round(val / (vol * 100)) if vol > 0 else 0)
             top_buyers_list.append({
                 "broker": str(r.broker_code),
                 "net_vol": vol,
@@ -185,7 +203,9 @@ def get_bandarmologi(symbol: str, days_lookback: int = 180) -> Dict[str, Any]:
         for _, r in latest_sellers.iterrows():
             vol = abs(int(r.net_vol))
             val = abs(float(r.net_val))
-            avg_p = round(val / (vol * 100)) if vol > 0 else 0
+            sell_vol = int(r['sell_vol']) if 'sell_vol' in r and pd.notna(r['sell_vol']) else 0
+            sell_val = float(r['sell_val']) if 'sell_val' in r and pd.notna(r['sell_val']) else 0.0
+            avg_p = round(sell_val / (sell_vol * 100)) if sell_vol > 0 else (round(val / (vol * 100)) if vol > 0 else 0)
             top_sellers_list.append({
                 "broker": str(r.broker_code),
                 "net_vol": vol,
@@ -206,9 +226,9 @@ def get_bandarmologi(symbol: str, days_lookback: int = 180) -> Dict[str, Any]:
         }
 
         available_range = {
-            "min_date": pd.to_datetime(dates[0]).strftime("%Y-%m-%d"),
-            "max_date": pd.to_datetime(dates[-1]).strftime("%Y-%m-%d"),
-            "total_dates": len(dates)
+            "min_date": pd.to_datetime(all_dates[0]).strftime("%Y-%m-%d"),
+            "max_date": pd.to_datetime(all_dates[-1]).strftime("%Y-%m-%d"),
+            "total_dates": len(all_dates)
         }
 
         result = {
@@ -296,7 +316,9 @@ def get_broksum_range(symbol: str, from_date: Optional[str] = None, to_date: Opt
         'net_vol': 'sum',
         'net_val': 'sum',
         'buy_vol': 'sum',
-        'buy_val': 'sum'
+        'buy_val': 'sum',
+        'sell_vol': 'sum',
+        'sell_val': 'sum'
     }).reset_index()
 
     buyers = acc[acc['net_val'] > 0].nlargest(8, 'net_val')
@@ -309,7 +331,9 @@ def get_broksum_range(symbol: str, from_date: Optional[str] = None, to_date: Opt
     for _, r in buyers.iterrows():
         vol = int(r.net_vol)
         val = float(r.net_val)
-        avg_p = round(val / (vol * 100)) if vol > 0 else 0
+        buy_vol = int(r['buy_vol']) if 'buy_vol' in r and pd.notna(r['buy_vol']) else 0
+        buy_val = float(r['buy_val']) if 'buy_val' in r and pd.notna(r['buy_val']) else 0.0
+        avg_p = round(buy_val / (buy_vol * 100)) if buy_vol > 0 else (round(val / (vol * 100)) if vol > 0 else 0)
         top_buyers.append({
             "broker": str(r.broker_code),
             "net_vol": vol,
@@ -321,7 +345,9 @@ def get_broksum_range(symbol: str, from_date: Optional[str] = None, to_date: Opt
     for _, r in sellers.iterrows():
         vol = abs(int(r.net_vol))
         val = abs(float(r.net_val))
-        avg_p = round(val / (vol * 100)) if vol > 0 else 0
+        sell_vol = int(r['sell_vol']) if 'sell_vol' in r and pd.notna(r['sell_vol']) else 0
+        sell_val = float(r['sell_val']) if 'sell_val' in r and pd.notna(r['sell_val']) else 0.0
+        avg_p = round(sell_val / (sell_vol * 100)) if sell_vol > 0 else (round(val / (vol * 100)) if vol > 0 else 0)
         top_sellers.append({
             "broker": str(r.broker_code),
             "net_vol": vol,

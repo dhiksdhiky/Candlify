@@ -766,7 +766,7 @@ def update_trading_plan(plan_id: int, updates: Dict[str, Any]) -> Dict[str, Any]
         if new_status == "HOLDING" and curr["status"] != "HOLDING" and not curr["entry_date"] and "entry_date" not in updates:
             sql_parts.append("entry_date = CURRENT_TIMESTAMP")
 
-        if "CLOSED" in new_status:
+        if new_status in ("CLOSED", "CLOSED_WIN", "CLOSED_LOSS", "CLOSED_BEP") or new_status.startswith("CLOSED"):
             exit_price = float(updates.get("exit_price") or curr.get("exit_price") or new_entry)
             shares = new_lot * 100
             realized_pnl = round((exit_price - new_entry) * shares, 2)
@@ -775,7 +775,11 @@ def update_trading_plan(plan_id: int, updates: Dict[str, Any]) -> Dict[str, Any]
             sql_parts.append("exit_price = :exit_price")
             sql_parts.append("realized_pnl = :realized_pnl")
             sql_parts.append("realized_pnl_pct = :realized_pnl_pct")
-            sql_parts.append("exit_date = CURRENT_TIMESTAMP")
+            if updates.get("exit_date"):
+                sql_parts.append("exit_date = :exit_date")
+                params["exit_date"] = updates["exit_date"]
+            else:
+                sql_parts.append("exit_date = CURRENT_TIMESTAMP")
             params["exit_price"] = exit_price
             params["realized_pnl"] = realized_pnl
             params["realized_pnl_pct"] = realized_pnl_pct

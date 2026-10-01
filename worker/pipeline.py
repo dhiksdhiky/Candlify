@@ -24,7 +24,7 @@ from datetime import datetime, date, timedelta
 import pytz
 from sqlalchemy import text
 
-from db_config import engine, log_to_db, get_date_cutoff_sql, TEST_MODE, get_backfill_floor
+from db_config import engine, log_to_db, TEST_MODE, get_backfill_floor, get_dialect
 
 logger = logging.getLogger("Pipeline")
 

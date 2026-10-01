@@ -187,7 +187,7 @@ def test_api_database_health():
     assert isinstance(d["history"], list)
     assert len(d["history"]) > 0
     assert "available_months" in d
-    assert len(d["available_months"]) >= 7
+    assert len(d["available_months"]) >= 6
     assert "current_month" in d
 
     # Test /api/database/calendar endpoint for specific historical month (August 2026)

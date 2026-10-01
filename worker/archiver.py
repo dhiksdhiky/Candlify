@@ -146,70 +146,65 @@ def archive_and_delete_old_data():
     today = today_jkt()
     dialect = get_dialect()
 
-    with engine.connect() as conn:
-        # 1. Cari bulan kandidat < retention_cutoff yang ada datanya di DB
-        if dialect == "sqlite":
-            sql_months = """
-                SELECT DISTINCT strftime('%Y-%m', tanggal) as m FROM harga_saham WHERE tanggal < :c
-                UNION
-                SELECT DISTINCT strftime('%Y-%m', date) as m FROM broker_summary WHERE date < :c
-            """
-        else:
-            sql_months = """
-                SELECT DISTINCT TO_CHAR(tanggal, 'YYYY-MM') as m FROM harga_saham WHERE tanggal < :c
-                UNION
-                SELECT DISTINCT TO_CHAR(date, 'YYYY-MM') as m FROM broker_summary WHERE date < :c
-            """
+    # 1. Cari bulan kandidat < retention_cutoff yang ada datanya di DB
+    if dialect == "sqlite":
+        sql_months = """
+            SELECT DISTINCT strftime('%Y-%m', tanggal) as m FROM harga_saham WHERE tanggal < :c
+            UNION
+            SELECT DISTINCT strftime('%Y-%m', date) as m FROM broker_summary WHERE date < :c
+        """
+    else:
+        sql_months = """
+            SELECT DISTINCT TO_CHAR(tanggal, 'YYYY-MM') as m FROM harga_saham WHERE tanggal < :c
+            UNION
+            SELECT DISTINCT TO_CHAR(date, 'YYYY-MM') as m FROM broker_summary WHERE date < :c
+        """
 
+    with engine.connect() as conn:
         months_in_db = set(conn.execute(text(sql_months), {"c": retention_cutoff}).scalars().all())
         completed_months = set(conn.execute(
             text("SELECT month FROM archive_status WHERE status IN ('completed', 'completed_force')")
         ).scalars().all())
 
-        # F6: Urutkan OLDEST -> NEWEST
-        candidate_months = sorted([m for m in months_in_db if m and m not in completed_months])
+    # F6: Urutkan OLDEST -> NEWEST
+    candidate_months = sorted([m for m in months_in_db if m and m not in completed_months])
 
-        if not candidate_months:
-            logger.info("ℹ️ Tidak ada bulan lampau yang perlu diarsipkan.")
-            return True
+    if not candidate_months:
+        logger.info("ℹ️ Tidak ada bulan lampau yang perlu diarsipkan.")
+        return True
 
-        logger.info(f"📋 Bulan kandidat arsip (OLDEST -> NEWEST): {candidate_months}")
+    logger.info(f"📋 Bulan kandidat arsip (OLDEST -> NEWEST): {candidate_months}")
 
-        for m in candidate_months:
-            try:
-                y, mo = map(int, m.split('-'))
-                month_start = date(y, mo, 1)
-                next_month_start = date(y + 1, 1, 1) if mo == 12 else date(y, mo + 1, 1)
-                end_of_month = next_month_start - timedelta(days=1)
-            except Exception as e:
-                logger.error(f"❌ Format bulan invalid {m}: {e}")
-                continue
+    for m in candidate_months:
+        try:
+            y, mo = map(int, m.split('-'))
+            month_start = date(y, mo, 1)
+            next_month_start = date(y + 1, 1, 1) if mo == 12 else date(y, mo + 1, 1)
+            end_of_month = next_month_start - timedelta(days=1)
+        except Exception as e:
+            logger.error(f"❌ Format bulan invalid {m}: {e}")
+            continue
 
-            # F3: Gate evaluasi pending khusus bulan M
-            gap_threshold = today - timedelta(days=30)
-            gate_sql = text(f"""
-                SELECT 1 FROM harga_saham h
-                WHERE h.tanggal >= :month_start AND h.tanggal < :next_month_start
-                AND h.volume > 0
-                AND NOT EXISTS (
-                    SELECT 1 FROM broker_summary b
-                    WHERE b.ticker = h.ticker AND b.date = h.tanggal
-                )
-                AND {GAP_EXCLUDE_SQL}
-                LIMIT 1
-            """)
+        # 2. Ambil data dengan koneksi singkat (segera ditutup sebelum kirim ke Telegram)
+        gap_threshold = today - timedelta(days=30)
+        gate_sql = text(f"""
+            SELECT 1 FROM harga_saham h
+            WHERE h.tanggal >= :month_start AND h.tanggal < :next_month_start
+            AND h.volume > 0
+            AND NOT EXISTS (
+                SELECT 1 FROM broker_summary b
+                WHERE b.ticker = h.ticker AND b.date = h.tanggal
+            )
+            AND {GAP_EXCLUDE_SQL}
+            LIMIT 1
+        """)
+
+        with engine.connect() as conn:
             has_pending = conn.execute(gate_sql, {
                 "month_start": month_start,
                 "next_month_start": next_month_start,
                 "gap_threshold": gap_threshold
             }).scalar() is not None
-
-            # G2: Force-close bypass jika sudah lewat 40 hari dari akhir bulan
-            is_force = today > (end_of_month + timedelta(days=40))
-
-            if has_pending and not is_force:
-                logger.info(f"⏳ Bulan {m} masih memiliki target pending di Harvester. Skip arsip bulan ini.")
-                continue
 
             # Ambil data kedua tabel
             df_h = pd.read_sql_query(
@@ -227,35 +222,43 @@ def archive_and_delete_old_data():
                 conn, params={"s": month_start, "e": next_month_start}
             )
 
-            # N3 & F4: Penanganan 0 baris per-tabel
-            if df_h.empty and df_b.empty:
-                logger.info(f"ℹ️ Bulan {m} kosong (0 baris di kedua tabel). Ditandai COMPLETED.")
-                _mark_completed(m, "completed", dialect)
-                continue
+        # G2: Force-close bypass jika sudah lewat 40 hari dari akhir bulan
+        is_force = today > (end_of_month + timedelta(days=40))
 
-            ok_h = _export_and_send_table(df_h, "harga_saham", m, is_force)
-            ok_b = _export_and_send_table(df_b, "broker_summary", m, is_force)
+        if has_pending and not is_force:
+            logger.info(f"⏳ Bulan {m} masih memiliki target pending di Harvester. Skip arsip bulan ini.")
+            continue
 
-            # G4: Hanya jika KEDUA tabel sukses
-            if ok_h and ok_b:
-                with engine.connect() as del_conn:
-                    with del_conn.begin():
-                        del_conn.execute(
-                            text("DELETE FROM harga_saham WHERE tanggal >= :s AND tanggal < :e"),
-                            {"s": month_start, "e": next_month_start}
-                        )
-                        del_conn.execute(
-                            text("DELETE FROM broker_summary WHERE date >= :s AND date < :e"),
-                            {"s": month_start, "e": next_month_start}
-                        )
-                status_str = "completed_force" if is_force else "completed"
-                _mark_completed(m, status_str, dialect)
-                logger.info(f"🎉 Bulan {m} RESMI DITUTUP ({status_str}) & data dibersihkan!")
-            else:
-                logger.error(
-                    f"⚠️ Gagal arsipkan bulan {m} (harga_ok={ok_h}, broksum_ok={ok_b}). "
-                    f"Data TIDAK dihapus agar bisa di-retry pada run berikutnya."
-                )
+        # N3 & F4: Penanganan 0 baris per-tabel
+        if df_h.empty and df_b.empty:
+            logger.info(f"ℹ️ Bulan {m} kosong (0 baris di kedua tabel). Ditandai COMPLETED.")
+            _mark_completed(m, "completed", dialect)
+            continue
+
+        # 3. Kirim ke Telegram tanpa menahan koneksi database
+        ok_h = _export_and_send_table(df_h, "harga_saham", m, is_force)
+        ok_b = _export_and_send_table(df_b, "broker_summary", m, is_force)
+
+        # 4. G4: Hanya jika KEDUA tabel sukses, buka koneksi singkat untuk DELETE
+        if ok_h and ok_b:
+            with engine.connect() as del_conn:
+                with del_conn.begin():
+                    del_conn.execute(
+                        text("DELETE FROM harga_saham WHERE tanggal >= :s AND tanggal < :e"),
+                        {"s": month_start, "e": next_month_start}
+                    )
+                    del_conn.execute(
+                        text("DELETE FROM broker_summary WHERE date >= :s AND date < :e"),
+                        {"s": month_start, "e": next_month_start}
+                    )
+            status_str = "completed_force" if is_force else "completed"
+            _mark_completed(m, status_str, dialect)
+            logger.info(f"🎉 Bulan {m} RESMI DITUTUP ({status_str}) & data dibersihkan!")
+        else:
+            logger.error(
+                f"⚠️ Gagal arsipkan bulan {m} (harga_ok={ok_h}, broksum_ok={ok_b}). "
+                f"Data TIDAK dihapus agar bisa di-retry pada run berikutnya."
+            )
 
     return True
 

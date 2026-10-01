@@ -95,6 +95,8 @@ def get_database_metrics(target_month: Optional[str] = None) -> Dict[str, Any]:
             saham_date = str(saham_row.last_update) if saham_row and saham_row.last_update else "N/A"
         except Exception as e:
             logger.warning(f"Error fetching daftar_saham: {e}")
+            try: db.rollback()
+            except Exception: pass
             saham_total = 0
             saham_date = "N/A"
 
@@ -108,6 +110,8 @@ def get_database_metrics(target_month: Optional[str] = None) -> Dict[str, Any]:
             available_months = [str(r[0]) for r in db.execute(sql_months).fetchall() if r[0]]
         except Exception as e:
             logger.warning(f"Error fetching available months: {e}")
+            try: db.rollback()
+            except Exception: pass
             available_months = []
 
         # Tentukan bulan aktif kalender
@@ -163,6 +167,8 @@ def get_database_metrics(target_month: Optional[str] = None) -> Dict[str, Any]:
                 })
         except Exception as e:
             logger.warning(f"Error fetching history data: {e}")
+            try: db.rollback()
+            except Exception: pass
 
         pipeline_data = history_data[-1] if history_data else {
             "date": "N/A", "ohlcv_scraped": 0, "target_harvester": 0, "broksum_synced": 0
@@ -189,6 +195,8 @@ def get_database_metrics(target_month: Optional[str] = None) -> Dict[str, Any]:
                 })
         except Exception as e:
             logger.warning(f"Error fetching bot_error_logs: {e}")
+            try: db.rollback()
+            except Exception: pass
 
         # 4. Archive Status & DB Stats
         archive_list: List[Dict[str, Any]] = []
@@ -226,6 +234,8 @@ def get_database_metrics(target_month: Optional[str] = None) -> Dict[str, Any]:
                 }
         except Exception as e:
             logger.warning(f"Error fetching archive & stats: {e}")
+            try: db.rollback()
+            except Exception: pass
 
         # 5. Harvester Gaps (Suspensi / Gap Emiten)
         gap_list: List[Dict[str, Any]] = []
@@ -248,6 +258,8 @@ def get_database_metrics(target_month: Optional[str] = None) -> Dict[str, Any]:
                 })
         except Exception as e:
             logger.warning(f"Error fetching harvester_gaps: {e}")
+            try: db.rollback()
+            except Exception: pass
 
     return {
         "status": "success",
@@ -277,7 +289,7 @@ def _parse_idx_date(date_str) -> Optional[date]:
 
     months_map = {
         'Jan': '01', 'Feb': '02', 'Mar': '03', 'Apr': '04', 'Mei': '05', 'Jun': '06',
-        'Jul': '07', 'Agu': '08', 'Sep': '09', 'Okt': '10', 'Nov': '11', 'Des': '12'
+        'Jul': '07', 'Agu': '08', 'Agt': '08', 'Sep': '09', 'Okt': '10', 'Nov': '11', 'Des': '12'
     }
     try:
         parts = str(date_str).strip().split()
