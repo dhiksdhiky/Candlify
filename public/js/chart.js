@@ -22,6 +22,8 @@ function hexToRgba(hex, alpha = 0.15) {
     const g = (num >> 8) & 255;
     const b = num & 255;
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 // Helper: HTML Escaper (Anti-XSS Sanitizer)
 function escapeHtml(str) {
     if (str == null) return '';
