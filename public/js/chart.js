@@ -508,6 +508,10 @@ class CandlifyChart {
 
         // Cache Data Bandarmologi
         this.bandarData = null;
+
+        // Navigation History State
+        this.previousView = 'screener';
+        this._skipNextHashChange = false;
         
         this.dom = {
             container: document.getElementById('chart-container'),
@@ -716,6 +720,7 @@ class CandlifyChart {
 
             // ── Chart Rapid Navigation Controls ──
             btnBackScreener: document.getElementById('btn-back-screener'),
+            backScreenerLabel: document.getElementById('back-screener-label'),
             
             // In-Place Ticker Input (Point 1)
             tickerInplaceInput: document.getElementById('ticker-inplace-input'),
@@ -989,9 +994,10 @@ class CandlifyChart {
         const container = document.getElementById('chart-container');
         if (!container || !this.chart) return;
 
-        let activeGesture = null; // 'vol_resize' | 'yaxis_scale'
+        let activeGesture = null; // 'pane_resize' | 'yaxis_scale'
+        let activeResizePaneId = null;
         let startTouchY = 0;
-        let startVolHeight = 110;
+        let startPaneHeight = 80;
         let startExtremum = null;
         let lastYAxisTapTime = 0;
 
@@ -1068,19 +1074,38 @@ class CandlifyChart {
                 return;
             }
 
-            // 2. Near Volume Pane Divider line (Touch tolerance +/- 28px)
-            const volPane = this.chart.getDrawPaneById ? this.chart.getDrawPaneById('pane_vol') : null;
-            if (volPane && volPane.getBounding) {
-                const volBound = volPane.getBounding();
-                const dividerY = volBound.top;
-                if (Math.abs(y - dividerY) <= 28) {
-                    activeGesture = 'vol_resize';
-                    startTouchY = touch.clientY;
-                    startVolHeight = volBound.height || 110;
-                    e.preventDefault();
-                    e.stopPropagation();
-                    return;
+            // 2. Near Indicator Sub-Pane Divider lines (Touch tolerance +/- 28px)
+            // Mendukung fleksibel untuk semua indikator: Volume, RSI, MACD, Net Flow, dsb.
+            const candidatePaneIds = ['pane_vol', 'pane_macd', 'pane_rsi', 'pane_net_flow'];
+            let matchedPane = null;
+            let closestDist = 28;
+
+            for (const pid of candidatePaneIds) {
+                const pane = this.chart.getDrawPaneById ? this.chart.getDrawPaneById(pid) : null;
+                if (pane && pane.getBounding) {
+                    const bound = pane.getBounding();
+                    if (bound && bound.height > 0) {
+                        const dividerY = bound.top;
+                        const dist = Math.abs(y - dividerY);
+                        if (dist <= 28 && dist < closestDist) {
+                            closestDist = dist;
+                            matchedPane = {
+                                id: pid,
+                                height: bound.height
+                            };
+                        }
+                    }
                 }
+            }
+
+            if (matchedPane) {
+                activeGesture = 'pane_resize';
+                activeResizePaneId = matchedPane.id;
+                startTouchY = touch.clientY;
+                startPaneHeight = matchedPane.height || 80;
+                e.preventDefault();
+                e.stopPropagation();
+                return;
             }
         }, { capture: true, passive: false });
 
@@ -1089,13 +1114,14 @@ class CandlifyChart {
             const touch = e.touches[0];
             const rect = container.getBoundingClientRect();
 
-            if (activeGesture === 'vol_resize') {
+            if (activeGesture === 'pane_resize' && activeResizePaneId) {
                 e.preventDefault();
                 e.stopPropagation();
                 const deltaY = startTouchY - touch.clientY; // drag up -> increase height
                 const maxH = Math.floor(rect.height * 0.55);
-                const newH = Math.max(50, Math.min(maxH, Math.round(startVolHeight + deltaY)));
-                this.chart.setPaneOptions({ id: 'pane_vol', height: newH });
+                const minH = 40;
+                const newH = Math.max(minH, Math.min(maxH, Math.round(startPaneHeight + deltaY)));
+                this.chart.setPaneOptions({ id: activeResizePaneId, height: newH });
             } else if (activeGesture === 'yaxis_scale' && startExtremum && startExtremum.range) {
                 e.preventDefault();
                 e.stopPropagation();
@@ -1128,6 +1154,7 @@ class CandlifyChart {
 
         const endGesture = () => {
             activeGesture = null;
+            activeResizePaneId = null;
             startExtremum = null;
         };
         container.addEventListener('touchend', endGesture, { capture: true });
@@ -1138,6 +1165,23 @@ class CandlifyChart {
         // Resize Window
         window.addEventListener('resize', () => {
             if (this.chart) this.chart.resize();
+        });
+
+        // Handle Browser / Mobile Hardware Back & Forward Buttons
+        window.addEventListener('hashchange', () => {
+            if (this._skipNextHashChange) {
+                this._skipNextHashChange = false;
+                return;
+            }
+            this.handleRouteFromHash();
+        });
+
+        window.addEventListener('popstate', () => {
+            if (this._skipNextHashChange) {
+                this._skipNextHashChange = false;
+                return;
+            }
+            this.handleRouteFromHash();
         });
         
         // ── Point 1: Direct In-Place Editable Ticker ──
@@ -2489,11 +2533,12 @@ class CandlifyChart {
             });
         }
 
-        // 7. Navigation Controls: Back to Screener
+        // 7. Navigation Controls: Back to Previous View (Screener, Watchlist, Journal, etc.)
         if (this.dom.btnBackScreener) {
             this.dom.btnBackScreener.addEventListener('click', (e) => {
                 e.stopPropagation();
-                this.switchView('screener');
+                const target = this.previousView || 'screener';
+                this.switchView(target, true);
             });
         }
 
@@ -3288,6 +3333,7 @@ class CandlifyChart {
     }
 
     openChartFromScreener(symbol) {
+        this.updateChartBackButton('screener');
         const clean = symbol.toUpperCase().trim();
         // Simpan daftar saham yang sedang aktif terfilter ke navigation flow
         if (this.currentFilteredStocks && this.currentFilteredStocks.length > 0) {
@@ -3370,8 +3416,106 @@ class CandlifyChart {
         this.dom.chartNavIndex.textContent = `${current}/${total}`;
     }
 
-    switchView(viewName) {
+    updateChartBackButton(fromView) {
+        if (!this.dom.btnBackScreener) return;
+        const view = fromView || this.previousView || 'screener';
+        this.previousView = view;
+
+        let label = 'Screener';
+        if (view === 'watchlist') label = 'Watchlist';
+        else if (view === 'journal') label = 'Journal';
+        else if (view === 'database') label = 'Database';
+
+        if (this.dom.backScreenerLabel) {
+            this.dom.backScreenerLabel.textContent = label;
+        } else {
+            this.dom.btnBackScreener.innerHTML = `<span class="back-arrow">◀</span> <span id="back-screener-label">${label}</span>`;
+            this.dom.backScreenerLabel = document.getElementById('back-screener-label');
+        }
+        this.dom.btnBackScreener.title = `Kembali ke ${label}`;
+    }
+
+    closeAnyOpenModal() {
+        let closedSomething = false;
+        const modalsToClose = [
+            { el: this.dom.filterModal, close: () => this.closeFilterModal() },
+            { el: this.dom.watchlistModal, close: () => this.closeWatchlistModal() },
+            { el: this.dom.categoryMgmtModal, close: () => this.closeCategoryMgmtModal() },
+            { el: this.dom.riskModal, close: () => this.closeRiskModal() },
+            { el: this.dom.planModal, close: () => this.closePlanModal() },
+            { el: this.dom.trailingModal, close: () => this.closeTrailingModal() },
+            { el: this.dom.exitModal, close: () => this.closeExitModal() },
+            { el: this.dom.uploadModal, close: () => this.closeUploadModal ? this.closeUploadModal() : this.dom.uploadModal.classList.add('hidden') },
+            { el: this.dom.suspendModal, close: () => this.closeSuspendModal ? this.closeSuspendModal() : this.dom.suspendModal.classList.add('hidden') },
+            { el: this.dom.logsModal, close: () => this.closeLogsModal ? this.closeLogsModal() : this.dom.logsModal.classList.add('hidden') },
+            { el: this.dom.indicatorSheet, close: () => this.closeSheet ? this.closeSheet('indicator') : this.dom.indicatorSheet.classList.add('hidden') },
+            { el: this.dom.drawSheet, close: () => this.closeSheet ? this.closeSheet('draw') : this.dom.drawSheet.classList.add('hidden') }
+        ];
+
+        for (const item of modalsToClose) {
+            if (item.el && !item.el.classList.contains('hidden')) {
+                try { item.close(); } catch (_) { item.el.classList.add('hidden'); }
+                closedSomething = true;
+            }
+        }
+        if (this.dom.sheetBackdrop && !this.dom.sheetBackdrop.classList.contains('hidden')) {
+            this.dom.sheetBackdrop.classList.add('hidden');
+        }
+        return closedSomething;
+    }
+
+    handleRouteFromHash() {
+        this.closeAnyOpenModal();
+
+        const rawHash = (window.location.hash || '').replace('#', '').trim();
+        const hash = rawHash.toUpperCase();
+
+        if (!hash || hash === 'SCREENER') {
+            if (this.currentView !== 'screener') {
+                this.switchView('screener', false);
+            }
+        } else if (hash === 'DATABASE' || hash === 'HOME') {
+            if (this.currentView !== 'database') {
+                this.switchView('database', false);
+            }
+        } else if (hash === 'WATCHLIST') {
+            if (this.currentView !== 'watchlist') {
+                this.switchView('watchlist', false);
+            }
+        } else if (hash === 'JOURNAL' || hash === 'PLAN') {
+            if (this.currentView !== 'journal') {
+                this.switchView('journal', false);
+            }
+        } else if (hash === 'SETTINGS') {
+            if (this.currentView !== 'settings') {
+                this.switchView('settings', false);
+            }
+        } else if (hash.length >= 4) {
+            if (this.currentView !== 'chart' || this.currentSymbol !== hash) {
+                this.switchView('chart', false);
+                this.setSymbol(hash, false);
+            }
+        } else {
+            if (this.currentView !== 'screener') {
+                this.switchView('screener', false);
+            }
+        }
+    }
+
+    switchView(viewName, updateHistory = true) {
         if (viewName === 'home') viewName = 'database';
+
+        // Rekam previousView jika berpindah ke chart
+        if (viewName === 'chart') {
+            if (this.currentView && this.currentView !== 'chart') {
+                this.updateChartBackButton(this.currentView);
+            } else {
+                this.updateChartBackButton(this.previousView || 'screener');
+            }
+        } else {
+            this.previousView = viewName;
+        }
+
         this.currentView = viewName;
 
         // Hide all views first
@@ -3382,6 +3526,8 @@ class CandlifyChart {
         if (this.dom.journalView) this.dom.journalView.classList.add('hidden');
         if (this.dom.settingsView) this.dom.settingsView.classList.add('hidden');
         if (this.dom.chartView) this.dom.chartView.classList.add('hidden');
+
+        let targetHash = '#screener';
 
         if (viewName === 'database') {
             const dbView = this.dom.databaseView || this.dom.homeView;
@@ -3394,7 +3540,7 @@ class CandlifyChart {
             if (this.dom.floatingBottomNav) this.dom.floatingBottomNav.classList.remove('nav-hidden');
             this.updateDatabaseOverview();
             this.saveOverlaysForSymbol(this.currentSymbol);
-            window.location.hash = '#database';
+            targetHash = '#database';
         } else if (viewName === 'screener') {
             if (this.dom.screenerView) {
                 this.dom.screenerView.classList.remove('hidden');
@@ -3404,7 +3550,7 @@ class CandlifyChart {
             }
             if (this.dom.floatingBottomNav) this.dom.floatingBottomNav.classList.remove('nav-hidden');
             this.saveOverlaysForSymbol(this.currentSymbol);
-            window.location.hash = '#screener';
+            targetHash = '#screener';
         } else if (viewName === 'watchlist') {
             if (this.dom.watchlistView) {
                 this.dom.watchlistView.classList.remove('hidden');
@@ -3415,7 +3561,7 @@ class CandlifyChart {
             if (this.dom.floatingBottomNav) this.dom.floatingBottomNav.classList.remove('nav-hidden');
             this.saveOverlaysForSymbol(this.currentSymbol);
             this.fetchWatchlist(this.activeWatchlistCategory);
-            window.location.hash = '#watchlist';
+            targetHash = '#watchlist';
         } else if (viewName === 'journal') {
             if (this.dom.journalView) {
                 this.dom.journalView.classList.remove('hidden');
@@ -3426,7 +3572,7 @@ class CandlifyChart {
             if (this.dom.floatingBottomNav) this.dom.floatingBottomNav.classList.remove('nav-hidden');
             this.saveOverlaysForSymbol(this.currentSymbol);
             this.fetchTradingPlans(this.activePlanFilter);
-            window.location.hash = '#journal';
+            targetHash = '#journal';
         } else if (viewName === 'settings') {
             if (this.dom.settingsView) {
                 this.dom.settingsView.classList.remove('hidden');
@@ -3437,7 +3583,7 @@ class CandlifyChart {
             if (this.dom.floatingBottomNav) this.dom.floatingBottomNav.classList.remove('nav-hidden');
             this.populateSettingsFields();
             this.saveOverlaysForSymbol(this.currentSymbol);
-            window.location.hash = '#settings';
+            targetHash = '#settings';
         } else if (viewName === 'chart') {
             if (this.dom.chartView) {
                 this.dom.chartView.classList.remove('hidden');
@@ -3448,7 +3594,7 @@ class CandlifyChart {
             // Hide floating bottom nav on chart view to give full screen for chart
             if (this.dom.floatingBottomNav) this.dom.floatingBottomNav.classList.add('nav-hidden');
             this.checkWatchlistStatus(this.currentSymbol);
-            window.location.hash = '#' + this.currentSymbol;
+            targetHash = '#' + (this.currentSymbol || 'BBRI');
 
             if (this._needChartRefresh) {
                 this._needChartRefresh = false;
@@ -3472,10 +3618,16 @@ class CandlifyChart {
                 }
             });
         }
+
+        // Sinkronisasi hash history browser jika updateHistory true
+        if (updateHistory && window.location.hash !== targetHash) {
+            this._skipNextHashChange = true;
+            window.location.hash = targetHash;
+        }
     }
 
-
     openChartFromWatchlist(symbol) {
+        this.updateChartBackButton('watchlist');
         const clean = symbol.toUpperCase().trim();
         // Set daftar navigasi dari watchlist agar user bisa next-next khusus saham watchlist
         if (this.watchlistItems && this.watchlistItems.length > 0) {
@@ -3526,7 +3678,11 @@ class CandlifyChart {
         
         // Update URL hash jika di chart view
         if (this.currentView === 'chart') {
-            window.location.hash = '#' + clean;
+            const targetHash = '#' + clean;
+            if (window.location.hash !== targetHash) {
+                this._skipNextHashChange = true;
+                window.location.hash = targetHash;
+            }
         }
 
         // Update chip active state jika ada di daftar chip
@@ -5674,6 +5830,7 @@ class CandlifyChart {
     }
 
     openChartFromPlan(symbol) {
+        this.updateChartBackButton('journal');
         const clean = (symbol || '').toUpperCase().trim();
         if (this.tradingPlans && this.tradingPlans.length > 0) {
             this.activeNavigationList = Array.from(new Set(this.tradingPlans.map(p => p.symbol)));
