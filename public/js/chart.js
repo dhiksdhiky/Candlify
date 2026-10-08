@@ -442,6 +442,8 @@ class CandlifyChart {
         
         // Screener & Rapid Navigation State
         this.currentView = 'screener'; // 'screener' | 'chart'
+        this.previousView = 'screener';
+        this._navigatedToChartFromApp = false;
         this.screenerStocks = [];
         this.currentFilteredStocks = [];
         this.activeNavigationList = ['BBRI'];
@@ -845,7 +847,7 @@ class CandlifyChart {
             this.currentNavigationIndex = 0;
             this.renderQuickChipsFromList(this.activeNavigationList, hash);
             this.updateNavIndex();
-            this.switchView('chart');
+            this.switchView('chart', false, hash);
             this.loadData(this.currentSymbol, this.currentInterval);
         } else {
             // Default: Tampilkan Screener View sebagai layar utama
@@ -2582,8 +2584,13 @@ class CandlifyChart {
         if (this.dom.btnBackScreener) {
             this.dom.btnBackScreener.addEventListener('click', (e) => {
                 e.stopPropagation();
-                const target = this.previousView || 'screener';
-                this.switchView(target, true);
+                if (this._navigatedToChartFromApp && window.history.length > 1) {
+                    this._navigatedToChartFromApp = false;
+                    window.history.back();
+                } else {
+                    const target = this.previousView || 'screener';
+                    this.switchView(target, true);
+                }
             });
         }
 
@@ -3379,7 +3386,7 @@ class CandlifyChart {
 
     openChartFromScreener(symbol) {
         this.updateChartBackButton('screener');
-        const clean = symbol.toUpperCase().trim();
+        const clean = symbol.replace('IDX:', '').replace('.JK', '').toUpperCase().trim();
         // Simpan daftar saham yang sedang aktif terfilter ke navigation flow
         if (this.currentFilteredStocks && this.currentFilteredStocks.length > 0) {
             this.activeNavigationList = this.currentFilteredStocks.map(s => s.symbol);
@@ -3394,8 +3401,8 @@ class CandlifyChart {
         this.renderQuickChipsFromList(this.activeNavigationList, clean);
         this.updateNavIndex();
 
-        // Pindah ke Chart View dengan animasi smooth
-        this.switchView('chart');
+        // Pindah ke Chart View dengan target symbol langsung agar hash history sinkron (tidak nyelip BBRI)
+        this.switchView('chart', true, clean);
 
         // Buka saham terpilih
         this.setSymbol(clean, true);
@@ -3537,7 +3544,7 @@ class CandlifyChart {
             }
         } else if (hash.length >= 4) {
             if (this.currentView !== 'chart' || this.currentSymbol !== hash) {
-                this.switchView('chart', false);
+                this.switchView('chart', false, hash);
                 this.setSymbol(hash, false);
             }
         } else {
@@ -3547,11 +3554,16 @@ class CandlifyChart {
         }
     }
 
-    switchView(viewName, updateHistory = true) {
+    switchView(viewName, updateHistory = true, targetSymbol = null) {
         if (viewName === 'home') viewName = 'database';
+
+        if (targetSymbol) {
+            this.currentSymbol = targetSymbol.replace('IDX:', '').replace('.JK', '').toUpperCase().trim();
+        }
 
         // Rekam previousView jika berpindah ke chart
         if (viewName === 'chart') {
+            this._navigatedToChartFromApp = true;
             if (this.currentView && this.currentView !== 'chart') {
                 this.updateChartBackButton(this.currentView);
             } else {
@@ -3559,6 +3571,7 @@ class CandlifyChart {
             }
         } else {
             this.previousView = viewName;
+            this._navigatedToChartFromApp = false;
         }
 
         this.currentView = viewName;
@@ -3673,7 +3686,7 @@ class CandlifyChart {
 
     openChartFromWatchlist(symbol) {
         this.updateChartBackButton('watchlist');
-        const clean = symbol.toUpperCase().trim();
+        const clean = symbol.replace('IDX:', '').replace('.JK', '').toUpperCase().trim();
         // Set daftar navigasi dari watchlist agar user bisa next-next khusus saham watchlist
         if (this.watchlistItems && this.watchlistItems.length > 0) {
             this.activeNavigationList = this.watchlistItems.map(item => item.symbol);
@@ -3686,7 +3699,7 @@ class CandlifyChart {
 
         this.renderQuickChipsFromList(this.activeNavigationList, clean);
         this.updateNavIndex();
-        this.switchView('chart');
+        this.switchView('chart', true, clean);
         this.setSymbol(clean, true);
     }
 
@@ -3721,12 +3734,16 @@ class CandlifyChart {
             this.dom.tickerInplaceInput.style.width = Math.max(clean.length * 12, 54) + 'px';
         }
         
-        // Update URL hash jika di chart view
+        // Update URL hash jika di chart view (gunakan replaceState agar flipping chip tidak menumpuk history)
         if (this.currentView === 'chart') {
             const targetHash = '#' + clean;
             if (window.location.hash !== targetHash) {
                 this._skipNextHashChange = true;
-                window.location.hash = targetHash;
+                try {
+                    history.replaceState(null, '', targetHash);
+                } catch (_) {
+                    window.location.hash = targetHash;
+                }
             }
         }
 
@@ -5876,7 +5893,7 @@ class CandlifyChart {
 
     openChartFromPlan(symbol) {
         this.updateChartBackButton('journal');
-        const clean = (symbol || '').toUpperCase().trim();
+        const clean = (symbol || '').replace('IDX:', '').replace('.JK', '').toUpperCase().trim();
         if (this.tradingPlans && this.tradingPlans.length > 0) {
             this.activeNavigationList = Array.from(new Set(this.tradingPlans.map(p => p.symbol)));
         } else {
@@ -5886,7 +5903,7 @@ class CandlifyChart {
         if (this.currentNavigationIndex === -1) this.currentNavigationIndex = 0;
         this.renderQuickChipsFromList(this.activeNavigationList, clean);
         this.updateNavIndex();
-        this.switchView('chart');
+        this.switchView('chart', true, clean);
         this.setSymbol(clean, true);
     }
     
