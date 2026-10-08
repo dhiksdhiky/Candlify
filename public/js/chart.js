@@ -996,19 +996,21 @@ class CandlifyChart {
 
         let activeGesture = null; // 'pane_resize' | 'yaxis_scale'
         let activeResizePaneId = null;
+        let activeYAxisComponent = null;
+        let activeYAxisPane = null;
         let startTouchY = 0;
         let startPaneHeight = 80;
         let startExtremum = null;
         let lastYAxisTapTime = 0;
 
-        // Subtle floating button "Auto Skala" when vertical price axis is manually zoomed/scaled
+        // Subtle floating button "Auto Skala" when vertical price/indicator axis is manually zoomed/scaled
         let autoScaleBtn = document.getElementById('btn-auto-scale-y');
         if (!autoScaleBtn) {
             autoScaleBtn = document.createElement('button');
             autoScaleBtn.id = 'btn-auto-scale-y';
             autoScaleBtn.className = 'auto-scale-btn hidden';
             autoScaleBtn.innerHTML = '<span>⟲ Auto Skala</span>';
-            autoScaleBtn.title = 'Kembalikan skala harga vertikal ke otomatis';
+            autoScaleBtn.title = 'Kembalikan skala vertikal ke otomatis';
             if (container.parentElement) {
                 container.parentElement.appendChild(autoScaleBtn);
             }
@@ -1019,25 +1021,64 @@ class CandlifyChart {
             });
         }
 
-        const resetScale = () => {
+        const resetScale = (specificAxis = null) => {
+            if (specificAxis && typeof specificAxis.setAutoCalcTickFlag === 'function') {
+                specificAxis.setAutoCalcTickFlag(true);
+                this.chart.adjustPaneViewport(false, true, true, true);
+                if (autoScaleBtn) autoScaleBtn.classList.add('hidden');
+                return;
+            }
+
+            // Reset semua pane (candle + sub-pane indikator)
             const candlePane = this.chart.getCandlePane ? this.chart.getCandlePane() : null;
             if (candlePane) {
-                const axis = candlePane.getAxisComponent ? candlePane.getAxisComponent() : null;
-                if (axis) {
-                    axis.setAutoCalcTickFlag(true);
-                    this.chart.adjustPaneViewport(false, true, true, true);
-                    if (autoScaleBtn) autoScaleBtn.classList.add('hidden');
+                const a = candlePane.getAxisComponent ? candlePane.getAxisComponent() : null;
+                if (a && typeof a.setAutoCalcTickFlag === 'function') a.setAutoCalcTickFlag(true);
+            }
+            const candidatePaneIds = ['pane_vol', 'pane_macd', 'pane_rsi', 'pane_net_flow'];
+            for (const pid of candidatePaneIds) {
+                const p = this.chart.getDrawPaneById ? this.chart.getDrawPaneById(pid) : null;
+                if (p) {
+                    const a = p.getAxisComponent ? p.getAxisComponent() : null;
+                    if (a && typeof a.setAutoCalcTickFlag === 'function') a.setAutoCalcTickFlag(true);
                 }
             }
+            this.chart.adjustPaneViewport(false, true, true, true);
+            if (autoScaleBtn) autoScaleBtn.classList.add('hidden');
         };
         this.resetPriceAxisScale = resetScale;
 
-        // Double-click on price scale (mouse or tap) resets auto-scale
+        // Helper untuk mencari pane mana yang berada di koordinat vertikal Y tertentu
+        const getPaneAtY = (coordY) => {
+            const candlePane = this.chart.getCandlePane ? this.chart.getCandlePane() : null;
+            const candidatePaneIds = ['pane_vol', 'pane_macd', 'pane_rsi', 'pane_net_flow'];
+            const allPanes = [];
+            if (candlePane) allPanes.push(candlePane);
+            for (const pid of candidatePaneIds) {
+                const p = this.chart.getDrawPaneById ? this.chart.getDrawPaneById(pid) : null;
+                if (p) allPanes.push(p);
+            }
+
+            for (const p of allPanes) {
+                if (p && p.getBounding) {
+                    const b = p.getBounding();
+                    if (b && coordY >= b.top && coordY <= (b.top + b.height)) {
+                        return p;
+                    }
+                }
+            }
+            return candlePane;
+        };
+
+        // Double-click on price or indicator scale resets auto-scale
         container.addEventListener('dblclick', (e) => {
             const rect = container.getBoundingClientRect();
             const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
             if (x >= rect.width - 70) {
-                resetScale();
+                const targetPane = getPaneAtY(y);
+                const axis = targetPane && targetPane.getAxisComponent ? targetPane.getAxisComponent() : null;
+                resetScale(axis);
             }
         });
 
@@ -1049,12 +1090,17 @@ class CandlifyChart {
             const x = touch.clientX - rect.left;
             const y = touch.clientY - rect.top;
 
-            // 1. Right side Price Y-Axis (Width ~65px)
+            // 1. Right side Price / Indicator Y-Axis (Width ~65px)
             if (x >= rect.width - 65) {
+                const targetPane = getPaneAtY(y);
+                const axis = targetPane && targetPane.getAxisComponent ? targetPane.getAxisComponent() : null;
+                activeYAxisComponent = axis;
+                activeYAxisPane = targetPane;
+
                 const now = Date.now();
                 if (now - lastYAxisTapTime < 350) {
-                    // Double tap on price scale -> reset auto-scale!
-                    resetScale();
+                    // Double tap on scale -> reset auto-scale untuk pane yang disentuh!
+                    resetScale(axis);
                     lastYAxisTapTime = 0;
                     e.preventDefault();
                     e.stopPropagation();
@@ -1062,8 +1108,6 @@ class CandlifyChart {
                 }
                 lastYAxisTapTime = now;
 
-                const candlePane = this.chart.getCandlePane ? this.chart.getCandlePane() : null;
-                const axis = candlePane && candlePane.getAxisComponent ? candlePane.getAxisComponent() : null;
                 if (axis) {
                     activeGesture = 'yaxis_scale';
                     startTouchY = touch.clientY;
@@ -1122,7 +1166,7 @@ class CandlifyChart {
                 const minH = 40;
                 const newH = Math.max(minH, Math.min(maxH, Math.round(startPaneHeight + deltaY)));
                 this.chart.setPaneOptions({ id: activeResizePaneId, height: newH });
-            } else if (activeGesture === 'yaxis_scale' && startExtremum && startExtremum.range) {
+            } else if (activeGesture === 'yaxis_scale' && startExtremum && startExtremum.range && activeYAxisComponent) {
                 e.preventDefault();
                 e.stopPropagation();
                 const deltaY = touch.clientY - startTouchY;
@@ -1133,8 +1177,7 @@ class CandlifyChart {
                 const newMin = startExtremum.min - diff;
                 const newMax = startExtremum.max + diff;
 
-                const candlePane = this.chart.getCandlePane ? this.chart.getCandlePane() : null;
-                const axis = candlePane && candlePane.getAxisComponent ? candlePane.getAxisComponent() : null;
+                const axis = activeYAxisComponent;
                 if (axis) {
                     const rMin = typeof axis.convertToRealValue === 'function' ? axis.convertToRealValue(newMin) : newMin;
                     const rMax = typeof axis.convertToRealValue === 'function' ? axis.convertToRealValue(newMax) : newMax;
@@ -1155,6 +1198,8 @@ class CandlifyChart {
         const endGesture = () => {
             activeGesture = null;
             activeResizePaneId = null;
+            activeYAxisComponent = null;
+            activeYAxisPane = null;
             startExtremum = null;
         };
         container.addEventListener('touchend', endGesture, { capture: true });
