@@ -283,6 +283,23 @@ def setup_tables():
                         PRIMARY KEY (ticker, date)
                     )
                 """))
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS candlify_signals (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        date DATE NOT NULL,
+                        ticker TEXT NOT NULL,
+                        price REAL NOT NULL,
+                        range_7 REAL NOT NULL,
+                        volume_dry_ratio REAL NOT NULL,
+                        bbw REAL NOT NULL,
+                        price_to_ma20 REAL NOT NULL,
+                        hmb REAL,
+                        top_accumulator TEXT,
+                        score INTEGER DEFAULT 0,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        UNIQUE (date, ticker)
+                    )
+                """))
             else:
                 # PostgreSQL branch
                 conn.execute(text("""
@@ -375,6 +392,23 @@ def setup_tables():
                         PRIMARY KEY (ticker, date)
                     )
                 """))
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS candlify_signals (
+                        id SERIAL PRIMARY KEY,
+                        date DATE NOT NULL,
+                        ticker VARCHAR(10) NOT NULL,
+                        price FLOAT NOT NULL,
+                        range_7 FLOAT NOT NULL,
+                        volume_dry_ratio FLOAT NOT NULL,
+                        bbw FLOAT NOT NULL,
+                        price_to_ma20 FLOAT NOT NULL,
+                        hmb FLOAT,
+                        top_accumulator VARCHAR(5),
+                        score INT DEFAULT 0,
+                        created_at TIMESTAMPTZ DEFAULT NOW(),
+                        UNIQUE (date, ticker)
+                    )
+                """))
                 
                 # Indexes for Performance
                 conn.execute(text("""
@@ -384,6 +418,14 @@ def setup_tables():
                 conn.execute(text("""
                     CREATE INDEX IF NOT EXISTS idx_harga_saham_ticker_date
                         ON harga_saham (ticker, tanggal)
+                """))
+                conn.execute(text("""
+                    CREATE INDEX IF NOT EXISTS idx_candlify_signals_date
+                        ON candlify_signals (date DESC)
+                """))
+                conn.execute(text("""
+                    CREATE INDEX IF NOT EXISTS idx_candlify_signals_ticker
+                        ON candlify_signals (ticker)
                 """))
 
     logger.info("✅ Semua tabel siap.")

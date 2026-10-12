@@ -121,3 +121,23 @@ CREATE INDEX IF NOT EXISTS idx_broker_summary_ticker_date ON broker_summary (tic
 CREATE INDEX IF NOT EXISTS idx_harga_saham_ticker_date ON harga_saham (ticker, tanggal);
 CREATE INDEX IF NOT EXISTS idx_watchlists_symbol ON candlify_watchlists (symbol);
 CREATE INDEX IF NOT EXISTS idx_trading_plans_status ON candlify_trading_plans (status);
+
+-- 10. Pre-Breakout Signals (Bali Pattern Engine)
+CREATE TABLE IF NOT EXISTS candlify_signals (
+    id SERIAL PRIMARY KEY,
+    date DATE NOT NULL,
+    ticker VARCHAR(10) NOT NULL,
+    price FLOAT NOT NULL,
+    range_7 FLOAT NOT NULL,
+    volume_dry_ratio FLOAT NOT NULL,
+    bbw FLOAT NOT NULL,
+    price_to_ma20 FLOAT NOT NULL,
+    hmb FLOAT,
+    top_accumulator VARCHAR(5),
+    score INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (date, ticker)
+);
+
+CREATE INDEX IF NOT EXISTS idx_candlify_signals_date ON candlify_signals (date DESC);
+CREATE INDEX IF NOT EXISTS idx_candlify_signals_ticker ON candlify_signals (ticker);

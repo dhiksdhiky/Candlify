@@ -91,17 +91,53 @@ def get_tickers() -> list:
 
 
 def get_master_calendar(start_date: date, end_date: date) -> pd.DatetimeIndex:
-    """Unduh kalender bursa IHSG (^JKSE) sebagai acuan hari trading."""
-    logger.info("📅 Mengunduh Kalender Bursa (IHSG/^JKSE)...")
+    """
+    Unduh kalender bursa konsensus multi-emiten:
+    IHSG (^JKSE) + Top Big Caps likuid (BBCA, BBRI, BMRI, TLKM, ASII).
+    Mengatasi isu Yahoo Finance di mana indeks ^JKSE sering telat update beberapa jam
+    dibandingkan emiten likuid. Mengambil gabungan (union) hari trading aktif.
+    """
+    logger.info("📅 Mengunduh Kalender Bursa Konsensus (^JKSE + Top Big Caps)...")
+    benchmark_tickers = ['^JKSE', 'BBCA.JK', 'BBRI.JK', 'BMRI.JK', 'TLKM.JK', 'ASII.JK']
+    all_dates = set()
+    success_sources = []
+
     try:
-        ihsg = yf.download('^JKSE', start=start_date, end=end_date, progress=False)
-        if ihsg.empty:
-            raise ValueError("Data IHSG kosong dari yfinance.")
-        logger.info(f"📅 Kalender bursa dimuat: {len(ihsg)} hari trading.")
-        return ihsg.index
+        df_bench = yf.download(benchmark_tickers, start=start_date, end=end_date, progress=False)
+        if not df_bench.empty:
+            if isinstance(df_bench.columns, pd.MultiIndex):
+                if 'Close' in df_bench.columns.levels[0]:
+                    closes = df_bench['Close']
+                    valid_idx = closes.dropna(how='all').index
+                    all_dates.update(valid_idx)
+                else:
+                    all_dates.update(df_bench.index)
+            else:
+                all_dates.update(df_bench.index)
+            success_sources.append("batch_benchmarks")
     except Exception as e:
-        logger.error(f"❌ Gagal unduh kalender IHSG: {e}")
-        raise
+        logger.warning(f"⚠️ Gagal batch download benchmarks: {e}")
+
+    # Fallback per ticker jika batch gagal / kosong
+    if not all_dates:
+        for t in benchmark_tickers:
+            try:
+                single_df = yf.download(t, start=start_date, end=end_date, progress=False)
+                if not single_df.empty:
+                    all_dates.update(single_df.index)
+                    success_sources.append(t)
+            except Exception as e:
+                logger.warning(f"⚠️ Gagal download kalender benchmark {t}: {e}")
+
+    if not all_dates:
+        raise ValueError("Data kalender bursa kosong dari semua benchmark yfinance.")
+
+    sorted_dates = pd.DatetimeIndex(sorted(all_dates))
+    logger.info(
+        f"📅 Kalender bursa konsensus dimuat: {len(sorted_dates)} hari trading "
+        f"(Sumber: {', '.join(success_sources)}). Tanggal terbaru: {sorted_dates[-1].date()}"
+    )
+    return sorted_dates
 
 
 
