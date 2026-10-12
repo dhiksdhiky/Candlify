@@ -145,6 +145,81 @@ def get_all_stocks_cached() -> List[Dict[str, Any]]:
         return _CACHE_DATA
 
 
+# Cache in-memory untuk sinyal pre-breakout: { "timestamp": float, "data": dict }
+_SIGNALS_CACHE: Dict[str, Any] = {"timestamp": 0.0, "data": {}}
+_SIGNALS_LOCK = threading.Lock()
+_SIGNALS_TTL = 60.0
+
+
+def get_pre_breakout_signals(target_date: Optional[str] = None, min_score: int = 60, limit: int = 100) -> Dict[str, Any]:
+    """Ambil sinyal pre-breakout dari tabel candlify_signals dengan in-memory cache."""
+    global _SIGNALS_CACHE
+    now = time.time()
+    cache_key = f"{target_date or 'latest'}_{min_score}_{limit}"
+
+    with _SIGNALS_LOCK:
+        if (now - _SIGNALS_CACHE.get("timestamp", 0.0) < _SIGNALS_TTL) and cache_key in _SIGNALS_CACHE.get("data", {}):
+            return _SIGNALS_CACHE["data"][cache_key]
+
+    from lib.db import get_db_engine
+    engine = get_db_engine()
+    if not engine:
+        return {"success": False, "error": "Database tidak terhubung", "count": 0, "signals": []}
+
+    try:
+        from sqlalchemy import text
+        with engine.connect() as conn:
+            if not target_date:
+                max_d = conn.execute(text("SELECT MAX(date) FROM candlify_signals")).scalar()
+                if not max_d:
+                    return {"success": True, "date": None, "count": 0, "signals": []}
+                target_date_str = str(max_d)
+            else:
+                target_date_str = target_date
+
+            stmt = text("""
+                SELECT date, ticker, price, range_7, volume_dry_ratio, bbw, price_to_ma20, hmb, top_accumulator, score, created_at
+                FROM candlify_signals
+                WHERE date = :t_date AND score >= :min_score
+                ORDER BY score DESC, range_7 ASC
+                LIMIT :limit
+            """)
+            rows = conn.execute(stmt, {"t_date": target_date_str, "min_score": min_score, "limit": limit}).mappings().all()
+
+            signals = []
+            for r in rows:
+                signals.append({
+                    "date": str(r["date"]),
+                    "ticker": r["ticker"],
+                    "price": float(r["price"]),
+                    "range_7": float(r["range_7"]),
+                    "volume_dry_ratio": float(r["volume_dry_ratio"]),
+                    "bbw": float(r["bbw"]),
+                    "price_to_ma20": float(r["price_to_ma20"]),
+                    "hmb": float(r["hmb"]) if r["hmb"] is not None else None,
+                    "top_accumulator": r["top_accumulator"],
+                    "score": int(r["score"]),
+                    "created_at": r["created_at"].isoformat() if r["created_at"] else None
+                })
+
+            result = {
+                "success": True,
+                "date": target_date_str,
+                "count": len(signals),
+                "signals": signals
+            }
+
+            with _SIGNALS_LOCK:
+                if now - _SIGNALS_CACHE.get("timestamp", 0.0) >= _SIGNALS_TTL:
+                    _SIGNALS_CACHE = {"timestamp": now, "data": {}}
+                _SIGNALS_CACHE["data"][cache_key] = result
+
+            return result
+    except Exception as e:
+        logger.error(f"Error fetching pre-breakout signals: {e}")
+        return {"success": False, "error": str(e), "count": 0, "signals": []}
+
+
 def filter_by_preset(stocks: List[Dict[str, Any]], preset: str) -> List[Dict[str, Any]]:
     """Filter saham berdasarkan template preset strategi teruji."""
     if not preset or preset == "all":
@@ -199,6 +274,54 @@ def filter_by_preset(stocks: List[Dict[str, Any]], preset: str) -> List[Dict[str
             and s["change_pct"] >= 0
         ]
 
+    elif preset in ("pre_breakout", "bali"):
+        # Pre-Breakout Base (Bali Setup): Range ketat, Volume Kering, Akumulasi Bandar
+        sig_data = get_pre_breakout_signals(min_score=60, limit=200)
+        signals = sig_data.get("signals", [])
+        if not signals:
+            return []
+
+        sig_map = {s["ticker"]: s for s in signals}
+        matched = []
+        seen = set()
+
+        for s in stocks:
+            sym = s.get("symbol")
+            if sym in sig_map:
+                sig = sig_map[sym]
+                s_copy = dict(s)
+                s_copy["score"] = sig["score"]
+                s_copy["range_7"] = sig["range_7"]
+                s_copy["volume_dry_ratio"] = sig["volume_dry_ratio"]
+                s_copy["top_accumulator"] = sig["top_accumulator"]
+                s_copy["hmb"] = sig["hmb"]
+                s_copy["price_to_ma20"] = sig["price_to_ma20"]
+                s_copy["is_pre_breakout"] = True
+                matched.append(s_copy)
+                seen.add(sym)
+
+        for sym, sig in sig_map.items():
+            if sym not in seen:
+                matched.append({
+                    "symbol": sym,
+                    "name": sym,
+                    "price": int(round(sig["price"])) if sig["price"] >= 1 else float(round(sig["price"], 2)),
+                    "change_pct": 0.0,
+                    "volume": 0,
+                    "market_cap": 0,
+                    "volume_surge": round(sig["volume_dry_ratio"], 2),
+                    "rsi": None,
+                    "score": sig["score"],
+                    "range_7": sig["range_7"],
+                    "volume_dry_ratio": sig["volume_dry_ratio"],
+                    "top_accumulator": sig["top_accumulator"],
+                    "hmb": sig["hmb"],
+                    "price_to_ma20": sig["price_to_ma20"],
+                    "is_pre_breakout": True
+                })
+
+        return matched
+
     return stocks
 
 
@@ -229,6 +352,8 @@ def sort_stocks(stocks: List[Dict[str, Any]], sort_key: str) -> List[Dict[str, A
         return sorted(stocks, key=lambda x: (x.get("rsi") is None, x.get("rsi", 999.0)))
     elif sort_key == "rsi_desc":
         return sorted(stocks, key=lambda x: (x.get("rsi") is None, x.get("rsi", -999.0)), reverse=True)
+    elif sort_key == "score_desc":
+        return sorted(stocks, key=lambda x: x.get("score", 0) or 0, reverse=True)
     # Default: change_desc
     return sorted(stocks, key=lambda x: x.get("change_pct", 0.0) or 0.0, reverse=True)
 
@@ -249,13 +374,17 @@ def get_screened_stocks(
         q = search.strip().upper()
         filtered = [s for s in filtered if q in s["symbol"] or q in s["name"].upper()]
 
-    sorted_stocks = sort_stocks(filtered, sort or "change_desc")
+    eff_sort = sort or "change_desc"
+    if preset in ("pre_breakout", "bali") and eff_sort == "change_desc":
+        eff_sort = "score_desc"
+
+    sorted_stocks = sort_stocks(filtered, eff_sort)
 
     return {
         "success": True,
         "preset": preset or "all",
         "search": search or "",
-        "sort": sort or "change_desc",
+        "sort": eff_sort,
         "total_universe": len(all_stocks),
         "count": len(sorted_stocks),
         "stocks": sorted_stocks

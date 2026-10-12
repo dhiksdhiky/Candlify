@@ -233,4 +233,49 @@ def test_database_ui_elements():
     assert "openUploadModal" in res_js.text
 
 
+def test_api_screener_pre_breakout():
+    res = client.get("/api/screener/pre-breakout")
+    assert res.status_code == 200
+    data = res.json()
+    assert data.get("success") is True
+    assert "date" in data
+    assert "count" in data
+    assert "signals" in data
+    assert isinstance(data["signals"], list)
+    if data["count"] > 0:
+        sig = data["signals"][0]
+        assert "ticker" in sig
+        assert "price" in sig
+        assert "range_7" in sig
+        assert "volume_dry_ratio" in sig
+        assert "score" in sig
+
+
+def test_api_screen_preset_pre_breakout():
+    res = client.get("/api/screen?preset=pre_breakout")
+    assert res.status_code == 200
+    data = res.json()
+    assert data.get("success") is True
+    assert data.get("preset") == "pre_breakout"
+    assert "stocks" in data
+    assert isinstance(data["stocks"], list)
+    if len(data["stocks"]) > 0:
+        st = data["stocks"][0]
+        assert st.get("is_pre_breakout") is True
+        assert "score" in st
+
+
+def test_pre_breakout_ui_elements():
+    res_html = client.get("/")
+    assert res_html.status_code == 200
+    assert 'data-preset="pre_breakout"' in res_html.text
+    assert 'score_desc' in res_html.text
+
+    res_js = client.get("/js/chart.js")
+    assert res_js.status_code == 200
+    assert "pre_breakout" in res_js.text
+    assert "stock-badge-prebreakout" in res_js.text
+
+
+
 

@@ -1821,6 +1821,17 @@ html, body {
     white-space: nowrap;
 }
 
+.stock-badge-prebreakout {
+    font-size: 8px;
+    font-weight: 700;
+    padding: 1px 4px;
+    border-radius: 4px;
+    background: rgba(16, 185, 129, 0.15);
+    color: #34d399;
+    border: 1px solid rgba(16, 185, 129, 0.35);
+    white-space: nowrap;
+}
+
 .stock-name {
     font-size: 10px;
     color: var(--text-muted);

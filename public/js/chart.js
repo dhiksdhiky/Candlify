@@ -3150,6 +3150,7 @@ class CandlifyChart {
 
         const presetNames = {
             'all': 'Semua Saham',
+            'pre_breakout': '🎯 Pre-Breakout Base',
             'swing': '🚀 Swing Setup',
             'breakout': '💥 Breakout R1',
             'vol_bb': '💎 Akumulasi BB',
@@ -3158,6 +3159,18 @@ class CandlifyChart {
         };
         const pName = presetNames[preset] || preset;
         const isFiltered = preset !== 'all';
+
+        if (preset === 'pre_breakout') {
+            this.currentSort = 'score_desc';
+            if (this.dom.screenerSortSelect) {
+                this.dom.screenerSortSelect.value = 'score_desc';
+            }
+        } else if (this.currentSort === 'score_desc') {
+            this.currentSort = 'change_desc';
+            if (this.dom.screenerSortSelect) {
+                this.dom.screenerSortSelect.value = 'change_desc';
+            }
+        }
 
         if (this.dom.filterActiveDot) {
             this.dom.filterActiveDot.classList.toggle('hidden', !isFiltered);
@@ -3263,6 +3276,11 @@ class CandlifyChart {
         };
 
         const getDynamicMetric = (s) => {
+            if (this.currentSort.startsWith('score') || s.is_pre_breakout) {
+                const val = s.score != null ? s.score : '--';
+                const acc = s.top_accumulator ? ` • Acc ${s.top_accumulator}` : '';
+                return `<span class="metric-dynamic up">🎯 Skor ${val}${acc}</span> • `;
+            }
             if (this.currentSort.startsWith('perf_3m')) {
                 const val = s.perf_3m ?? 0;
                 const sign = val >= 0 ? '+' : '';
@@ -3296,7 +3314,14 @@ class CandlifyChart {
             const surgeBadge = s.volume_surge && s.volume_surge >= 1.5 
                 ? `<span class="stock-badge-surge">⚡ ${s.volume_surge}x Vol</span>` 
                 : '';
+            const preBreakoutBadge = s.is_pre_breakout 
+                ? `<span class="stock-badge-prebreakout">🎯 Base ${s.range_7}%</span>` 
+                : '';
             const dynamicMetricHtml = getDynamicMetric(s);
+
+            const submetricsText = (s.is_pre_breakout && s.hmb)
+                ? `${dynamicMetricHtml}HMB Rp ${fmtPrice(s.hmb)} • Dry ${s.volume_dry_ratio}x`
+                : `${dynamicMetricHtml}Vol ${fmtVol(s.volume)} • Mcap ${fmtMcap(s.market_cap)}`;
 
             const card = document.createElement('div');
             card.className = 'stock-card';
@@ -3313,13 +3338,14 @@ class CandlifyChart {
                             <span class="stock-symbol">${s.symbol}</span>
                             <span class="stock-change ${changeClass}">${changeSign}${(s.change_pct ?? 0).toFixed(2)}%</span>
                             ${surgeBadge}
+                            ${preBreakoutBadge}
                         </div>
                         <span class="stock-name" title="${s.name || s.symbol}">${s.name || s.symbol}</span>
                     </div>
                 </div>
                 <div class="stock-card-right">
                     <div class="stock-price">Rp ${fmtPrice(s.price)}</div>
-                    <div class="stock-submetrics">${dynamicMetricHtml}Vol ${fmtVol(s.volume)} • Mcap ${fmtMcap(s.market_cap)}</div>
+                    <div class="stock-submetrics">${submetricsText}</div>
                 </div>
             `;
             fragment.appendChild(card);

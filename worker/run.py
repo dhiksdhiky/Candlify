@@ -12,6 +12,13 @@ Usage:
 """
 
 import sys
+
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
+
 import logging
 from datetime import datetime
 
@@ -34,6 +41,7 @@ def main():
     daemon_mode = "--daemon" in args
     pipeline_only = "--pipeline-only" in args
     harvester_only = "--harvester-only" in args
+    scanner_only = "--scanner-only" in args
 
     mode_str = "🧪 TEST MODE (SQLite)" if TEST_MODE else "🚀 PRODUCTION (PostgreSQL)"
     logger.info("╔═══════════════════════════════════════════╗")
@@ -49,6 +57,20 @@ def main():
     except Exception as e:
         logger.error(f"❌ FATAL: Gagal setup database: {e}")
         sys.exit(1)
+
+    if scanner_only:
+        try:
+            from scanner_bali import run_scanner
+            run_scanner()
+        except Exception as e:
+            logger.error(f"❌ Scanner crash: {e}")
+            sys.exit(1)
+        duration = datetime.now() - start_time
+        logger.info("")
+        logger.info("╔═══════════════════════════════════════════╗")
+        logger.info(f"║  🏁 SELESAI — Durasi: {str(duration).split('.')[0]:>17s}  ║")
+        logger.info("╚═══════════════════════════════════════════╝")
+        return
 
     # ── Step 2: Pipeline OHLCV ──────────────────────────────
     pipeline_success = True
@@ -77,6 +99,14 @@ def main():
             archive_and_delete_old_data()
         except Exception as e:
             logger.error(f"❌ Final Archiver gagal: {e}")
+
+    # ── Step 5: Pre-Breakout Scanner Engine (Bali Setup) ────
+    if not daemon_mode and not pipeline_only:
+        try:
+            from scanner_bali import run_scanner
+            run_scanner()
+        except Exception as e:
+            logger.error(f"❌ Scanner crash: {e}")
 
     if not pipeline_success:
         logger.error("⚠️ Peringatan: Pipeline sempat gagal sebelumnya (lihat log di atas).")

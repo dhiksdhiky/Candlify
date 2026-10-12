@@ -33,7 +33,7 @@ sys.path.insert(0, BASE_DIR)
 from pydantic import BaseModel, Field
 from lib.history import get_candlesticks
 from lib.bandarmologi import get_bandarmologi, get_broksum_range
-from lib.screener import get_screened_stocks
+from lib.screener import get_screened_stocks, get_pre_breakout_signals
 from lib.database_monitor import get_database_metrics, process_saham_excel, get_calendar_history
 from lib.portfolio import (
     get_all_watchlists,
@@ -283,6 +283,27 @@ def api_screen(
         result = get_screened_stocks(preset=preset, search=search, sort=sort)
     except Exception as err:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Screener Error: {err}")
+
+    response.headers["Cache-Control"] = "public, s-maxage=60, stale-while-revalidate=120"
+    return result
+
+@app.get("/api/screener/pre-breakout")
+def api_screener_pre_breakout(
+    response: Response,
+    date: Optional[str] = Query(None, description="Tanggal sinyal (YYYY-MM-DD), default tanggal terbaru"),
+    min_score: int = Query(60, description="Minimum skor kualitas sinyal (0-100)"),
+    limit: int = Query(50, description="Jumlah maksimal sinyal")
+):
+    """
+    Endpoint Sinyal Pre-Breakout Base (Bali Setup Engine):
+    Mendeteksi saham yang sedang konsolidasi ketat dengan volume kering
+    dan konfirmasi akumulasi broker summary (Smart Money/HMB).
+    """
+    try:
+        result = get_pre_breakout_signals(target_date=date, min_score=min_score, limit=limit)
+    except Exception as err:
+        logger.error(f"Error in api_screener_pre_breakout: {err}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Pre-breakout error: {err}")
 
     response.headers["Cache-Control"] = "public, s-maxage=60, stale-while-revalidate=120"
     return result
