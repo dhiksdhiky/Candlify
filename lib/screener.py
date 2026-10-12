@@ -277,6 +277,10 @@ def filter_by_preset(stocks: List[Dict[str, Any]], preset: str) -> List[Dict[str
     elif preset in ("pre_breakout", "bali"):
         # Pre-Breakout Base (Bali Setup): Range ketat, Volume Kering, Akumulasi Bandar
         sig_data = get_pre_breakout_signals(min_score=60, limit=200)
+        if not sig_data.get("success", False):
+            logger.warning(f"⚠️ Gagal memuat sinyal pre-breakout untuk screener: {sig_data.get('error')}")
+            return []
+
         signals = sig_data.get("signals", [])
         if not signals:
             return []
@@ -309,7 +313,7 @@ def filter_by_preset(stocks: List[Dict[str, Any]], preset: str) -> List[Dict[str
                     "change_pct": 0.0,
                     "volume": 0,
                     "market_cap": 0,
-                    "volume_surge": round(sig["volume_dry_ratio"], 2),
+                    "volume_surge": 0.0,
                     "rsi": None,
                     "score": sig["score"],
                     "range_7": sig["range_7"],

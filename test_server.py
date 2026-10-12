@@ -265,6 +265,16 @@ def test_api_screen_preset_pre_breakout():
         assert "score" in st
 
 
+def test_api_screener_pre_breakout_validation():
+    # Test min_score > 100
+    res_err1 = client.get("/api/screener/pre-breakout?min_score=150")
+    assert res_err1.status_code == 422
+
+    # Test limit < 1
+    res_err2 = client.get("/api/screener/pre-breakout?limit=0")
+    assert res_err2.status_code == 422
+
+
 def test_pre_breakout_ui_elements():
     res_html = client.get("/")
     assert res_html.status_code == 200
@@ -275,7 +285,3 @@ def test_pre_breakout_ui_elements():
     assert res_js.status_code == 200
     assert "pre_breakout" in res_js.text
     assert "stock-badge-prebreakout" in res_js.text
-
-
-
-

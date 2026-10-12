@@ -300,6 +300,14 @@ def setup_tables():
                         UNIQUE (date, ticker)
                     )
                 """))
+                conn.execute(text("""
+                    CREATE INDEX IF NOT EXISTS idx_candlify_signals_date
+                        ON candlify_signals (date DESC)
+                """))
+                conn.execute(text("""
+                    CREATE INDEX IF NOT EXISTS idx_candlify_signals_ticker
+                        ON candlify_signals (ticker)
+                """))
             else:
                 # PostgreSQL branch
                 conn.execute(text("""

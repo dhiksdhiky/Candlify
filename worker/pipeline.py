@@ -2,12 +2,12 @@
 pipeline.py — OHLCV Price Data Fetcher
 ========================================
 Mengambil data harga saham harian dari yfinance,
-forward-fill berdasarkan kalender IHSG, dan bulk upsert ke database.
+forward-fill berdasarkan kalender bursa konsensus multi-emiten, dan bulk upsert ke database.
 
 Error Handling:
   - DB connection fail → log + exit
   - yfinance timeout → skip ticker, lanjut ke berikutnya
-  - IHSG calendar empty → abort pipeline
+  - Master calendar empty → abort pipeline
   - Bulk insert fail → log critical error
   - TEST_MODE: limit 10 ticker, 60 hari, delay minimal
 """
@@ -95,11 +95,12 @@ def get_master_calendar(start_date: date, end_date: date) -> pd.DatetimeIndex:
     Unduh kalender bursa konsensus multi-emiten:
     IHSG (^JKSE) + Top Big Caps likuid (BBCA, BBRI, BMRI, TLKM, ASII).
     Mengatasi isu Yahoo Finance di mana indeks ^JKSE sering telat update beberapa jam
-    dibandingkan emiten likuid. Mengambil gabungan (union) hari trading aktif.
+    dibandingkan emiten likuid. Menggunakan aturan voting mayoritas (consensus threshold >= 3 emiten)
+    agar terhindar dari tanggal glitch/anomali tunggal yang dapat memicu candle hantu.
     """
     logger.info("📅 Mengunduh Kalender Bursa Konsensus (^JKSE + Top Big Caps)...")
     benchmark_tickers = ['^JKSE', 'BBCA.JK', 'BBRI.JK', 'BMRI.JK', 'TLKM.JK', 'ASII.JK']
-    all_dates = set()
+    consensus_dates = []
     success_sources = []
 
     try:
@@ -108,31 +109,41 @@ def get_master_calendar(start_date: date, end_date: date) -> pd.DatetimeIndex:
             if isinstance(df_bench.columns, pd.MultiIndex):
                 if 'Close' in df_bench.columns.levels[0]:
                     closes = df_bench['Close']
-                    valid_idx = closes.dropna(how='all').index
-                    all_dates.update(valid_idx)
+                    num_sources = len(closes.columns)
+                    # Voting mayoritas: tanggal sah harus ada minimal di 3 benchmark (atau separuh sumber aktif)
+                    threshold = min(3, max(2, num_sources // 2))
+                    valid_idx = closes.dropna(thresh=threshold).index
+                    consensus_dates = list(valid_idx)
                 else:
-                    all_dates.update(df_bench.index)
+                    consensus_dates = list(df_bench.index)
             else:
-                all_dates.update(df_bench.index)
+                consensus_dates = list(df_bench.index)
             success_sources.append("batch_benchmarks")
     except Exception as e:
         logger.warning(f"⚠️ Gagal batch download benchmarks: {e}")
 
     # Fallback per ticker jika batch gagal / kosong
-    if not all_dates:
+    if not consensus_dates:
+        from collections import Counter
+        all_dates_counted = Counter()
         for t in benchmark_tickers:
             try:
                 single_df = yf.download(t, start=start_date, end=end_date, progress=False)
                 if not single_df.empty:
-                    all_dates.update(single_df.index)
+                    for d in single_df.index:
+                        all_dates_counted[d] += 1
                     success_sources.append(t)
             except Exception as e:
                 logger.warning(f"⚠️ Gagal download kalender benchmark {t}: {e}")
 
-    if not all_dates:
+        if all_dates_counted:
+            threshold = min(3, max(2, len(success_sources) // 2))
+            consensus_dates = [d for d, count in all_dates_counted.items() if count >= threshold]
+
+    if not consensus_dates:
         raise ValueError("Data kalender bursa kosong dari semua benchmark yfinance.")
 
-    sorted_dates = pd.DatetimeIndex(sorted(all_dates))
+    sorted_dates = pd.DatetimeIndex(sorted(set(consensus_dates)))
     logger.info(
         f"📅 Kalender bursa konsensus dimuat: {len(sorted_dates)} hari trading "
         f"(Sumber: {', '.join(success_sources)}). Tanggal terbaru: {sorted_dates[-1].date()}"

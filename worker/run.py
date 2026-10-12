@@ -101,12 +101,14 @@ def main():
             logger.error(f"❌ Final Archiver gagal: {e}")
 
     # ── Step 5: Pre-Breakout Scanner Engine (Bali Setup) ────
+    scanner_success = True
     if not daemon_mode and not pipeline_only:
         try:
             from scanner_bali import run_scanner
             run_scanner()
         except Exception as e:
             logger.error(f"❌ Scanner crash: {e}")
+            scanner_success = False
 
     if not pipeline_success:
         logger.error("⚠️ Peringatan: Pipeline sempat gagal sebelumnya (lihat log di atas).")
@@ -118,7 +120,11 @@ def main():
     logger.info(f"║  🏁 SELESAI — Durasi: {str(duration).split('.')[0]:>17s}  ║")
     logger.info("╚═══════════════════════════════════════════╝")
     
-    if not pipeline_success or (not pipeline_only and not harvester_success):
+    if (
+        not pipeline_success 
+        or (not pipeline_only and not harvester_success)
+        or (not daemon_mode and not pipeline_only and not scanner_success)
+    ):
         sys.exit(1)
 
 

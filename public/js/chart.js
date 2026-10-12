@@ -3278,7 +3278,7 @@ class CandlifyChart {
         const getDynamicMetric = (s) => {
             if (this.currentSort.startsWith('score') || s.is_pre_breakout) {
                 const val = s.score != null ? s.score : '--';
-                const acc = s.top_accumulator ? ` • Acc ${s.top_accumulator}` : '';
+                const acc = s.top_accumulator ? ` • Acc ${escapeHtml(s.top_accumulator)}` : '';
                 return `<span class="metric-dynamic up">🎯 Skor ${val}${acc}</span> • `;
             }
             if (this.currentSort.startsWith('perf_3m')) {
@@ -3315,12 +3315,12 @@ class CandlifyChart {
                 ? `<span class="stock-badge-surge">⚡ ${s.volume_surge}x Vol</span>` 
                 : '';
             const preBreakoutBadge = s.is_pre_breakout 
-                ? `<span class="stock-badge-prebreakout">🎯 Base ${s.range_7}%</span>` 
+                ? `<span class="stock-badge-prebreakout">🎯 Base ${escapeHtml(s.range_7)}%</span>` 
                 : '';
             const dynamicMetricHtml = getDynamicMetric(s);
 
             const submetricsText = (s.is_pre_breakout && s.hmb)
-                ? `${dynamicMetricHtml}HMB Rp ${fmtPrice(s.hmb)} • Dry ${s.volume_dry_ratio}x`
+                ? `${dynamicMetricHtml}HMB Rp ${fmtPrice(s.hmb)} • Dry ${escapeHtml(s.volume_dry_ratio)}x`
                 : `${dynamicMetricHtml}Vol ${fmtVol(s.volume)} • Mcap ${fmtMcap(s.market_cap)}`;
 
             const card = document.createElement('div');

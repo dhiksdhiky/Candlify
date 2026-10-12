@@ -291,8 +291,8 @@ def api_screen(
 def api_screener_pre_breakout(
     response: Response,
     date: Optional[str] = Query(None, description="Tanggal sinyal (YYYY-MM-DD), default tanggal terbaru"),
-    min_score: int = Query(60, description="Minimum skor kualitas sinyal (0-100)"),
-    limit: int = Query(50, description="Jumlah maksimal sinyal")
+    min_score: int = Query(60, ge=0, le=100, description="Minimum skor kualitas sinyal (0-100)"),
+    limit: int = Query(50, ge=1, le=200, description="Jumlah maksimal sinyal")
 ):
     """
     Endpoint Sinyal Pre-Breakout Base (Bali Setup Engine):
@@ -304,6 +304,12 @@ def api_screener_pre_breakout(
     except Exception as err:
         logger.error(f"Error in api_screener_pre_breakout: {err}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Pre-breakout error: {err}")
+
+    if not result.get("success", False):
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=result.get("error", "Gagal memuat sinyal pre-breakout dari database")
+        )
 
     response.headers["Cache-Control"] = "public, s-maxage=60, stale-while-revalidate=120"
     return result

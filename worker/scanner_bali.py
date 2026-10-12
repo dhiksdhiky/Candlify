@@ -5,11 +5,11 @@ Mendeteksi pola konsolidasi ketat (Pre-Breakout Base) dengan volume kering
 dan konfirmasi akumulasi broker summary (Smart Money / HMB).
 
 Formula:
-1. Prior Ignition Spike: Ada lonjakan volume >= 2.0x VMA20 & kenaikan >= 5% dalam 5-30 hari bursa sebelumnya.
-2. Tight Base: Rentang konsolidasi 7 hari (range_7) <= 8.0% (atau HL <= 13%).
+1. Prior Ignition Spike: Ada lonjakan volume >= 2.0x VMA20 & kenaikan >= 5% dalam 4-28 hari bursa sebelumnya.
+2. Tight Base: Rentang konsolidasi 5-7 hari bursa (range_7) <= 8.0% (atau HL <= 13%).
 3. Volume Dry-Up: Volume hari ini <= 0.40x VMA20 atau rata-rata 3 hari <= 0.45x VMA20.
 4. Volatility Squeeze: Bollinger Bandwidth (BBW) <= 14.0%.
-5. Trend Guard: Harga bertahan di atas / dekat MA20 (>= -4.0%).
+5. Trend & Price Guard: Harga saham >= 50 dan bertahan di atas / dekat MA20 (>= -4.0%).
 6. Broksum Smart Money: Verifikasi akumulator terbesar & HMB (Harga Modal Bandar).
 7. Scoring: 0 - 100 poin berdasarkan keketatan base, keringnya volume, dan konfirmasi akumulasi.
 """
@@ -31,7 +31,7 @@ import numpy as np
 from sqlalchemy import text
 
 # Import database configuration
-from db_config import engine, TEST_MODE
+from db_config import engine, get_dialect, TEST_MODE
 
 logger = logging.getLogger("BaliScanner")
 if not logger.handlers:
@@ -93,7 +93,7 @@ def calculate_score(range_7: float, vol_dry: float, bbw: float, price: float, hm
     return min(100, max(0, score))
 
 
-def scan_pre_breakout(target_date: date, engine) -> List[Dict[str, Any]]:
+def scan_pre_breakout(target_date: date) -> List[Dict[str, Any]]:
     """
     Menjalankan pemindaian pre-breakout untuk tanggal trading tertentu.
     Mengembalikan list sinyal saham yang memenuhi kriteria.
@@ -275,15 +275,26 @@ def scan_pre_breakout(target_date: date, engine) -> List[Dict[str, Any]]:
     return enriched_signals
 
 
-def save_signals_to_db(signals: List[Dict[str, Any]], engine) -> int:
-    """Menyimpan atau memperbarui sinyal pre-breakout ke tabel candlify_signals."""
-    if not signals:
-        return 0
-
+def save_signals_to_db(signals: List[Dict[str, Any]], target_date: date) -> int:
+    """
+    Menyimpan atau memperbarui sinyal pre-breakout ke tabel candlify_signals.
+    Menghapus sinyal lama untuk tanggal target terlebih dahulu agar hasil re-scan selalu fresh dan sinkron.
+    """
     inserted = 0
     with engine.begin() as conn:
-        if TEST_MODE:
-            # SQLite upsert
+        # 1. Bersihkan sinyal basi untuk tanggal target
+        conn.execute(
+            text("DELETE FROM candlify_signals WHERE date = :target_date"),
+            {"target_date": target_date}
+        )
+
+        if not signals:
+            logger.info(f"🧹 Sinyal lama untuk {target_date} dibersihkan (0 kandidat lolos).")
+            return 0
+
+        # 2. Insert batch sinyal baru
+        dialect = get_dialect()
+        if dialect == "sqlite":
             stmt = text("""
                 INSERT OR REPLACE INTO candlify_signals (
                     date, ticker, price, range_7, volume_dry_ratio, bbw, price_to_ma20, hmb, top_accumulator, score
@@ -292,7 +303,6 @@ def save_signals_to_db(signals: List[Dict[str, Any]], engine) -> int:
                 )
             """)
         else:
-            # PostgreSQL upsert
             stmt = text("""
                 INSERT INTO candlify_signals (
                     date, ticker, price, range_7, volume_dry_ratio, bbw, price_to_ma20, hmb, top_accumulator, score
@@ -326,7 +336,7 @@ def save_signals_to_db(signals: List[Dict[str, Any]], engine) -> int:
             conn.execute(stmt, clean_s)
             inserted += 1
 
-    logger.info(f"💾 Berhasil menyimpan {inserted} sinyal ke candlify_signals.")
+    logger.info(f"💾 Berhasil menyimpan {inserted} sinyal ke candlify_signals untuk {target_date}.")
     return inserted
 
 
@@ -368,10 +378,9 @@ def run_scanner(target_date: Optional[date] = None, backfill_days: int = 1) -> i
         else:
             d_obj = d
 
-        signals = scan_pre_breakout(d_obj, engine)
-        if signals:
-            saved = save_signals_to_db(signals, engine)
-            total_saved += saved
+        signals = scan_pre_breakout(d_obj)
+        saved = save_signals_to_db(signals, d_obj)
+        total_saved += saved
 
     logger.info(f"✅ Pre-Breakout Scanner selesai. Total sinyal: {total_saved}.")
     return total_saved
