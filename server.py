@@ -295,7 +295,7 @@ def api_screener_pre_breakout(
     limit: int = Query(50, ge=1, le=200, description="Jumlah maksimal sinyal")
 ):
     """
-    Endpoint Sinyal Pre-Breakout Base (Bali Setup Engine):
+    Endpoint Sinyal Pre-Breakout Base:
     Mendeteksi saham yang sedang konsolidasi ketat dengan volume kering
     dan konfirmasi akumulasi broker summary (Smart Money/HMB).
     """

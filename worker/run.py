@@ -100,7 +100,7 @@ def main():
         except Exception as e:
             logger.error(f"❌ Final Archiver gagal: {e}")
 
-    # ── Step 5: Pre-Breakout Scanner Engine (Bali Setup) ────
+    # ── Step 5: Pre-Breakout Scanner Engine ─────────────────
     scanner_success = True
     if not daemon_mode and not pipeline_only:
         try:

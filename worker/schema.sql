@@ -122,7 +122,7 @@ CREATE INDEX IF NOT EXISTS idx_harga_saham_ticker_date ON harga_saham (ticker, t
 CREATE INDEX IF NOT EXISTS idx_watchlists_symbol ON candlify_watchlists (symbol);
 CREATE INDEX IF NOT EXISTS idx_trading_plans_status ON candlify_trading_plans (status);
 
--- 10. Pre-Breakout Signals (Bali Pattern Engine)
+-- 10. Pre-Breakout Signals (Pre-Breakout Base Engine)
 CREATE TABLE IF NOT EXISTS candlify_signals (
     id SERIAL PRIMARY KEY,
     date DATE NOT NULL,

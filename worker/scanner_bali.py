@@ -1,6 +1,6 @@
 """
-worker/scanner_bali.py — Pre-Breakout Base (Bali Setup) Scanner Engine
-=====================================================================
+worker/scanner_bali.py — Pre-Breakout Base Scanner Engine
+=========================================================
 Mendeteksi pola konsolidasi ketat (Pre-Breakout Base) dengan volume kering
 dan konfirmasi akumulasi broker summary (Smart Money / HMB).
 
