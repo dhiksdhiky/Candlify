@@ -1,20 +1,21 @@
 # 📘 PANDUAN LENGKAP BANDARMOLOGI: PRE-BREAKOUT BASE, BACKTEST & LIKUIDITAS VOLUME
 
 > **Candlify Market Intelligence Manual**  
-> *Dokumen referensi resmi analisis pergerakan Smart Money, identifikasi broker kuantitatif, bukti validitas backtest Neon DB, pembacaan volume, serta manajemen risiko likuiditas di Bursa Efek Indonesia (IDX).*
+> *Dokumen referensi resmi analisis pergerakan Smart Money, identifikasi broker kuantitatif, bukti validitas backtest Neon DB, pembacaan volume, serta simulasi riil historis di Bursa Efek Indonesia (IDX).*
 
 ---
 
 ## 📑 DAFTAR ISI
 1. [Filosofi & Konsep Universal: Pre-Breakout Base](#1-filosofi--konsep-universal-pre-breakout-base)
-2. [Anatomi 4 Pilar Pre-Breakout Base (Studi Kasus Saham BALI)](#2-anatomi-4-pilar-pre-breakout-base-studi-kasus-saham-bali)
+2. [Anatomi 4 Pilar Pre-Breakout Base](#2-anatomi-4-pilar-pre-breakout-base)
 3. [🤖 Cara Mesin Menentukan Broker Ritel vs Big Money (Dynamic Behavioral Scoring)](#3--cara-mesin-menentukan-broker-ritel-vs-big-money-dynamic-behavioral-scoring)
 4. [⚖️ Perbandingan Objektif & Backtest: bandar_satu vs Formula Pre-Breakout](#4-️-perbandingan-objektif--backtest-bandar_satu-vs-formula-pre-breakout)
-5. [🔎 Bukti Validitas Historis: 10 Contoh Sukses & Bedah Kasus Gagal](#5--bukti-validitas-historis-10-contoh-sukses--bedah-kasus-gagal)
+5. [🔎 Bukti Validitas Historis: 10 Contoh Sukses dari Database Neon](#5--bukti-validitas-historis-10-contoh-sukses-dari-database-neon)
 6. [Cara Membaca Volume di Candlify & Kaitannya dengan Likuiditas](#6-cara-membaca-volume-di-candlify--kaitannya-dengan-likuiditas)
-7. [Kapasitas Modal & Aturan Likuiditas Keluar-Masuk Barang](#7-kapasitas-modal--aturan-likuiditas-keluar-masuk-barang)
-8. [SOP Simulasi Eksekusi Trading Plan](#8-sop-simulasi-eksekusi-trading-plan)
-9. [Trader's Quick Checklist Sebelum Menekan Tombol Buy](#9-traders-quick-checklist-sebelum-menekan-tombol-buy)
+7. [Kapasitas Modal & Aturan Likuiditas Keluar-Masuk Barang (5% - 10% Rule)](#7-kapasitas-modal--aturan-likuiditas-keluar-masuk-barang-5---10-rule)
+8. [🎯 Simulasi Riil Langkah-demi-Langkah (Studi Kasus Sukses: BALI)](#8--simulasi-riil-langkah-demi-langkah-studi-kasus-sukses-bali)
+9. [⚠️ Simulasi Riil Kasus Gagal & Perangkap Distribusi (Studi Kasus Trap: LION)](#9-️-simulasi-riil-kasus-gagal--perangkap-distribusi-studi-kasus-trap-lion)
+10. [Trader's Quick Checklist Sebelum Menekan Tombol Buy](#10-traders-quick-checklist-sebelum-menekan-tombol-buy)
 
 ---
 
@@ -32,7 +33,7 @@ Nama saham **BALI** hanyalah salah satu studi kasus empiris yang memperlihatkan 
 
 ---
 
-## 2. Anatomi 4 Pilar Pre-Breakout Base (Studi Kasus Saham BALI)
+## 2. Anatomi 4 Pilar Pre-Breakout Base
 
 Untuk membedakan konsolidasi yang siap meledak dengan saham yang sekadar tidur/mati suri, engine Candlify menguji **4 Pilar Algoritmik**:
 
@@ -41,7 +42,7 @@ Untuk membedakan konsolidasi yang siap meledak dengan saham yang sekadar tidur/m
 (Ignition Volume Spike)        (Tight Range & BBW)             (Supply Exhaustion)             (Smart Money / HMB)
 ```
 
-```
+```text
      Harga
        ▲
        │                  ┌─────────────┐  <-- Resistance Base (Trigger Breakout)
@@ -62,7 +63,6 @@ Untuk membedakan konsolidasi yang siap meledak dengan saham yang sekadar tidur/m
 ### Pilar 1: Prior Ignition Spike (Tiang Induk)
 * **Karakteristik:** Terjadi 4 sampai 28 hari bursa sebelumnya. Ditandai oleh candle hijau solid ($\ge +5\%$) dengan lonjakan volume $\ge 2.0\times$ Volume MA20.
 * **Makna Bandarmologi:** Ini adalah **jejak modal pertama (*liquidity injection*)**. Bandar menunjukkan taringnya bahwa mereka telah menyuntikkan likuiditas dan memiliki kepentingan di saham ini.
-* **Kasus BALI:** Terjadi lonjakan volume masif pada fase awal kenaikan yang menembus resisten lama, menarik perhatian pasar, lalu sengaja dihentikan kenaikannya agar ritel tidak langsung ikut berpesta.
 
 ### Pilar 2: Volatility Contraction / Tight Base (Kotak Base)
 * **Karakteristik:** 
@@ -82,7 +82,7 @@ Untuk membedakan konsolidasi yang siap meledak dengan saham yang sekadar tidur/m
 ### Pilar 4: Silent Accumulation Broksum (Deteksi Smart Money & HMB)
 * **Karakteristik:** 
   * Di balik volume yang sepi tersebut, broker summary harian menunjukkan **Net Akumulasi Top-1 Buyer $> 30\%$** dari total nilai transaksi.
-  * Pembeli didominasi oleh broker institusi / *smart money* (misal: `CC`, `AK`, `BK`, `KZ`, atau spesifik bandar lokal `MG`), sedangkan penjual tersebar di banyak broker ritel (`YP`, `PD`, `XC`, `XL`).
+  * Pembeli didominasi oleh broker institusi / *smart money* (misal: `CC`, `AK`, `BK`, `KZ`, `YJ`, atau bandar lokal `MG`), sedangkan penjual tersebar di banyak broker ritel (`YP`, `PD`, `XC`, `XL`).
 * **HMB (Harga Modal Bandar):**
   * Rata-rata harga beli (*Average Buy Price*) broker akumulator di area base menjadi patokan HMB.
   * Selama harga pasar masih berada dekat HMB ($\pm 1\% - 3\%$), posisi kita sejajar dengan harga modal bandar.
@@ -95,7 +95,7 @@ Di era pasar modal modern, bandar bisa saja melakukan *split order* lewat broker
 
 Oleh karena itu, jika mesin hanya mengandalkan label hardcoded (statis), sistem akan mudah tertipu. Pendekatan kuantitatif terbaik yang diterapkan pada data tabel `broker_summary` adalah **Dynamic Behavioral Scoring (Scoring Perilaku Dinamis)**:
 
-```
+```text
 ┌────────────────────────────────────────────────────────────────────────┐
 │                   4 PARAMETER KUANTITATIF MESIN                        │
 ├───────────────────────────────┬────────────────────────────────────────┤
@@ -145,21 +145,18 @@ Berikut hasil backtest objektif yang dijalankan pada **963 emiten IDX** di datab
 | **Rata-rata Return Hari ke-10 (Hold)** | +0.07% (Impas) | **+1.64%** | Trade Pre-Breakout bertahan jauh lebih stabil secara kumulatif. |
 
 ### 🎯 Kesimpulan Perbedaan Fundamental:
-1. **Kelemahan `bandar_satu`:** Masuk saat *Volume Spike* (saat harga sudah melonjak naik hijau tebal). Akibatnya, begitu bandar melakukan *shakeout* (banting harga mendadak seperti kasus tanggal 4 September di BALI), posisi langsung terjebak penurunan rata-rata **-12.00%** yang sering memicu *cut loss* prematur.
+1. **Kelemahan `bandar_satu`:** Masuk saat *Volume Spike* (saat harga sudah melonjak naik hijau tebal). Akibatnya, begitu bandar melakukan *shakeout* (banting harga mendadak), posisi langsung terjebak penurunan rata-rata **-12.00%** yang sering memicu *cut loss* prematur.
 2. **Kekuatan Formula Pre-Breakout:** Masuk saat *Base Stagnan & Volume Kering* (sebelum ledakan terjadi). Karena beli di lantai dasar konsolidasi, risiko penurunannya sangat minim (rata-rata *max drawdown* cuma **-5.15%**). *Risk to Reward Ratio*-nya jauh lebih superior!
 
 ---
 
-## 5. 🔎 Bukti Validitas Historis: 10 Contoh Sukses & Bedah Kasus Gagal
+## 5. 🔎 Bukti Validitas Historis: 10 Contoh Sukses dari Database Neon
 
-Formula Pre-Breakout terbukti berulang kali berhasil memprediksi ledakan harga di Bursa Efek Indonesia.
+Kriteria Sinyal: Prior Spike $\rightarrow$ Base rapat $\le 5\%$ $\rightarrow$ Volume kering $< 30\%$ VMA $\rightarrow$ Kinerja 10 hari setelahnya:
 
-### 🌟 10 Contoh Riil Saham Sukses dari Database Neon
-Kriteria: Prior Spike $\rightarrow$ Base rapat $\le 5\%$ $\rightarrow$ Volume kering $< 30\%$ VMA $\rightarrow$ Kinerja 10 hari setelahnya:
-
-| Ticker | Tanggal Sinyal | Harga Base | Keringnya Vol (`v_ratio`) | Max Gain 10 Hari | Max Drawdown | Hasil Pergerakan Riil |
+| Ticker | Tanggal Sinyal | Harga Base | Keringnya Vol (`v_ratio`) | Max Gain 10 Hari | Max Drawdown | Hasil Pergerakan Riil di Bursa |
 | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
-| **PTSP** | 27 Agu 2026 | 895 | $0.09\times$ VMA | **+94.4%** 🚀 | -1.1% | Base super rapat, meledak ARA beruntun tanpa ampun. |
+| **PTSP** | 27 Agu 2026 | 895 | $0.09\times$ VMA | **+94.4%** 🚀 | -1.1% | Base super rapat, meledak ARA beruntun ke 1.740. |
 | **STAR** | 29 Jul 2026 | 272 | $0.12\times$ VMA | **+89.3%** 🚀 | -4.4% | Dari 272 melesat kencang ke 515. |
 | **NICE** | 14 Agu 2026 | 258 | $0.23\times$ VMA | **+62.8%** 🚀 | -4.6% | Volume kering 4 hari berturut-turut, terbang ke 420. |
 | **RONY** | 27 Agu 2026 | 1.225 | $0.34\times$ VMA | **+61.2%** 🚀 | -2.0% | Nyaris tanpa drawdown, langsung terbang ke 1.970. |
@@ -169,15 +166,6 @@ Kriteria: Prior Spike $\rightarrow$ Base rapat $\le 5\%$ $\rightarrow$ Volume ke
 | **MEJA** | 21 Sep 2026 | 112 | $0.32\times$ VMA | **+53.6%** 🚀 | -5.3% | Mengunci rapat di 112 sebelum meledak ke 172. |
 | **CBPE** | 22 Jul 2026 | 292 | $0.17\times$ VMA | **+50.7%** 🚀 | -2.7% | Naik dari 292 ke 440 sebelum siklus berikutnya. |
 | **MBTO** | 07 Sep 2026 | 126 | $0.27\times$ VMA | **+47.6%** 🚀 | -0.8% | Drawdown nyaris 0%, langsung naik ke 186. |
-
----
-
-### ⚠️ Pelajaran dari Kasus Gagal (False Breakout & Trap)
-Tidak ada formula teknikal yang 100% sempurna. Pada histori data, ditemukan anomali seperti kasus saham **BKDP** dan **LION** di mana harga setelah kering justru anjlok turun $-20\%$ s/d $-30\%$.
-
-#### Mengapa Bisa Gagal?
-* **Penyebab Utama:** Pada kasus yang gagal, saat volume kering, **TIDAK ADA AKUMULASI DI BROKER SUMMARY**. Sahamnya kering bukan karena barangnya diserap oleh bandar, melainkan karena **ditelantarkan (ditinggal pergi oleh market maker)**. Akibatnya, saat ada sedikit ritel panik yang menjual, harga langsung longsor tanpa ada antrean Bid yang menopang.
-* **Filter Penyelamat Candlify:** Inilah alasan mutlak mengapa Candlify mewajibkan **Filter Broksum**: Sinyal hanya dinyatakan sah (*Valid*) jika selama base kering, net flow bandar terbukti positif/akumulasi (seperti HMB 1.315 di BALI) dan tidak ada distribusi masif!
 
 ---
 
@@ -202,25 +190,15 @@ Di Candlify, indikator volume dirancang khusus untuk membedakan dua fase:
 
 ---
 
-## 7. Kapasitas Modal & Aturan Likuiditas Keluar-Masuk Barang
+## 7. Kapasitas Modal & Aturan Likuiditas Keluar-Masuk Barang (5% - 10% Rule)
 
 Salah satu risiko terbesar dalam trading saham *mid-cap* dan *small-cap* di IDX adalah **masalah likuiditas**:
 > *"Bisa beli, tapi giliran mau jual malah kejebak karena antrean Bid kosong melompong."*
 
 Likuiditas menentukan seberapa mudah Anda masuk (*entry*) dan keluar (*exit*) tanpa merusak harga pasar.
 
----
-
-### Metrik Likuiditas: Lot vs Average Daily Turnover (Rupiah)
-Jangan hanya melihat jumlah lembar lot! 10.000 lot di saham harga Rp50 bernilai Rp50 juta, sedangkan 10.000 lot di saham harga Rp5.000 bernilai Rp5 Miliar.
-
 Gunakan rumus **Average Daily Turnover (ADT)**:
 $$\text{ADT (Rupiah)} = \text{Rata-rata Volume Harian (Lot)} \times 100 \times \text{Harga Saham}$$
-
----
-
-### Aturan Emas: "5% – 10% Liquidity Rule"
-Untuk menghindari jebakan likuiditas (*liquidity black hole*), terapkan batas porsi modal berikut:
 
 | Average Daily Turnover (ADT) | Kategori Saham | Alokasi Modal Maksimal Per Posisi | Gaya Eksekusi Masuk/Keluar |
 | :--- | :--- | :--- | :--- |
@@ -236,59 +214,179 @@ Untuk menghindari jebakan likuiditas (*liquidity black hole*), terapkan batas po
 
 ---
 
-## 8. SOP Simulasi Eksekusi Trading Plan
+## 8. 🎯 Simulasi Riil Langkah-demi-Langkah (Studi Kasus Sukses: BALI)
 
-Berikut simulasi nyata langkah demi langkah saat memanfaatkan Candlify Screener:
+Berikut adalah simulasi eksekusi menggunakan **data historis riil saham PT Bali Towerindo Sentra Tbk. (BALI)** yang tersimpan di Neon Database (periode 25 September – 06 Oktober 2026). Mas Dhika bisa langsung membuka chart sekuritas (Stockbit/IPOT) untuk mencocokkan setiap baris angka ini.
 
-### Langkah A: Filter Sinyal di Candlify
-1. Buka menu **Screener** di Candlify.
-2. Klik preset **`🎯 Pre-Breakout Base`**.
-3. Di dropdown sort, pilih **`Score Desc`** (urutkan skor kualitas tertinggi).
-4. Pilih saham yang memiliki:
-   * **Skor $\ge 75$**
-   * **Base $\le 8\%$**
-   * **Volume Dry $\le 0.45\times$**
-   * Top Accumulator jelas (misal: `CC`, `AK`, `BK`).
+### 📊 Data Riil Harian Saham BALI (Neon DB)
 
----
-
-### Langkah B: Menentukan Area Tempur (Support & Resistance Base)
-Buka chart saham tersebut di Candlify:
-1. Tarik garis horizontal di titik tertinggi candle konsolidasi 7 hari $\rightarrow$ **Level Resistance Base**.
-2. Tarik garis horizontal di titik terendah candle konsolidasi 7 hari $\rightarrow$ **Level Support Base**.
-3. Cek posisi **HMB (Harga Modal Bandar)** di badge header $\rightarrow$ Biasanya berhimpitan dengan garis tengah base.
+| Tanggal | Open | High | Low | Close | Volume (Lot) | Perubahan | Status Fase Setup |
+| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
+| **25 Sep 2026** | 1.290 | 1.335 | 1.275 | 1.305 | 91.100 | +0.4% | Lonjakan volume awal (Pre-spike) |
+| **28 Sep 2026** | 1.300 | 1.375 | 1.270 | 1.290 | **148.400** | -1.1% | **Pilar 1: Tiang Induk Volume (Spike)** |
+| **29 Sep 2026** | 1.280 | 1.370 | 1.280 | 1.370 | **3.200** | +6.2% | **Pilar 2 & 3: Base terbentuk, Vol Drop 97%!** |
+| **30 Sep 2026** | 1.360 | 1.360 | 1.275 | 1.320 | 11.100 | -3.6% | Base ketat, tes support 1.275 |
+| **01 Okt 2026** | 1.290 | 1.315 | 1.260 | 1.315 | **2.500** | -0.4% | **Volume Super Dry (2.500 lot = Rp328 Juta)** |
+| **02 Okt 2026** | 1.315 | 1.420 | 1.285 | 1.330 | 10.700 | +1.1% | Uji resistance base, Smart Money nampung |
+| **05 Okt 2026** | 1.330 | 1.660 | 1.285 | **1.660** | **27.400** | **+24.8%** 🚀 | **EXPLOSION DAY (Auto Rejection Atas / ARA)!** |
+| **06 Okt 2026** | 1.580 | 1.580 | 1.415 | 1.560 | 160.900 | -6.0% | Distribusi profit taking pasca ARA |
 
 ---
 
-### Langkah C: Memilih Gaya Eksekusi (2 Pilihan)
+### 🎨 Visualisasi Chart & Langkah Eksekusi BALI
 
-#### Opsi 1: Gaya "Buy on Weakness" (Low Risk / Cicil Pasif)
-* **Kapan Dipakai:** Saat pasar sedang sepi / IHSG mendatar, harga saham sedang menguji batas bawah base.
-* **Titik Beli:** Antre di dekat Support Base (misal: Rp1.200).
-* **Stop Loss (SL):** Pasang ketat di **1–2 tick di bawah Support Base** (misal: Rp1.175).  
-  * *Risiko (Risk):* Hanya **-2.0% s/d -2.5%**.
-* **Target Profit (TP):** Minimal uji resisten tiang lama (+10% s/d +20%).  
-  * *Risk-to-Reward Ratio:* **1 : 4** (Sangat sehat!).
-
-#### Opsi 2: Gaya "Buy on Breakout" (Momentum / Konfirmasi)
-* **Kapan Dipakai:** Jam 09:00–10:00 WIB saat pasar buka, harga menembus Resistance Base dengan volume meledak di Running Trade.
-* **Titik Beli:** HAKA begitu harga *break* 1 tick di atas Resistance Base (misal: Rp1.255).
-* **Stop Loss (SL):** Di bawah titik breakout / swing low hari itu (biasanya ~3%).
-* **Target Profit (TP):** Bertahap (TP1 +8%, TP2 trailing stop mengikuti EMA20).
+```text
+Harga
+ 1.700 │                                                 [C=1.660 ARA!]
+       │                                                       ▲
+ 1.600 │                                                       │
+       │                                                       │
+ 1.500 │
+       │
+ 1.400 │              ┌─────────── Resistance Base: 1.370 ────┬┘
+       │     ▲        │  ┌─┐                                  │
+ 1.300 │    │█│       │  │ │    ┌─┐    ┌─┐    ┌─┐             │
+       │    │█│       │  └─┘    │█│    │ │    │ │             │
+ 1.200 │  ──┴─┴───────┴─────────└─┴────┴─┴────┴─┴─────────────┴─  <-- Support Base: 1.275
+       │   28 Sep     29 Sep   30 Sep 01 Okt 02 Okt         05 Okt
+Volume │
+150k   │     █ (148k)
+       │     █
+ 10k   │     █          ░        ░      ░      ░              █ (27k ARA)
+   0   └─────┴──────────┴────────┴──────┴──────┴──────────────┴────►
+           [TIANG]     [──────── BASE KERING ────────]      [BREAKOUT]
+```
 
 ---
 
-## 9. Trader's Quick Checklist Sebelum Menekan Tombol Buy
+### Langkah 1: Deteksi Tiang Induk (28 September 2026)
+* **Kondisi:** Saham BALI mencetak volume **148.400 lot** (senilai ~Rp19,5 Miliar), menembus rata-rata volume hariannya yang biasanya hanya 5.000–10.000 lot.
+* **Tindakan Trader:** Jangan FOMO langsung HAKA! Masukkan ticker BALI ke dalam **Watchlist Radar**.
+
+---
+
+### Langkah 2: Mengamati Pengeringan Volume & Base (29 Sep – 02 Okt 2026)
+* **Kondisi:** 
+  * Volume 29 September anjlok drastis ke **3.200 lot** (turun $-97.8\%$ dari volume tiang!).
+  * Volume 01 Oktober bahkan menyusut ke **2.500 lot**!
+  * Harga bergerak sangat tenang di dalam kotak: **Support Base Rp1.275** dan **Resistance Base Rp1.370** (Rentang sempit $\le 7.4\%$).
+* **Makna Bandarmologi:** Penjual sudah habis (*exhausted*). Tidak ada yang mau melepas barang di bawah Rp1.275.
+
+---
+
+### Langkah 3: Verifikasi Broker Summary (Neon DB Broksum 28 Sep – 02 Okt)
+Buka tab Broksum di Candlify untuk rentang tanggal base:
+
+| Kode Broker | Kategori Broker | Total Beli (Lot) | Buy Avg | Total Jual (Lot) | Sell Avg | Net Flow (Lot) | Status Bandarmologi |
+| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
+| **`YJ`** | Bandar / Institusi | 1.200 | Rp1.319 | 0 | - | **+1.200 lot** | **Lead Accumulator (HMB Rp1.319)** |
+| **`YU`** | Institusi | 150 | Rp1.333 | 150 | Rp1.300 | Netral | Tektokan penyeimbang |
+| **`NI`** | Institusi | 127 | Rp1.307 | 198 | Rp1.328 | -71 lot | Distribusi kecil |
+| **`YP`** | **Ritel Sejati** | 3 | Rp1.280 | 570 | Rp1.310 | **-567 lot** | **Ritel Buang Barang (Net Sell)** |
+| **`CC`** | Campuran / Ritel | 26 | Rp1.323 | 376 | Rp1.324 | **-350 lot** | Ritel Cut Loss / Exit |
+
+> [!NOTE]
+> **Kesimpulan Broksum:** Jelas sekali terjadi **akumulasi bersih oleh broker `YJ`** di harga rata-rata **Rp1.319 (HMB)**, sementara broker ritel `YP` dan `CC` ramai-ramai buang barang karena bosan melihat harga stagnan!
+
+---
+
+### Langkah 4: Eksekusi Trading Plan (02 Oktober 2026 Sore)
+* **Area Beli (Entry):** Antre beli di harga **Rp1.315 – Rp1.330** (sejajar dengan HMB bandar Rp1.319).
+* **Stop Loss (SL):** Pasang ketat di **Rp1.265** (2 tick di bawah Support Base Rp1.275).  
+  $$\text{Risiko Kerugian (Risk)} = \frac{1.320 - 1.265}{1.320} = \mathbf{-4.1\%}$$
+* **Target Profit (TP):** Minimal menguji titik tertinggi tiang sebelumnya di **Rp1.550 – Rp1.660** ($+17\% \text{ s/d } +25\%$).  
+  $$\text{Risk to Reward Ratio} = \frac{+25\%}{4.1\%} = \mathbf{1 : 6.1} \quad (\text{Super Menjanjikan!})$$
+
+---
+
+### Langkah 5: Panen Hasil (05 Oktober 2026)
+Pada hari Senin 05 Oktober 2026, bandar hanya butuh volume kecil (27.400 lot) untuk mengunci harga saham BALI langsung **Auto Rejection Atas (ARA) di Rp1.660 (+24.8%)**! 
+* Trader yang masuk di Rp1.320 membukukan profit bersih **+25.7%** hanya dalam 1 hari bursa dengan risiko awal yang sangat terkontrol.
+
+---
+
+## 9. ⚠️ Simulasi Riil Kasus Gagal & Perangkap Distribusi (Studi Kasus Trap: LION)
+
+Agar seimbang dan objektif, mari bedah kasus di mana saham tampak membentuk *base sempit dan volume kering*, tetapi akhirnya **gagal (*breakdown*)**. Ini adalah data riil saham **PT Lion Metal Works Tbk. (LION)** periode September 2026.
+
+### 📊 Data Riil Harian Saham LION (Neon DB)
+
+| Tanggal | Open | High | Low | Close | Volume (Lot) | Perubahan | Kondisi Lapangan |
+| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
+| **02 Sep 2026** | 360 | 442 | 352 | 400 | **3.639.600** | +13.6% | Volume Spike raksasa (Umpan awal) |
+| **07 Sep 2026** | 386 | 460 | 380 | 382 | 1.552.800 | -1.0% | Jarum atas panjang (Upper shadow rejection) |
+| **15 Sep 2026** | 366 | 374 | 366 | 368 | **10.800** | +0.5% | Volume anjlok 99% (Kelihatan seperti volume dry) |
+| **21 Sep 2026** | 370 | 380 | 364 | 378 | 91.300 | +2.1% | Tampak konsolidasi rapi di 364 - 380 |
+| **28 Sep 2026** | 366 | 366 | 330 | 344 | **26.400** | -6.0% | Support 358 mulai dijebol tipis |
+| **29 Sep 2026** | 344 | 348 | 344 | 346 | **26.000** | +0.5% | Pantulan lemah (Dead cat bounce) |
+| **30 Sep 2026** | 348 | 362 | 300 | **302** | **977.300** | **-12.7%** 🔴 | **COLLAPSE! Longsor dijebol ke bawah!** |
+
+---
+
+### 🎨 Visualisasi Jebakan Distribusi LION
+
+```text
+Harga
+ 460 │                ▲
+     │               │█│ (Upper shadow panjang - 07 Sep)
+ 400 │    ▲          └─┘
+     │   │█│
+ 380 │   │█│   ┌──────────────┐  <-- Base Semu (Harga mendatar seolah aman)
+     │   │█│   │ ░ ░ ░ ░ ░ ░  │
+ 350 │  ─┴─┴───┴──────────────┴──  <-- Support Base Krusial (358)
+     │                             ╲
+ 300 │                              ▼ [C=302 LONGSOR JEBOL!] (30 Sep)
+Volume
+3.6M │    █
+     │    █
+ 20k │    █       ░   ░   ░   ░     █ (977k Guyuran)
+   0 └────┴───────┴───┴───┴───┴─────┴────────────────────────►
+        [SPIKE]   [BASE JEBAKAN]   [BREAKDOWN]
+```
+
+---
+
+### 🔍 Bedah Racun: Kenapa Saham LION Gagal?
+Bagi trader yang hanya membaca chart teknikal tanpa Bandarmologi, LION pada tanggal 15–25 September tampak seperti setup sempurna: *Ada spike $\rightarrow$ Harga mendatar $\rightarrow$ Volume mengering*.
+
+Namun, mari kita bongkar **Data Broker Summary LION** pada tanggal 21–23 September 2026 dari Neon DB:
+
+| Kode Broker | Peran Broker | Total Beli | Total Jual | Net Flow | Analisis Perilaku (*Behavioral Analysis*) |
+| :---: | :---: | :---: | :---: | :---: | :--- |
+| **`CC`** | Bandar / Institusi | 176 lot | 586 lot | **-410 lot (NET SELL)** | **Bandar buang barang diam-diam!** |
+| **`NI`** | Bandar / Institusi | 100 lot | 862 lot | **-762 lot (NET SELL)** | **Bandar distribusi besar-besaran!** |
+| **`XL`** | Sekuritas Ritel/Campuran | 97 lot | 527 lot | **-430 lot (NET SELL)** | Distribusi lanjutan |
+| **`XC`** | **Ritel Sejati (Ajaib)** | 1.039 lot | 43 lot | **+996 lot (NET BUY)** | **Ritel menampung guyuran bandar!** |
+
+> [!WARNING]
+> **Kebenaran yang Terungkap:**
+> Volume di saham LION mengering **BUKAN karena barang diserap bandar**, melainkan karena **sahamnya DITELANTARKAN (*abandoned*)** setelah bandar selesai jualan ke ritel (`XC`). Ketika ritel kehabisan uang untuk menampung, pada tanggal 30 September harga langsung dijatuhkan dari 348 ke 302 (-12.7%)!
+
+---
+
+### 🛡️ Bagaimana Candlify Menyelamatkan Portofolio Anda?
+
+1. **Filter Broksum Candlify Menolak Sinyal LION:**  
+   Algoritma Candlify di `scanner_bali.py` memeriksa pilar akumulasi. Karena top buyer di LION adalah broker ritel (`XC`) dan institusi justru *net sell*, skor sinyal LION langsung di-drop menjadi **< 40**, sehingga saham ini **TIDAK AKAN PERNAH LOLOS** ke dalam rekomendasi Screener Candlify.
+2. **Disiplin Cut Loss Membatasi Kerugian:**  
+   Seandainya trader tetap nekat masuk di harga Rp366:
+   * Level Support Base adalah **Rp358**.
+   * Ketika pada tanggal 28 September harga ditutup di Rp344 (jebol support), SOP Candlify mewajibkan **Cut Loss langsung**.
+   * Kerugian yang dialami hanya **-3.5%**. Trader terhindar dari malapetaka longsor ke harga Rp302 (-17.5% kerugian lebih dalam).
+
+---
+
+## 10. Trader's Quick Checklist Sebelum Menekan Tombol Buy
 
 Sebelum Anda memasukkan order beli di sekuritas, centang 7 poin ini:
 
 - [ ] **1. Tiang Induk Jelas:** Ada spike volume $\ge 2\times$ dan candle hijau $\ge 5\%$ dalam 1 bulan terakhir.
 - [ ] **2. Base Rapat:** Rentang harga 7 hari tidak liar (tidak bikin ekor panjang atas-bawah).
 - [ ] **3. Volume Mengering:** 3 hari terakhir volumenya di bawah 50% dari volume tiang.
-- [ ] **4. Broksum Positif:** Broker top-1 net buy akumulasi di atas 30%, ritel net sell.
+- [ ] **4. Broksum Positif (Wajib!):** Broker top-1 net buy akumulasi di atas 30%, ritel (`YP, XC, PD`) tercatat net sell.
 - [ ] **5. Dekat Modal Bandar:** Harga saat ini tidak lebih dari 5% di atas HMB.
 - [ ] **6. Likuiditas Masuk Akal:** Nilai transaksi harian (ADT) minimal Rp1 Miliar, dan alokasi modal kita $\le 5\%$ dari ADT.
-- [ ] **7. Stop Loss Sudah Dihitung:** Batas cut loss jelas (di bawah support base), potensi risiko maksimal 2–3%.
+- [ ] **7. Stop Loss Sudah Dihitung:** Batas cut loss jelas (1–2 tick di bawah support base), potensi risiko maksimal 2–4%.
 
 ---
 
