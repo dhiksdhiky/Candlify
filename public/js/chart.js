@@ -2898,7 +2898,51 @@ class CandlifyChart {
             });
         }
 
-        // 4. Database Overview Navigation Links
+        // 4. Kitab Pre-Breakout Markdown Reader Modal
+        const btnOpenDoc = document.getElementById('btn-open-doc-modal');
+        const btnCloseDoc = document.getElementById('btn-close-doc-modal');
+        const docModal = document.getElementById('doc-reader-modal');
+        const docContent = document.getElementById('doc-reader-content');
+
+        if (btnOpenDoc && docModal && docContent) {
+            btnOpenDoc.addEventListener('click', async () => {
+                docModal.classList.remove('hidden');
+                docContent.innerHTML = `
+                    <div style="text-align: center; padding: 40px; color: var(--text-muted);">
+                        <div style="font-size: 24px; margin-bottom: 10px;">⏳</div>
+                        Memuat isi Kitab Panduan...
+                    </div>
+                `;
+                try {
+                    const res = await fetch('/api/docs/bandarmology');
+                    const data = await res.json();
+                    if (data.success && data.markdown) {
+                        if (window.marked && typeof window.marked.parse === 'function') {
+                            docContent.innerHTML = window.marked.parse(data.markdown);
+                        } else {
+                            docContent.innerHTML = `<pre style="white-space: pre-wrap; color:#e2e8f0;">${escapeHtml(data.markdown)}</pre>`;
+                        }
+                    } else {
+                        docContent.innerHTML = '<div style="color:#f87171; padding:20px;">Gagal memuat dokumen panduan.</div>';
+                    }
+                } catch (e) {
+                    docContent.innerHTML = `<div style="color:#f87171; padding:20px;">Gagal mengambil dokumen: ${e.message}</div>`;
+                }
+            });
+        }
+
+        if (btnCloseDoc && docModal) {
+            btnCloseDoc.addEventListener('click', () => {
+                docModal.classList.add('hidden');
+            });
+            docModal.addEventListener('click', (e) => {
+                if (e.target === docModal) {
+                    docModal.classList.add('hidden');
+                }
+            });
+        }
+
+        // 5. Database Overview Navigation Links
         if (this.dom.btnDbGoScreener) {
             this.dom.btnDbGoScreener.addEventListener('click', () => this.switchView('screener'));
         }

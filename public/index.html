@@ -863,6 +863,25 @@
                     </div>
                 </div>
 
+                <!-- Kitab Pre-Breakout & Bandarmology Reader Card -->
+                <div class="settings-card">
+                    <div class="settings-card-hdr">
+                        <span class="settings-card-icon">📖</span>
+                        <div>
+                            <h4 class="settings-card-title">Kitab Pre-Breakout & Bandarmology</h4>
+                            <p class="settings-card-desc">SOP lengkap, mikrostruktur pasar, 4 pilar teknikal, & panduan eksekusi lelang FCA</p>
+                        </div>
+                    </div>
+                    <div class="form-modal-body">
+                        <p style="font-size: 11px; color: var(--text-secondary); margin-bottom: 12px; line-height: 1.5;">
+                            Pelajari teori mendalam mengenai titik masuk low-risk di atas MA20, perhitungan HMB Net-Inventory, serta strategi eksekusi real-time.
+                        </p>
+                        <button id="btn-open-doc-modal" class="filter-btn-primary" style="background: linear-gradient(135deg, #4f46e5, #3b82f6); display: flex; align-items: center; justify-content: center; gap: 8px;">
+                            <span>📖 Buka Kitab Panduan (Markdown)</span>
+                        </button>
+                    </div>
+                </div>
+
                 <!-- 3. Info Sistem & Arsitektur -->
                 <div class="settings-card">
                     <div class="settings-card-hdr">
@@ -1304,6 +1323,30 @@
         </div>
 
         <!-- ======================================================== -->
+        <!-- 11. MODAL BUKU PANDUAN PRE-BREAKOUT (MARKDOWN READER)    -->
+        <!-- ======================================================== -->
+        <div id="doc-reader-modal" class="modal-overlay hidden">
+            <div class="doc-reader-container">
+                <div class="doc-reader-header">
+                    <div class="doc-reader-title-row">
+                        <span class="doc-reader-icon">📖</span>
+                        <div>
+                            <h3 class="doc-reader-title">Kitab Pre-Breakout & Bandarmology</h3>
+                            <span class="doc-reader-subtitle">Dokumentasi Resmi & SOP Trading Candlify V2</span>
+                        </div>
+                    </div>
+                    <button id="btn-close-doc-modal" class="modal-close-btn" title="Tutup Panduan">✕</button>
+                </div>
+                <div id="doc-reader-content" class="doc-reader-body markdown-body">
+                    <div style="text-align: center; padding: 40px; color: var(--text-muted);">
+                        <div style="font-size: 24px; margin-bottom: 10px;">⏳</div>
+                        Memuat dokumen panduan...
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ======================================================== -->
         <!-- Floating Glass Bottom Navigation (5 Tabs PWA)           -->
         <!-- ======================================================== -->
         <nav id="floating-bottom-nav" class="glass-bottom-nav">
@@ -1350,6 +1393,7 @@
     </div> <!-- /#app -->
 
     <!-- Scripts -->
+    <script src="js/marked.min.js"></script>
     <script src="js/klinecharts.min.js"></script>
     <script src="js/chart.js"></script>
     

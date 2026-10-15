@@ -248,6 +248,15 @@ Di Candlify, indikator volume dirancang khusus untuk membedakan dua fase:
   * Ritel sering salah mengira bahwa volume sepi artinya "saham jelek/tidak laku". 
   * Dalam bandarmologi pre-breakout, **volume sepi di area atas base adalah tanda emas**. Artinya barang sudah diserap habis (*floating shares* di pasar berkurang drastis).
 
+### 3. Membedakan Volume "Kering Diserap" vs "Kering Ditelantarkan"
+Tidak semua saham bervolume sepi layak dibeli. Kita harus membedakan antara akumulasi pasif (*supply exhaustion*) dengan saham tidur/distribusi lambat (*abandoned/zombie stock* seperti BKDP dan LION):
+* **Up/Down Volume Ratio ($\ge 1.15\times$):**
+  $$\text{Up/Down Volume Ratio} = \frac{\text{Mean}(\text{Vol}_{\text{Close} \ge \text{Open}})}{\text{Mean}(\text{Vol}_{\text{Close} < \text{Open}})}$$
+  Selama 7 hari fase base, rata-rata volume pada candle hijau wajib lebih besar dibanding candle merah. Jika volume saat harga turun justru lebih besar, bandar sedang melakukan distribusi pasif.
+* **Close Location Value Rata-Rata 3 Hari ($\text{Mean CLV}_{3\text{D}} \ge 0.50$):**
+  $$\text{CLV} = \frac{(\text{Close} - \text{Low}) - (\text{High} - \text{Close})}{\text{High} - \text{Low}}$$
+  Mengukur daya serap penutupan. Nilai $\ge 0.50$ membuktikan harga secara konsisten ditutup di kuartil atas (*upper 25%*) rentang candle, tanda perlawanan serapan pembeli aktif.
+
 ---
 
 ## 7. Kapasitas Modal, Paradoks Likuiditas & Aturan Papan Bursa
@@ -299,6 +308,25 @@ Untuk mencegah menjadi "Whale Lokal" yang merusak order book bandar, terapkan at
 | **Rp3 Miliar – Rp20 Miliar / hari** | Medium Liquid (Mid Caps aktif: BALI, MAPA, AUTO) | Maksimal **Rp50 Juta – Rp150 Juta** | Beli bertahap (antre bid), HAKI bertahap |
 | **Rp1,5 Miliar – Rp3 Miliar / hari** | Low Liquid (Small Caps Aktif) | Maksimal **Rp10 Juta – Rp30 Juta** | **Wajib cicil pasif!** Jangan pernah HAKA/HAKI sekaligus |
 | **< Rp1,5 Miliar / hari** | Illiquid / Tidur | **Hindari!** | Sangat berisiko kejebak jika bandar kabur |
+
+---
+
+### 🧮 Koreksi Perhitungan HMB: Net-Inventory Weighted vs Gross-Buy Weighted
+Untuk menghindari distorsi harga akibat broker scalper/day-trader (*churner*) yang membeli dan menjual ratusan ribu lot dalam 1 hari di pucuk (misal `YP` beli 300.000 lot lalu jual 280.000 lot), Candlify menerapkan formula **Net-Inventory Weighted HMB**:
+$$\text{HMB}_{\text{net}} = \frac{\sum_{i=1}^{5} \left(\text{net\_vol}_i \times \frac{\text{buy\_val}_i}{\text{buy\_vol}_i \times 100}\right)}{\sum_{i=1}^{5} \text{net\_vol}_i}$$
+Dengan rumus ini, bobot harga modal murni didasarkan pada **sisa barang riil (`net_vol`)** yang benar-benar disimpan di portofolio bandar, bukan volume transaksi kotor bolak-balik.
+
+### 🛡️ Mengatasi Taktik Sindikat Split-Broker: Herfindahl-Hirschman Index (HHI & AAR)
+Bandar modern kerap memecah serapan barang ke 4–6 sekuritas nominee masing-masing 15%–18% agar tidak memicu deteksi alarm "Top 1 > 30%". Candlify mengukur konsentrasi order flow menggunakan **Accumulation Asymmetry Ratio (AAR)**:
+$$\text{HHI}_{\text{buy}} = \sum_{i \in \text{Buyers}} \left(\frac{\text{net\_val}_i}{\sum \text{net\_val}_{\text{buy}}}\right)^2, \quad \text{HHI}_{\text{sell}} = \sum_{j \in \text{Sellers}} \left(\frac{\vert{}\text{net\_val}_j\vert{}}{\sum \vert{}\text{net\_val}_{\text{sell}}\vert{}}\right)^2$$
+$$\text{AAR} = \frac{\text{HHI}_{\text{buy}}}{\text{HHI}_{\text{sell}}} \ge 1.5$$
+Jika $\text{AAR} \ge 1.5$, konsentrasi pembeli jauh lebih padat dibanding penjual ritel yang tersebar acak.
+
+### 🛡️ Dual-Constraint Position Sizing (Proteksi Overnight Gap-Down ARB)
+Pada saham dengan base konsolidasi super rapat, jarak Stop Loss bisa sangat tipis (hanya 1.5% – 2.0%). Jika ukuran lot hanya dihitung dari `risk_nominal / (entry - SL)`, kalkulator bisa mengalokasikan **40% – 50% dari total ekuitas** ke 1 saham *small-cap*.
+Jika keesokan paginya terjadi *overnight gap-down* ARB -15%, drawdown akun hancur. Oleh karena itu, Candlify menerapkan **Dual-Constraint Sizing**:
+$$\text{Lot}_{\text{optimal}} = \min \left( \left\lfloor \frac{\text{Risk Nominal}}{(\text{Entry} - \text{SL}) \times 100} \right\rfloor, \; \left\lfloor \frac{0.20 \times \text{Total Capital}}{\text{Entry} \times 100} \right\rfloor \right)$$
+Plafon maksimal 20% modal per emiten memastikan tidak ada satu saham pun yang bisa merusak kesehatan portofolio.
 
 ---
 
@@ -374,6 +402,19 @@ Buka chart saham tersebut di Candlify:
 * **Titik Beli:** HAKA begitu harga *break* 1 tick di atas Resistance Base (misal: Rp1.255).
 * **Stop Loss (SL):** Di bawah titik breakout / swing low hari itu (biasanya ~3%).
 * **Target Profit (TP):** Bertahap (TP1 +8%, TP2 trailing stop mengikuti EMA20).
+
+#### Opsi 3: Gaya "Pocket Pivot Trigger" (Efisiensi Waktu & Mengatasi Time-Decay)
+* **Kapan Dipakai:** Menghilangkan masalah dana menganggur (*dead money*) di dalam base 8–18 hari.
+* **Alur 2-Tahap:**
+  1. **Tahap 1 (Radar Watchlist):** Saham memenuhi 4 Pilar Pre-Breakout dimasukkan ke Watchlist (belum beli lot penuh).
+  2. **Tahap 2 (Trigger Pocket Pivot):** Beli HANYA saat volume hari ini melompat lebih besar dari volume candle merah tertinggi dalam 10 hari terakhir, sementara harga masih berada di dalam base ($\le +3\%$ dari Support Base) dan Close $> \text{MA}_5$.
+
+---
+
+### Langkah D: SOP Take Profit Institusional (Mencegah Round-Trip Profit Giveback)
+Saham *small-cap* pasca ARA sering mengalami koreksi tajam pada H+1 atau H+2. Terapkan SOP penguncian keuntungan bertahap:
+1. **TP 1 (Kunci 50% Posisi):** Jual 50% posisi saat gain mencapai $+8\%$ s/d $+10\%$ (atau saat hari pertama Auto Rejection Atas / ARA terkunci). Ini mengamankan *cashflow* dan menutup risiko modal awal.
+2. **TP 2 (Trailing Stop 50% Sisanya):** Pasang trailing stop mengikuti titik terendah candle kemarin ($\text{Low}_{t-1}$) atau EMA20. Selama harga belum menembus $\text{Low}_{t-1}$, biarkan sisa posisi melaju (*let your winners run*) hingga puncak reli.
 
 ---
 
@@ -678,16 +719,24 @@ Sebelum memasukkan order beli di sekuritas, centang **8 poin emas** ini:
 
 - [ ] **1. Tiang Induk Jelas:** Ada lonjakan volume $\ge 2\times$ VMA20 dan candle hijau $\ge +5\%$ dalam kurun 4–28 hari bursa terakhir.
 - [ ] **2. Kotak Base Rapat:** Rentang harga 7 hari bursa (`range_7`) sempit ($\le 8\% - 12\%$) dan BBW $\le 14\%$.
-- [ ] **3. Volume Mengering (*Supply Dry-Up*):** Volume harian konsolidasi turun ke $\le 40\% - 50\%$ dari tiang induk atau VMA20.
-- [ ] **4. Broksum Positif & Dominan (Wajib!):** Dominasi akumulator utama $> 30\%$ dari total serapan pembeli bersih, sementara broker ritel (`YP`, `XC`, `PD`, `XL`) tercatat *net sell*.
-- [ ] **5. Dekat Modal Bandar ($\text{HMB}_{\text{anchored}}$):** Harga saat ini berada dalam rentang $\pm 3\%$ dari harga rata-rata beli kumulatif bandar.
-- [ ] **6. Likuiditas Sehat & Sizing Terukur:**
+- [ ] **3. Volume Mengering Diserap (*Supply Absorption*):**
+  * Volume harian konsolidasi turun ke $\le 40\% - 50\%$ dari tiang induk atau VMA20.
+  * Rasio Volume Naik/Turun ($\text{Up/Down Vol Ratio}$) $\ge 1.15$ dan Rata-rata 3-Hari Close Location Value ($\text{CLV}_{3d}$) $\ge 0.50$ (memastikan volume sepi karena diserap bandar, bukan ditelantarkan).
+- [ ] **4. Broksum Positif, Dominan & Asimetris (AAR $\ge 1.5$):**
+  * Dominasi akumulator utama $> 30\%$ dari total serapan pembeli bersih.
+  * **Accumulation Asymmetry Ratio ($\text{AAR}$) $\ge 1.5$** via Herfindahl-Hirschman Index (pembelian bandar sangat terkonsentrasi meski dipecah ke multi-broker, sementara penjual ritel tersebar luas).
+  * Broker ritel sejati (`YP`, `XC`, `PD`, `XL`) tercatat *net sell*.
+- [ ] **5. Dekat Modal Bandar Net-Inventory ($\text{HMB}_{\text{net}}$):** Harga saat ini berada dalam rentang $\pm 3\%$ dari harga rata-rata beli kumulatif bandar berbobot inventori barang bersih (`net_vol`), kebal dari distorsi scalper/churner.
+- [ ] **6. Likuiditas Sehat & Dual-Constraint Position Sizing:**
   * Baseline $\text{ADT}_{20} \ge \text{Rp1,5 Miliar / hari}$.
+  * **Dual-Constraint Sizing:** Alokasi dibatasi oleh $\min(\text{Lot Berbasis Risiko 1\%}, \text{Maks 20\% Total Equity})$ guna mengeliminasi risiko kebangkrutan/drawdown parah akibat *gap-down ARB*.
   * Porsi pembelian $\le 5\%$ dari volume transaksi harian saat base kering (jika Buy on Weakness), atau $\le 5\%$ dari $\text{ADT}_{20}$ (jika Buy on Breakout).
 - [ ] **7. Pahami Karakter Papan Bursa (Utama/Pengembangan vs FCA):** Perhatikan badge papan pencatatan di Candlify. Jika saham masuk `⚠️ FCA (Pemantauan Khusus)`, siapkan strategi cicil pasif per sesi lelang (Call Auction 5 sesi) dan jangan pernah mengejar harga (*chasing breakout*). Jika di Papan Utama/Pengembangan, eksekusi *continuous trading* normal berlaku.
-- [ ] **8. Two-Tier Stop Loss Siap:** 
+- [ ] **8. Timing Eksekusi, Stop Loss & SOP Take Profit Terpasang:** 
+  * **Timing Presisi:** Masuk bertahap saat base kering (*Buy on Weakness*), atau tunggu konfirmasi **Pocket Pivot** / *Wyckoff Spring Reclaim* untuk memotong waktu tunggu (*time-decay*).
   * Level *Intraday Hard Stop* terpasang pada $-4.0\%$ s/d $-5.0\%$.
   * Level *EOD Closing Stop* ditetapkan pada batas Support Base (evaluasi pukul 15:45 WIB untuk mengantisipasi *Wyckoff Spring*).
+  * **SOP Take Profit:** Kunci profit 50% lot di $+8\%$ s/d $+10\%$ (atau saat ARA Hari Pertama), sisanya kawal dengan Trailing Stop di MA5 / Support Base.
 
 ---
 

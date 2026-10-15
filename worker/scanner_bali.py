@@ -57,38 +57,46 @@ def calculate_score(
     hmb: Optional[float],
     has_acc: bool,
     dominance: float = 0.0,
-    clv: float = 0.0
+    clv: float = 0.0,
+    aar: float = 1.0,
+    up_down_vol_ratio: float = 1.0,
+    is_pocket_pivot: bool = False
 ) -> int:
     """
     Menghitung skor kualitas sinyal pre-breakout (0-100 poin).
-    Termasuk bobot Keketatan Base, Volume Dry-Up, BBW Squeeze,
-    Dominansi Akumulator Smart Money (>= 30%), dan Price Absorption (CLV).
+    Termasuk bobot:
+    1. Keketatan Base (Max 20 pts)
+    2. Volume Dry-Up (Max 20 pts)
+    3. Volatility Squeeze / BBW (Max 15 pts)
+    4. Broker Akumulasi (Net-Inventory HMB, Dominance & AAR) (Max 25 pts)
+    5. Price Absorption (CLV 3D & Up/Down Volume Ratio) (Max 15 pts)
+    6. Bonus Pocket Pivot Trigger (+5 pts)
     """
     score = 0
 
-    # 1. Base Tightness (Max 25 pts)
+    # 1. Base Tightness (Max 20 pts)
     if range_7 <= 3.0:
-        score += 25
+        score += 20
     elif range_7 <= 5.0:
-        score += 20
+        score += 16
     elif range_7 <= 7.0:
-        score += 15
+        score += 12
     elif range_7 <= 10.0:
-        score += 10
+        score += 8
     else:
-        score += 5
+        score += 4
 
-    # 2. Volume Dry-Up (Max 25 pts)
+    # 2. Volume Dry-Up (Max 20 pts)
     if vol_dry <= 0.15:
-        score += 25
-    elif vol_dry <= 0.25:
         score += 20
+    elif vol_dry <= 0.25:
+        score += 16
     elif vol_dry <= 0.35:
-        score += 15
+        score += 12
     elif vol_dry <= 0.45:
-        score += 10
+        score += 8
     else:
-        score += 5
+        score += 4
 
     # 3. Volatility Squeeze / BBW (Max 15 pts)
     if bbw <= 6.0:
@@ -100,28 +108,28 @@ def calculate_score(
     else:
         score += 5
 
-    # 4. Broker Summary Confirmation & Dominance (Max 25 pts)
+    # 4. Broker Summary Confirmation, HMB & AAR (Max 25 pts)
     if has_acc and hmb and hmb > 0 and price > 0:
         diff_pct = abs(price - hmb) / price * 100.0
-        hmb_pts = 15 if diff_pct <= 4.0 else (10 if diff_pct <= 8.0 else 5)
-        dom_pts = 10 if dominance >= 30.0 else (5 if dominance >= 15.0 else 2)
-        score += (hmb_pts + dom_pts)
+        hmb_pts = 12 if diff_pct <= 4.0 else (8 if diff_pct <= 8.0 else 4)
+        dom_pts = 8 if dominance >= 30.0 else (5 if dominance >= 15.0 else 2)
+        aar_pts = 5 if aar >= 1.5 else (3 if aar >= 1.0 else 1)
+        score += (hmb_pts + dom_pts + aar_pts)
     elif has_acc:
-        dom_pts = 10 if dominance >= 30.0 else 5
-        score += (5 + dom_pts)
+        dom_pts = 8 if dominance >= 30.0 else 5
+        aar_pts = 5 if aar >= 1.5 else 2
+        score += (4 + dom_pts + aar_pts)
     else:
         score += 5
 
-    # 5. Price Absorption / CLV (Max 10 pts)
-    # CLV = ((Close - Low) - (High - Close)) / (High - Low)
-    if clv >= 0.50:
-        score += 10
-    elif clv >= 0.0:
-        score += 7
-    elif clv >= -0.50:
-        score += 4
-    else:
-        score += 1
+    # 5. Price Absorption (CLV) & Up/Down Vol Ratio (Max 15 pts)
+    clv_pts = 8 if clv >= 0.50 else (6 if clv >= 0.0 else (3 if clv >= -0.50 else 1))
+    vol_pts = 7 if up_down_vol_ratio >= 1.25 else (5 if up_down_vol_ratio >= 1.0 else 2)
+    score += (clv_pts + vol_pts)
+
+    # 6. Pocket Pivot Trigger Bonus (+5 pts)
+    if is_pocket_pivot:
+        score += 5
 
     return min(100, max(0, score))
 
@@ -214,6 +222,26 @@ def scan_pre_breakout(target_date: date) -> List[Dict[str, Any]]:
         clv = round(((curr_close - curr_low) - (curr_high - curr_close)) / hl_diff, 2) if hl_diff > 0 else 0.0
         adt20 = round(float(curr_vma * curr_close), 0)
 
+        # Base Up/Down Volume Ratio & 3-Day Mean CLV
+        up_days = w7[w7['close'] >= w7['open']]
+        down_days = w7[w7['close'] < w7['open']]
+        up_vol_mean = up_days['volume'].mean() if len(up_days) > 0 else 0.0
+        down_vol_mean = down_days['volume'].mean() if len(down_days) > 0 else 0.0
+        up_down_vol_ratio = round(float(up_vol_mean / down_vol_mean), 2) if down_vol_mean > 0 else 2.0
+
+        w3 = sub.iloc[max(0, curr_i - 2) : curr_i + 1]
+        hl_diffs = (w3['high'] - w3['low']).replace(0, np.nan)
+        clv_series = ((w3['close'] - w3['low']) - (w3['high'] - w3['close'])) / hl_diffs
+        clv_3d = round(float(clv_series.fillna(0.0).mean()), 2)
+
+        # Pocket Pivot Trigger Detection
+        lookback_10 = sub.iloc[max(0, curr_i - 10) : curr_i]
+        down_candles = lookback_10[lookback_10['close'] < lookback_10['open']]
+        max_down_vol_10d = float(down_candles['volume'].max()) if len(down_candles) > 0 else 0.0
+        ma5 = float(sub['close'].rolling(5, min_periods=1).mean().iloc[curr_i])
+        support_base = float(min_l7)
+        is_pocket_pivot = bool((curr_vol > max_down_vol_10d) and (curr_close > ma5) and (curr_close <= support_base * 1.05))
+
         # Kriteria Pre-Breakout Base:
         # - Close Range <= 8.0% ATAU High-Low Range <= 13.0%
         # - Volume Dry-Up <= 0.40x ATAU 3D avg <= 0.45x
@@ -229,10 +257,14 @@ def scan_pre_breakout(target_date: date) -> List[Dict[str, Any]]:
                 'bbw': round(float(curr_bbw), 2),
                 'price_to_ma20': round(float(price_to_ma20), 2),
                 'clv': clv,
+                'clv_3d': clv_3d,
+                'up_down_vol_ratio': up_down_vol_ratio,
+                'is_pocket_pivot': is_pocket_pivot,
                 'adt20': adt20,
                 'hmb': None,
                 'top_accumulator': None,
                 'dominance': 0.0,
+                'aar': 1.0,
                 'board': 'Pengembangan',
                 'score': 0
             })
@@ -273,7 +305,7 @@ def scan_pre_breakout(target_date: date) -> List[Dict[str, Any]]:
                     'net_val': 'sum'
                 }).reset_index()
 
-                # Cari broker pembeli bersih terbesar & hitung Dominansi
+                # Net-Inventory Weighted HMB, Dominansi & HHI Asymmetry (AAR)
                 net_buyers = agg[agg['net_val'] > 0].sort_values('net_val', ascending=False)
                 if not net_buyers.empty:
                     top_row = net_buyers.iloc[0]
@@ -281,21 +313,40 @@ def scan_pre_breakout(target_date: date) -> List[Dict[str, Any]]:
                     top_net_val = float(top_row['net_val'])
                     total_pos_net_val = float(net_buyers['net_val'].sum())
                     dominance_pct = round(top_net_val / total_pos_net_val * 100.0, 1) if total_pos_net_val > 0 else 0.0
-                    b_vol = top_row['buy_vol']
-                    b_val = top_row['buy_val']
-                    hmb_val = round(b_val / (b_vol * 100.0), 1) if b_vol > 0 else None
+
+                    # Net-Inventory Weighted HMB:
+                    valid_acc = net_buyers[net_buyers['buy_vol'] > 0]
+                    if not valid_acc.empty:
+                        avg_buy_prices = valid_acc['buy_val'] / (valid_acc['buy_vol'] * 100.0)
+                        weighted_cost = (valid_acc['net_vol'] * avg_buy_prices).sum()
+                        total_net_vol = valid_acc['net_vol'].sum()
+                        hmb_val = round(float(weighted_cost / total_net_vol), 1) if total_net_vol > 0 else None
+                    else:
+                        hmb_val = None
+
+                    # Herfindahl-Hirschman Index (HHI) & Accumulation Asymmetry Ratio (AAR)
+                    pos_b = agg[agg['net_val'] > 0]
+                    neg_s = agg[agg['net_val'] < 0]
+                    tot_p = float(pos_b['net_val'].sum())
+                    tot_n = abs(float(neg_s['net_val'].sum()))
+                    hhi_b = float(((pos_b['net_val'] / tot_p) ** 2).sum()) if tot_p > 0 else 0.0
+                    hhi_s = float(((neg_s['net_val'].abs() / tot_n) ** 2).sum()) if tot_n > 0 else 0.0
+                    aar_val = round(float(hhi_b / hhi_s), 2) if hhi_s > 0 else (2.0 if hhi_b > 0 else 1.0)
+
                     brok_stats[t] = {
                         'top_acc': top_code,
                         'hmb': hmb_val,
                         'has_acc': True,
-                        'dominance': dominance_pct
+                        'dominance': dominance_pct,
+                        'aar': aar_val
                     }
                 else:
                     brok_stats[t] = {
                         'top_acc': None,
                         'hmb': None,
                         'has_acc': False,
-                        'dominance': 0.0
+                        'dominance': 0.0,
+                        'aar': 1.0
                     }
     except Exception as e:
         logger.warning(f"⚠️ Gagal mengecek broker summary: {e}")
@@ -318,10 +369,11 @@ def scan_pre_breakout(target_date: date) -> List[Dict[str, Any]]:
     enriched_signals = []
     for c in candidates:
         t = c['ticker']
-        b_info = brok_stats.get(t, {'top_acc': None, 'hmb': None, 'has_acc': False, 'dominance': 0.0})
+        b_info = brok_stats.get(t, {'top_acc': None, 'hmb': None, 'has_acc': False, 'dominance': 0.0, 'aar': 1.0})
         c['top_accumulator'] = b_info['top_acc']
         c['hmb'] = b_info['hmb']
         c['dominance'] = b_info.get('dominance', 0.0)
+        c['aar'] = b_info.get('aar', 1.0)
         c['board'] = board_map.get(t, 'Pengembangan')
         c['score'] = calculate_score(
             range_7=c['range_7'],
@@ -331,7 +383,10 @@ def scan_pre_breakout(target_date: date) -> List[Dict[str, Any]]:
             hmb=c['hmb'],
             has_acc=b_info['has_acc'],
             dominance=b_info.get('dominance', 0.0),
-            clv=c.get('clv', 0.0)
+            clv=c.get('clv_3d', c.get('clv', 0.0)),
+            aar=b_info.get('aar', 1.0),
+            up_down_vol_ratio=c.get('up_down_vol_ratio', 1.0),
+            is_pocket_pivot=c.get('is_pocket_pivot', False)
         )
         enriched_signals.append(c)
 

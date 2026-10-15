@@ -235,6 +235,7 @@ def get_risk_settings() -> Dict[str, Any]:
     capital = default_settings.get("total_capital", 100000000)
     risk_pct = default_settings.get("risk_pct", 1.0)
     default_settings["risk_nominal"] = int(round(capital * (risk_pct / 100.0)))
+    default_settings.setdefault("max_exposure_pct", 0.20)
 
     return default_settings
 
@@ -637,9 +638,19 @@ def create_trading_plan(
 
     if not lot_size or lot_size <= 0:
         settings = get_risk_settings()
-        max_risk_rp = settings.get("risk_nominal") or 1000000.0
-        calc_lots = int(max_risk_rp / (risk_per_share * 100))
-        lot_size = max(1, calc_lots)
+        max_risk_rp = float(settings.get("risk_nominal") or 1000000.0)
+        total_capital = float(settings.get("total_capital") or 100000000.0)
+        max_exposure_pct = float(settings.get("max_exposure_pct") or 0.20)
+
+        # 1. Risk-based allocation
+        calc_lots = int(max_risk_rp / (risk_per_share * 100)) if risk_per_share > 0 else 1
+
+        # 2. Maximum capital exposure cap (default max 20% total equity per stock untuk proteksi gap-down ARB)
+        max_exposure_rp = total_capital * max_exposure_pct
+        cap_lots = int(max_exposure_rp / (entry_price * 100)) if entry_price > 0 else calc_lots
+
+        # Dual-constraint: ambil yang terkecil antara toleransi risiko vs plafon eksposur
+        lot_size = max(1, min(calc_lots, cap_lots))
 
     risk_amount = round(risk_per_share * lot_size * 100, 2)
 

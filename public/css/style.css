@@ -4404,3 +4404,165 @@ select option:checked,
     font-size: 13px;
     font-weight: 900;
 }
+
+/* ======================================================== */
+/* 📖 Kitab Pre-Breakout Markdown Reader Modal              */
+/* ======================================================== */
+.doc-reader-container {
+    width: 95%;
+    max-width: 920px;
+    height: 88vh;
+    background: #0b1120;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 16px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.85);
+    overflow: hidden;
+    animation: modalScaleUp 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.doc-reader-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 18px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    background: #111827;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.doc-reader-title-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.doc-reader-icon {
+    font-size: 22px;
+}
+
+.doc-reader-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #f8fafc;
+    margin: 0;
+}
+
+.doc-reader-subtitle {
+    font-size: 10px;
+    color: #94a3b8;
+}
+
+.doc-reader-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px 24px 60px;
+    color: #cbd5e1;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.7;
+    font-size: 13px;
+    -webkit-overflow-scrolling: touch;
+}
+
+.doc-reader-body h1 {
+    font-size: 20px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    padding-bottom: 8px;
+    margin: 24px 0 14px;
+    color: #60a5fa;
+}
+
+.doc-reader-body h2 {
+    font-size: 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding-bottom: 6px;
+    margin: 22px 0 12px;
+    color: #38bdf8;
+}
+
+.doc-reader-body h3 {
+    font-size: 14px;
+    margin: 18px 0 8px;
+    color: #f1f5f9;
+}
+
+.doc-reader-body table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0;
+    font-size: 11.5px;
+    overflow-x: auto;
+    display: block;
+}
+
+.doc-reader-body th, .doc-reader-body td {
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    padding: 7px 11px;
+    text-align: left;
+}
+
+.doc-reader-body th {
+    background: rgba(255, 255, 255, 0.07);
+    color: #f8fafc;
+    font-weight: 700;
+}
+
+.doc-reader-body tr:nth-child(even) {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.doc-reader-body pre {
+    background: #030712;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 12px 14px;
+    overflow-x: auto;
+    font-family: var(--font-mono, monospace);
+    font-size: 11px;
+    color: #a5f3fc;
+    margin: 14px 0;
+}
+
+.doc-reader-body code {
+    background: rgba(255, 255, 255, 0.08);
+    padding: 2px 5px;
+    border-radius: 4px;
+    font-family: var(--font-mono, monospace);
+    font-size: 11.5px;
+    color: #f472b6;
+}
+
+.doc-reader-body pre code {
+    background: transparent;
+    padding: 0;
+    color: inherit;
+}
+
+.doc-reader-body blockquote {
+    margin: 14px 0;
+    padding: 10px 14px;
+    border-left: 3px solid #3b82f6;
+    background: rgba(59, 130, 246, 0.08);
+    border-radius: 0 8px 8px 0;
+    color: #cbd5e1;
+    font-size: 12.5px;
+}
+
+.doc-reader-body hr {
+    border: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    margin: 22px 0;
+}
+
+.doc-reader-body ul, .doc-reader-body ol {
+    padding-left: 20px;
+    margin: 10px 0;
+}
+
+.doc-reader-body li {
+    margin-bottom: 5px;
+}
+

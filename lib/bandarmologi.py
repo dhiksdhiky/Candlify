@@ -161,10 +161,15 @@ def get_bandarmologi(symbol: str, days_lookback: int = 180) -> Dict[str, Any]:
             })
             top_acc = acc_window[acc_window['net_vol'] > 0].nlargest(5, 'net_vol')
             
-            tot_bval = float(top_acc['buy_val'].sum())
-            tot_bvol = float(top_acc['buy_vol'].sum())
-            # buy_vol dalam lot, kalikan 100 untuk lembar saham
-            hmb = round(tot_bval / (tot_bvol * 100)) if tot_bvol > 0 else 0
+            # Net-Inventory Weighted HMB: Bobot berdasarkan sisa barang riil (net_vol)
+            valid_acc = top_acc[top_acc['buy_vol'] > 0]
+            if not valid_acc.empty:
+                avg_buy_prices = valid_acc['buy_val'] / (valid_acc['buy_vol'] * 100.0)
+                weighted_cost = (valid_acc['net_vol'] * avg_buy_prices).sum()
+                total_net_vol = valid_acc['net_vol'].sum()
+                hmb = round(float(weighted_cost / total_net_vol)) if total_net_vol > 0 else 0
+            else:
+                hmb = 0
 
             series.append({
                 "date": d_dt.strftime("%Y-%m-%d"),
@@ -360,11 +365,26 @@ def get_broksum_range(symbol: str, from_date: Optional[str] = None, to_date: Opt
     top3_sell = float(sellers.nsmallest(3, 'net_val')['net_val'].sum()) if not sellers.empty else 0.0
     net_flow = round(top3_buy + top3_sell)
 
-    # Modal bandar akumulator pada rentang waktu terpilih
+    # Modal bandar akumulator pada rentang waktu terpilih (Net-Inventory Weighted)
     top_acc = acc[acc['net_vol'] > 0].nlargest(5, 'net_vol')
-    tot_bval = float(top_acc['buy_val'].sum())
-    tot_bvol = float(top_acc['buy_vol'].sum())
-    hmb = round(tot_bval / (tot_bvol * 100)) if tot_bvol > 0 else 0
+    valid_acc = top_acc[top_acc['buy_vol'] > 0]
+    if not valid_acc.empty:
+        avg_buy_prices = valid_acc['buy_val'] / (valid_acc['buy_vol'] * 100.0)
+        weighted_cost = (valid_acc['net_vol'] * avg_buy_prices).sum()
+        total_net_vol = valid_acc['net_vol'].sum()
+        hmb = round(float(weighted_cost / total_net_vol)) if total_net_vol > 0 else 0
+    else:
+        hmb = 0
+
+    # Herfindahl-Hirschman Index (HHI) & Accumulation Asymmetry Ratio (AAR)
+    pos_buyers = acc[acc['net_val'] > 0]
+    neg_sellers = acc[acc['net_val'] < 0]
+    tot_pos_buy = float(pos_buyers['net_val'].sum())
+    tot_neg_sell = abs(float(neg_sellers['net_val'].sum()))
+
+    hhi_buy = float(((pos_buyers['net_val'] / tot_pos_buy) ** 2).sum()) if tot_pos_buy > 0 else 0.0
+    hhi_sell = float(((neg_sellers['net_val'].abs() / tot_neg_sell) ** 2).sum()) if tot_neg_sell > 0 else 0.0
+    aar = round(float(hhi_buy / hhi_sell), 2) if hhi_sell > 0 else (2.0 if hhi_buy > 0 else 1.0)
 
     return {
         "success": True,
@@ -382,6 +402,9 @@ def get_broksum_range(symbol: str, from_date: Optional[str] = None, to_date: Opt
             "latest_hmb": hmb,
             "latest_net_flow": net_flow,
             "latest_status": "ACCUM" if net_flow > 0 else "DISTRIB",
+            "aar": aar,
+            "hhi_buy": round(hhi_buy, 4),
+            "hhi_sell": round(hhi_sell, 4),
             "total_buy_val": total_buy_val,
             "total_sell_val": total_sell_val,
             "top_buyers": top_buyers,

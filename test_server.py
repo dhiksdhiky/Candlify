@@ -285,3 +285,29 @@ def test_pre_breakout_ui_elements():
     assert res_js.status_code == 200
     assert "pre_breakout" in res_js.text
     assert "stock-badge-prebreakout" in res_js.text
+
+
+def test_api_docs_bandarmology():
+    res = client.get("/api/docs/bandarmology")
+    assert res.status_code == 200
+    data = res.json()
+    assert data.get("success") is True
+    assert "markdown" in data
+    assert len(data["markdown"]) > 1000
+    assert "Pre-Breakout" in data["markdown"] or "Bandarmology" in data["markdown"]
+
+
+def test_doc_reader_ui_elements():
+    res_html = client.get("/")
+    assert res_html.status_code == 200
+    assert "btn-open-doc-modal" in res_html.text
+    assert "doc-reader-modal" in res_html.text
+    assert "marked.min.js" in res_html.text
+
+    res_js = client.get("/js/chart.js")
+    assert res_js.status_code == 200
+    assert "btn-open-doc-modal" in res_js.text
+    assert "doc-reader-modal" in res_js.text
+    assert "marked.parse" in res_js.text
+
+

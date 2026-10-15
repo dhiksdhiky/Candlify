@@ -589,6 +589,23 @@ def api_stock_alias(action: Optional[str] = Query("health")):
     """Alias endpoint kompatibilitas stock engine."""
     return get_database_metrics()
 
+@app.get("/api/docs/bandarmology")
+def api_get_bandarmology_doc():
+    """Mengembalikan isi dokumen panduan Pre-Breakout & Bandarmologi dalam format Markdown."""
+    doc_path = os.path.join(BASE_DIR, "docs", "BANDARMOLOGY_PRE_BREAKOUT.md")
+    if not os.path.exists(doc_path):
+        raise HTTPException(status_code=404, detail="Dokumen panduan tidak ditemukan")
+    try:
+        with open(doc_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        return {
+            "success": True,
+            "title": "Buku Panduan Pre-Breakout & Bandarmology",
+            "markdown": content
+        }
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Gagal membaca dokumen: {err}")
+
 @app.get("/api/health")
 def health():
     db_status = "unconfigured"
