@@ -30,6 +30,13 @@ import pandas as pd
 import numpy as np
 from sqlalchemy import text
 
+import os
+
+# Ensure worker directory is in sys.path
+_WORKER_DIR = os.path.dirname(os.path.abspath(__file__))
+if _WORKER_DIR not in sys.path:
+    sys.path.insert(0, _WORKER_DIR)
+
 # Import database configuration
 from db_config import engine, get_dialect, TEST_MODE
 
@@ -42,8 +49,21 @@ if not logger.handlers:
     )
 
 
-def calculate_score(range_7: float, vol_dry: float, bbw: float, price: float, hmb: Optional[float], has_acc: bool) -> int:
-    """Menghitung skor kualitas sinyal pre-breakout (0-100 poin)."""
+def calculate_score(
+    range_7: float,
+    vol_dry: float,
+    bbw: float,
+    price: float,
+    hmb: Optional[float],
+    has_acc: bool,
+    dominance: float = 0.0,
+    clv: float = 0.0
+) -> int:
+    """
+    Menghitung skor kualitas sinyal pre-breakout (0-100 poin).
+    Termasuk bobot Keketatan Base, Volume Dry-Up, BBW Squeeze,
+    Dominansi Akumulator Smart Money (>= 30%), dan Price Absorption (CLV).
+    """
     score = 0
 
     # 1. Base Tightness (Max 25 pts)
@@ -53,42 +73,55 @@ def calculate_score(range_7: float, vol_dry: float, bbw: float, price: float, hm
         score += 20
     elif range_7 <= 7.0:
         score += 15
-    else:
-        score += 10
-
-    # 2. Volume Dry-Up (Max 30 pts)
-    if vol_dry <= 0.15:
-        score += 30
-    elif vol_dry <= 0.25:
-        score += 25
-    elif vol_dry <= 0.35:
-        score += 20
-    else:
-        score += 15
-
-    # 3. Volatility Squeeze / BBW (Max 20 pts)
-    if bbw <= 6.0:
-        score += 20
-    elif bbw <= 9.0:
-        score += 15
-    elif bbw <= 12.0:
+    elif range_7 <= 10.0:
         score += 10
     else:
         score += 5
 
-    # 4. Broker Summary Confirmation (Max 25 pts)
+    # 2. Volume Dry-Up (Max 25 pts)
+    if vol_dry <= 0.15:
+        score += 25
+    elif vol_dry <= 0.25:
+        score += 20
+    elif vol_dry <= 0.35:
+        score += 15
+    elif vol_dry <= 0.45:
+        score += 10
+    else:
+        score += 5
+
+    # 3. Volatility Squeeze / BBW (Max 15 pts)
+    if bbw <= 6.0:
+        score += 15
+    elif bbw <= 9.0:
+        score += 12
+    elif bbw <= 12.0:
+        score += 8
+    else:
+        score += 5
+
+    # 4. Broker Summary Confirmation & Dominance (Max 25 pts)
     if has_acc and hmb and hmb > 0 and price > 0:
         diff_pct = abs(price - hmb) / price * 100.0
-        if diff_pct <= 4.0:
-            score += 25
-        elif diff_pct <= 8.0:
-            score += 20
-        else:
-            score += 15
+        hmb_pts = 15 if diff_pct <= 4.0 else (10 if diff_pct <= 8.0 else 5)
+        dom_pts = 10 if dominance >= 30.0 else (5 if dominance >= 15.0 else 2)
+        score += (hmb_pts + dom_pts)
     elif has_acc:
-        score += 15
+        dom_pts = 10 if dominance >= 30.0 else 5
+        score += (5 + dom_pts)
     else:
         score += 5
+
+    # 5. Price Absorption / CLV (Max 10 pts)
+    # CLV = ((Close - Low) - (High - Close)) / (High - Low)
+    if clv >= 0.50:
+        score += 10
+    elif clv >= 0.0:
+        score += 7
+    elif clv >= -0.50:
+        score += 4
+    else:
+        score += 1
 
     return min(100, max(0, score))
 
@@ -175,6 +208,12 @@ def scan_pre_breakout(target_date: date) -> List[Dict[str, Any]]:
         vol_dry_3d = sub['volume'].iloc[max(0, curr_i - 2) : curr_i + 1].mean() / curr_vma
         price_to_ma20 = (curr_close - curr_ma20) / curr_ma20 * 100.0
 
+        curr_high = float(sub.loc[curr_i, 'high'])
+        curr_low = float(sub.loc[curr_i, 'low'])
+        hl_diff = curr_high - curr_low
+        clv = round(((curr_close - curr_low) - (curr_high - curr_close)) / hl_diff, 2) if hl_diff > 0 else 0.0
+        adt20 = round(float(curr_vma * curr_close), 0)
+
         # Kriteria Pre-Breakout Base:
         # - Close Range <= 8.0% ATAU High-Low Range <= 13.0%
         # - Volume Dry-Up <= 0.40x ATAU 3D avg <= 0.45x
@@ -189,8 +228,12 @@ def scan_pre_breakout(target_date: date) -> List[Dict[str, Any]]:
                 'volume_dry_ratio': round(float(min(vol_dry, vol_dry_3d)), 2),
                 'bbw': round(float(curr_bbw), 2),
                 'price_to_ma20': round(float(price_to_ma20), 2),
+                'clv': clv,
+                'adt20': adt20,
                 'hmb': None,
                 'top_accumulator': None,
+                'dominance': 0.0,
+                'board': 'Pengembangan',
                 'score': 0
             })
 
@@ -230,43 +273,65 @@ def scan_pre_breakout(target_date: date) -> List[Dict[str, Any]]:
                     'net_val': 'sum'
                 }).reset_index()
 
-                # Cari broker pembeli bersih terbesar
+                # Cari broker pembeli bersih terbesar & hitung Dominansi
                 net_buyers = agg[agg['net_val'] > 0].sort_values('net_val', ascending=False)
                 if not net_buyers.empty:
                     top_row = net_buyers.iloc[0]
                     top_code = top_row['broker_code']
+                    top_net_val = float(top_row['net_val'])
+                    total_pos_net_val = float(net_buyers['net_val'].sum())
+                    dominance_pct = round(top_net_val / total_pos_net_val * 100.0, 1) if total_pos_net_val > 0 else 0.0
                     b_vol = top_row['buy_vol']
                     b_val = top_row['buy_val']
                     hmb_val = round(b_val / (b_vol * 100.0), 1) if b_vol > 0 else None
                     brok_stats[t] = {
                         'top_acc': top_code,
                         'hmb': hmb_val,
-                        'has_acc': True
+                        'has_acc': True,
+                        'dominance': dominance_pct
                     }
                 else:
                     brok_stats[t] = {
                         'top_acc': None,
                         'hmb': None,
-                        'has_acc': False
+                        'has_acc': False,
+                        'dominance': 0.0
                     }
     except Exception as e:
         logger.warning(f"⚠️ Gagal mengecek broker summary: {e}")
         brok_stats = {}
 
+    # Ambil papan pencatatan dari tabel daftar_saham
+    board_map: Dict[str, str] = {}
+    try:
+        with engine.connect() as conn:
+            b_placeholders = ", ".join([f":bt_{i}" for i in range(len(candidate_tickers))])
+            b_params = {f"bt_{i}": candidate_tickers[i] for i in range(len(candidate_tickers))}
+            query_board = text(f"SELECT kode, papan_pencatatan FROM daftar_saham WHERE kode IN ({b_placeholders})")
+            b_rows = conn.execute(query_board, b_params).fetchall()
+            for b_r in b_rows:
+                board_map[b_r[0]] = b_r[1] or 'Pengembangan'
+    except Exception as e:
+        logger.warning(f"⚠️ Gagal mengambil papan pencatatan dari DB: {e}")
+
     # Hitung final score
     enriched_signals = []
     for c in candidates:
         t = c['ticker']
-        b_info = brok_stats.get(t, {'top_acc': None, 'hmb': None, 'has_acc': False})
+        b_info = brok_stats.get(t, {'top_acc': None, 'hmb': None, 'has_acc': False, 'dominance': 0.0})
         c['top_accumulator'] = b_info['top_acc']
         c['hmb'] = b_info['hmb']
+        c['dominance'] = b_info.get('dominance', 0.0)
+        c['board'] = board_map.get(t, 'Pengembangan')
         c['score'] = calculate_score(
             range_7=c['range_7'],
             vol_dry=c['volume_dry_ratio'],
             bbw=c['bbw'],
             price=c['price'],
             hmb=c['hmb'],
-            has_acc=b_info['has_acc']
+            has_acc=b_info['has_acc'],
+            dominance=b_info.get('dominance', 0.0),
+            clv=c.get('clv', 0.0)
         )
         enriched_signals.append(c)
 

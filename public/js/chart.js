@@ -3317,6 +3317,16 @@ class CandlifyChart {
             const preBreakoutBadge = s.is_pre_breakout 
                 ? `<span class="stock-badge-prebreakout">🎯 Base ${escapeHtml(s.range_7)}%</span>` 
                 : '';
+            const boardName = s.board || s.papan_pencatatan || '';
+            const boardBadge = boardName
+                ? (boardName.includes('Pemantauan') || s.is_fca)
+                    ? `<span class="stock-badge-board badge-fca" title="Papan Pemantauan Khusus (Full Call Auction 5 Sesi)">⚠️ FCA</span>`
+                    : (boardName.includes('Akselerasi')
+                        ? `<span class="stock-badge-board badge-akselerasi" title="Papan Akselerasi">Akselerasi</span>`
+                        : (boardName.includes('Pengembangan')
+                            ? `<span class="stock-badge-board badge-pengembangan" title="Papan Pengembangan">Pengembangan</span>`
+                            : `<span class="stock-badge-board badge-utama" title="Papan Utama">Utama</span>`))
+                : '';
             const dynamicMetricHtml = getDynamicMetric(s);
 
             const submetricsText = (s.is_pre_breakout && s.hmb)
@@ -3339,6 +3349,7 @@ class CandlifyChart {
                             <span class="stock-change ${changeClass}">${changeSign}${(s.change_pct ?? 0).toFixed(2)}%</span>
                             ${surgeBadge}
                             ${preBreakoutBadge}
+                            ${boardBadge}
                         </div>
                         <span class="stock-name" title="${s.name || s.symbol}">${s.name || s.symbol}</span>
                     </div>

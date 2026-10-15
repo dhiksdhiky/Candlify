@@ -178,16 +178,19 @@ def get_pre_breakout_signals(target_date: Optional[str] = None, min_score: int =
                 target_date_str = target_date
 
             stmt = text("""
-                SELECT date, ticker, price, range_7, volume_dry_ratio, bbw, price_to_ma20, hmb, top_accumulator, score, created_at
-                FROM candlify_signals
-                WHERE date = :t_date AND score >= :min_score
-                ORDER BY score DESC, range_7 ASC
+                SELECT s.date, s.ticker, s.price, s.range_7, s.volume_dry_ratio, s.bbw, s.price_to_ma20, s.hmb, s.top_accumulator, s.score, s.created_at,
+                       COALESCE(d.papan_pencatatan, 'Utama') AS papan_pencatatan
+                FROM candlify_signals s
+                LEFT JOIN daftar_saham d ON s.ticker = d.kode
+                WHERE s.date = :t_date AND s.score >= :min_score
+                ORDER BY s.score DESC, s.range_7 ASC
                 LIMIT :limit
             """)
             rows = conn.execute(stmt, {"t_date": target_date_str, "min_score": min_score, "limit": limit}).mappings().all()
 
             signals = []
             for r in rows:
+                board_val = r.get("papan_pencatatan") or "Utama"
                 signals.append({
                     "date": str(r["date"]),
                     "ticker": r["ticker"],
@@ -199,6 +202,8 @@ def get_pre_breakout_signals(target_date: Optional[str] = None, min_score: int =
                     "hmb": float(r["hmb"]) if r["hmb"] is not None else None,
                     "top_accumulator": r["top_accumulator"],
                     "score": int(r["score"]),
+                    "board": board_val,
+                    "is_fca": ("Pemantauan" in board_val),
                     "created_at": r["created_at"].isoformat() if r["created_at"] else None
                 })
 
@@ -300,6 +305,8 @@ def filter_by_preset(stocks: List[Dict[str, Any]], preset: str) -> List[Dict[str
                 s_copy["top_accumulator"] = sig["top_accumulator"]
                 s_copy["hmb"] = sig["hmb"]
                 s_copy["price_to_ma20"] = sig["price_to_ma20"]
+                s_copy["board"] = sig.get("board", "Utama")
+                s_copy["is_fca"] = sig.get("is_fca", False)
                 s_copy["is_pre_breakout"] = True
                 matched.append(s_copy)
                 seen.add(sym)
@@ -321,6 +328,8 @@ def filter_by_preset(stocks: List[Dict[str, Any]], preset: str) -> List[Dict[str
                     "top_accumulator": sig["top_accumulator"],
                     "hmb": sig["hmb"],
                     "price_to_ma20": sig["price_to_ma20"],
+                    "board": sig.get("board", "Utama"),
+                    "is_fca": sig.get("is_fca", False),
                     "is_pre_breakout": True
                 })
 
