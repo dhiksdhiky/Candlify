@@ -13,9 +13,10 @@
 5. [🔎 Bukti Validitas Historis: 10 Contoh Sukses dari Database Neon](#5--bukti-validitas-historis-10-contoh-sukses-dari-database-neon)
 6. [Cara Membaca Volume di Candlify & Kaitannya dengan Likuiditas](#6-cara-membaca-volume-di-candlify--kaitannya-dengan-likuiditas)
 7. [Kapasitas Modal & Aturan Likuiditas Keluar-Masuk Barang (5% - 10% Rule)](#7-kapasitas-modal--aturan-likuiditas-keluar-masuk-barang-5---10-rule)
-8. [🎯 Simulasi Riil Langkah-demi-Langkah (Studi Kasus Sukses: BALI)](#8--simulasi-riil-langkah-demi-langkah-studi-kasus-sukses-bali)
-9. [⚠️ Simulasi Riil Kasus Gagal & Perangkap Distribusi (Studi Kasus Trap: LION)](#9-️-simulasi-riil-kasus-gagal--perangkap-distribusi-studi-kasus-trap-lion)
-10. [Trader's Quick Checklist Sebelum Menekan Tombol Buy](#10-traders-quick-checklist-sebelum-menekan-tombol-buy)
+8. [🎯 Studi Kasus Riil Sukses (Win Trades: BALI, PTSP, RONY)](#8--studi-kasus-riil-sukses-win-trades-bali-ptsp-rony)
+9. [⚠️ Studi Kasus Riil Gagal & Perangkap Distribusi (Trap Trades: LION, RGAS, BKDP)](#9-️-studi-kasus-riil-gagal--perangkap-distribusi-trap-trades-lion-rgas-bkdp)
+10. [✨ Studi Kasus Riil Unik (Special Edge Cases: MPXL & STAR)](#10--studi-kasus-riil-unik-special-edge-cases-mpxl--star)
+11. [Trader's Quick Checklist Sebelum Menekan Tombol Buy](#11-traders-quick-checklist-sebelum-menekan-tombol-buy)
 
 ---
 
@@ -214,11 +215,15 @@ $$\text{ADT (Rupiah)} = \text{Rata-rata Volume Harian (Lot)} \times 100 \times \
 
 ---
 
-## 8. 🎯 Simulasi Riil Langkah-demi-Langkah (Studi Kasus Sukses: BALI)
+## 8. 🎯 Studi Kasus Riil Sukses (Win Trades: BALI, PTSP, RONY)
 
-Berikut adalah simulasi eksekusi menggunakan **data historis riil saham PT Bali Towerindo Sentra Tbk. (BALI)** yang tersimpan di Neon Database (periode 25 September – 06 Oktober 2026). Mas Dhika bisa langsung membuka chart sekuritas (Stockbit/IPOT) untuk mencocokkan setiap baris angka ini.
+Berikut adalah 3 simulasi eksekusi menggunakan **data historis riil dari database Neon** yang bisa Mas Dhika cocokkan langsung di broker/chart masing-masing.
 
-### 📊 Data Riil Harian Saham BALI (Neon DB)
+---
+
+### 8.1 Studi Kasus 1: BALI (25 Sep – 06 Okt 2026) — *Explosion ARA +24.8%*
+
+#### 📊 Data Riil Harian Saham BALI (Neon DB)
 
 | Tanggal | Open | High | Low | Close | Volume (Lot) | Perubahan | Status Fase Setup |
 | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
@@ -231,152 +236,270 @@ Berikut adalah simulasi eksekusi menggunakan **data historis riil saham PT Bali 
 | **05 Okt 2026** | 1.330 | 1.660 | 1.285 | **1.660** | **27.400** | **+24.8%** 🚀 | **EXPLOSION DAY (Auto Rejection Atas / ARA)!** |
 | **06 Okt 2026** | 1.580 | 1.580 | 1.415 | 1.560 | 160.900 | -6.0% | Distribusi profit taking pasca ARA |
 
----
-
-### 🎨 Visualisasi Chart & Langkah Eksekusi BALI
-
 ```text
 Harga
  1.700 │                                                 [C=1.660 ARA!]
        │                                                       ▲
  1.600 │                                                       │
-       │                                                       │
- 1.500 │
-       │
  1.400 │              ┌─────────── Resistance Base: 1.370 ────┬┘
        │     ▲        │  ┌─┐                                  │
  1.300 │    │█│       │  │ │    ┌─┐    ┌─┐    ┌─┐             │
-       │    │█│       │  └─┘    │█│    │ │    │ │             │
  1.200 │  ──┴─┴───────┴─────────└─┴────┴─┴────┴─┴─────────────┴─  <-- Support Base: 1.275
        │   28 Sep     29 Sep   30 Sep 01 Okt 02 Okt         05 Okt
 Volume │
 150k   │     █ (148k)
-       │     █
  10k   │     █          ░        ░      ░      ░              █ (27k ARA)
    0   └─────┴──────────┴────────┴──────┴──────┴──────────────┴────►
            [TIANG]     [──────── BASE KERING ────────]      [BREAKOUT]
 ```
 
----
-
-### Langkah 1: Deteksi Tiang Induk (28 September 2026)
-* **Kondisi:** Saham BALI mencetak volume **148.400 lot** (senilai ~Rp19,5 Miliar), menembus rata-rata volume hariannya yang biasanya hanya 5.000–10.000 lot.
-* **Tindakan Trader:** Jangan FOMO langsung HAKA! Masukkan ticker BALI ke dalam **Watchlist Radar**.
+* **Broksum Base (28 Sep – 02 Okt):** Broker **`YJ`** akumulasi masif **+1.200 lot di Avg Rp1.319 (HMB)** tanpa jualan sama sekali, sementara broker ritel **`YP`** net sell **-567 lot** dan **`CC`** net sell **-350 lot**.
+* **Eksekusi:** Beli di Rp1.315–1.330, Stop Loss di Rp1.265 (risiko -4.1%). Target tercapai di Rp1.660 (+24.8% ARA).
 
 ---
 
-### Langkah 2: Mengamati Pengeringan Volume & Base (29 Sep – 02 Okt 2026)
-* **Kondisi:** 
-  * Volume 29 September anjlok drastis ke **3.200 lot** (turun $-97.8\%$ dari volume tiang!).
-  * Volume 01 Oktober bahkan menyusut ke **2.500 lot**!
-  * Harga bergerak sangat tenang di dalam kotak: **Support Base Rp1.275** dan **Resistance Base Rp1.370** (Rentang sempit $\le 7.4\%$).
-* **Makna Bandarmologi:** Penjual sudah habis (*exhausted*). Tidak ada yang mau melepas barang di bawah Rp1.275.
+### 8.2 Studi Kasus 2: PTSP (18 Agu – 04 Sep 2026) — *ARA Beruntun +94.4%*
 
----
+#### 📊 Data Riil Harian Saham PTSP (Neon DB)
 
-### Langkah 3: Verifikasi Broker Summary (Neon DB Broksum 28 Sep – 02 Okt)
-Buka tab Broksum di Candlify untuk rentang tanggal base:
-
-| Kode Broker | Kategori Broker | Total Beli (Lot) | Buy Avg | Total Jual (Lot) | Sell Avg | Net Flow (Lot) | Status Bandarmologi |
+| Tanggal | Open | High | Low | Close | Volume (Lot) | Perubahan | Status Fase Setup |
 | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
-| **`YJ`** | Bandar / Institusi | 1.200 | Rp1.319 | 0 | - | **+1.200 lot** | **Lead Accumulator (HMB Rp1.319)** |
-| **`YU`** | Institusi | 150 | Rp1.333 | 150 | Rp1.300 | Netral | Tektokan penyeimbang |
-| **`NI`** | Institusi | 127 | Rp1.307 | 198 | Rp1.328 | -71 lot | Distribusi kecil |
-| **`YP`** | **Ritel Sejati** | 3 | Rp1.280 | 570 | Rp1.310 | **-567 lot** | **Ritel Buang Barang (Net Sell)** |
-| **`CC`** | Campuran / Ritel | 26 | Rp1.323 | 376 | Rp1.324 | **-350 lot** | Ritel Cut Loss / Exit |
-
-> [!NOTE]
-> **Kesimpulan Broksum:** Jelas sekali terjadi **akumulasi bersih oleh broker `YJ`** di harga rata-rata **Rp1.319 (HMB)**, sementara broker ritel `YP` dan `CC` ramai-ramai buang barang karena bosan melihat harga stagnan!
-
----
-
-### Langkah 4: Eksekusi Trading Plan (02 Oktober 2026 Sore)
-* **Area Beli (Entry):** Antre beli di harga **Rp1.315 – Rp1.330** (sejajar dengan HMB bandar Rp1.319).
-* **Stop Loss (SL):** Pasang ketat di **Rp1.265** (2 tick di bawah Support Base Rp1.275).  
-  $$\text{Risiko Kerugian (Risk)} = \frac{1.320 - 1.265}{1.320} = \mathbf{-4.1\%}$$
-* **Target Profit (TP):** Minimal menguji titik tertinggi tiang sebelumnya di **Rp1.550 – Rp1.660** ($+17\% \text{ s/d } +25\%$).  
-  $$\text{Risk to Reward Ratio} = \frac{+25\%}{4.1\%} = \mathbf{1 : 6.1} \quad (\text{Super Menjanjikan!})$$
-
----
-
-### Langkah 5: Panen Hasil (05 Oktober 2026)
-Pada hari Senin 05 Oktober 2026, bandar hanya butuh volume kecil (27.400 lot) untuk mengunci harga saham BALI langsung **Auto Rejection Atas (ARA) di Rp1.660 (+24.8%)**! 
-* Trader yang masuk di Rp1.320 membukukan profit bersih **+25.7%** hanya dalam 1 hari bursa dengan risiko awal yang sangat terkontrol.
-
----
-
-## 9. ⚠️ Simulasi Riil Kasus Gagal & Perangkap Distribusi (Studi Kasus Trap: LION)
-
-Agar seimbang dan objektif, mari bedah kasus di mana saham tampak membentuk *base sempit dan volume kering*, tetapi akhirnya **gagal (*breakdown*)**. Ini adalah data riil saham **PT Lion Metal Works Tbk. (LION)** periode September 2026.
-
-### 📊 Data Riil Harian Saham LION (Neon DB)
-
-| Tanggal | Open | High | Low | Close | Volume (Lot) | Perubahan | Kondisi Lapangan |
-| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
-| **02 Sep 2026** | 360 | 442 | 352 | 400 | **3.639.600** | +13.6% | Volume Spike raksasa (Umpan awal) |
-| **07 Sep 2026** | 386 | 460 | 380 | 382 | 1.552.800 | -1.0% | Jarum atas panjang (Upper shadow rejection) |
-| **15 Sep 2026** | 366 | 374 | 366 | 368 | **10.800** | +0.5% | Volume anjlok 99% (Kelihatan seperti volume dry) |
-| **21 Sep 2026** | 370 | 380 | 364 | 378 | 91.300 | +2.1% | Tampak konsolidasi rapi di 364 - 380 |
-| **28 Sep 2026** | 366 | 366 | 330 | 344 | **26.400** | -6.0% | Support 358 mulai dijebol tipis |
-| **29 Sep 2026** | 344 | 348 | 344 | 346 | **26.000** | +0.5% | Pantulan lemah (Dead cat bounce) |
-| **30 Sep 2026** | 348 | 362 | 300 | **302** | **977.300** | **-12.7%** 🔴 | **COLLAPSE! Longsor dijebol ke bawah!** |
-
----
-
-### 🎨 Visualisasi Jebakan Distribusi LION
+| **19 Agu 2026** | 905 | 925 | 890 | 910 | 26.900 | -2.1% | Uji batas atas |
+| **20 Agu 2026** | 910 | 940 | 910 | 915 | **2.600** | +0.5% | **Volume mengering drastis** |
+| **21 Agu 2026** | 930 | 930 | 905 | 905 | **3.400** | -1.1% | Volume sepi, harga anteng di 905 |
+| **26 Agu 2026** | 905 | 905 | 885 | 905 | **1.800** | 0.0% | **Volume Super Dry (1.800 lot = Rp162 Juta)** |
+| **27 Agu 2026** | 895 | 900 | 890 | 895 | 8.800 | -1.1% | **Sinyal Candlify Trigger (Skor 92)** |
+| **28 Agu 2026** | 890 | 900 | 885 | 890 | **2.700** | -0.5% | Final supply test (Low 885 bertahan) |
+| **01 Sep 2026** | 920 | 1.135 | 915 | **1.135** | **404.500** | **+24.7%** 🚀 | **EXPLOSION DAY 1 (ARA!)** |
+| **02 Sep 2026** | 1.300 | 1.415 | 970 | **1.415** | **2.522.300** | **+24.6%** 🚀 | **EXPLOSION DAY 2 (ARA Lanjut!)** |
+| **03 Sep 2026** | 1.500 | 1.740 | 1.315 | **1.635** | **1.745.200** | **+15.5%** | Puncak reli ke 1.740 (+94.4% dari base!) |
 
 ```text
 Harga
- 460 │                ▲
-     │               │█│ (Upper shadow panjang - 07 Sep)
- 400 │    ▲          └─┘
-     │   │█│
- 380 │   │█│   ┌──────────────┐  <-- Base Semu (Harga mendatar seolah aman)
-     │   │█│   │ ░ ░ ░ ░ ░ ░  │
- 350 │  ─┴─┴───┴──────────────┴──  <-- Support Base Krusial (358)
-     │                             ╲
- 300 │                              ▼ [C=302 LONGSOR JEBOL!] (30 Sep)
-Volume
-3.6M │    █
-     │    █
- 20k │    █       ░   ░   ░   ░     █ (977k Guyuran)
-   0 └────┴───────┴───┴───┴───┴─────┴────────────────────────►
-        [SPIKE]   [BASE JEBAKAN]   [BREAKDOWN]
+ 1.700 │                                                            ▲ [High: 1.740 (+94%)]
+ 1.400 │                                                  ▲ [ARA-2: 1.415]
+ 1.100 │                                        ▲ [ARA-1: 1.135]
+       │
+   920 │        ┌───────────────────────────────┐
+   895 │   ┌─┐  │  ┌─┐    ┌─┐    ┌─┐    ┌─┐     │ <── Resistance Base: 915
+   885 │   └─┘  │  └─┘    └─┘    └─┘    └─┘     │ <── Support Base: 885 (Stop Loss: 875)
+       │  ──────┴───────────────────────────────┴──────────────────────────────
+       │  19 Agu 20 Agu 21 Agu 26 Agu 27 Agu  01 Sep   02 Sep   03 Sep
+Volume │
+  2.5M │                                                 █ (2.5M)
+  400k │                                        █ (404k)
+   10k │    ░      ░      ░      ░      ░
+     0 └────┴──────┴──────┴──────┴──────┴───────┴────────┴────────┴────────────►
+           [─────────── BASE KERING ───────────] [────── SUPER BREAKOUT ──────]
 ```
 
----
-
-### 🔍 Bedah Racun: Kenapa Saham LION Gagal?
-Bagi trader yang hanya membaca chart teknikal tanpa Bandarmologi, LION pada tanggal 15–25 September tampak seperti setup sempurna: *Ada spike $\rightarrow$ Harga mendatar $\rightarrow$ Volume mengering*.
-
-Namun, mari kita bongkar **Data Broker Summary LION** pada tanggal 21–23 September 2026 dari Neon DB:
-
-| Kode Broker | Peran Broker | Total Beli | Total Jual | Net Flow | Analisis Perilaku (*Behavioral Analysis*) |
-| :---: | :---: | :---: | :---: | :---: | :--- |
-| **`CC`** | Bandar / Institusi | 176 lot | 586 lot | **-410 lot (NET SELL)** | **Bandar buang barang diam-diam!** |
-| **`NI`** | Bandar / Institusi | 100 lot | 862 lot | **-762 lot (NET SELL)** | **Bandar distribusi besar-besaran!** |
-| **`XL`** | Sekuritas Ritel/Campuran | 97 lot | 527 lot | **-430 lot (NET SELL)** | Distribusi lanjutan |
-| **`XC`** | **Ritel Sejati (Ajaib)** | 1.039 lot | 43 lot | **+996 lot (NET BUY)** | **Ritel menampung guyuran bandar!** |
-
-> [!WARNING]
-> **Kebenaran yang Terungkap:**
-> Volume di saham LION mengering **BUKAN karena barang diserap bandar**, melainkan karena **sahamnya DITELANTARKAN (*abandoned*)** setelah bandar selesai jualan ke ritel (`XC`). Ketika ritel kehabisan uang untuk menampung, pada tanggal 30 September harga langsung dijatuhkan dari 348 ke 302 (-12.7%)!
+* **Broksum Base (20 – 28 Agu):** Broker **`XL`** dan **`NI`** konsisten akumulasi bersih di rentang Rp890–Rp905. Pada 28 Agustus, `NI` beli 20 lot di 900 tanpa ada aksi jual.
+* **Eksekusi:** Entry di harga **Rp895–900**, Stop Loss di **Rp875** (1 tick di bawah Low 885, risiko cuma **-2.2%**).
+* **Hasil:** Saham PTSP melesat bertubi-tubi dari 895 ke puncaknya di 1.740 (**+94.4%**) hanya dalam 3 hari bursa!
 
 ---
 
-### 🛡️ Bagaimana Candlify Menyelamatkan Portofolio Anda?
+### 8.3 Studi Kasus 3: RONY (20 Agu – 07 Sep 2026) — *Stagnant Base to +61.2%*
 
-1. **Filter Broksum Candlify Menolak Sinyal LION:**  
-   Algoritma Candlify di `scanner_bali.py` memeriksa pilar akumulasi. Karena top buyer di LION adalah broker ritel (`XC`) dan institusi justru *net sell*, skor sinyal LION langsung di-drop menjadi **< 40**, sehingga saham ini **TIDAK AKAN PERNAH LOLOS** ke dalam rekomendasi Screener Candlify.
-2. **Disiplin Cut Loss Membatasi Kerugian:**  
-   Seandainya trader tetap nekat masuk di harga Rp366:
-   * Level Support Base adalah **Rp358**.
-   * Ketika pada tanggal 28 September harga ditutup di Rp344 (jebol support), SOP Candlify mewajibkan **Cut Loss langsung**.
-   * Kerugian yang dialami hanya **-3.5%**. Trader terhindar dari malapetaka longsor ke harga Rp302 (-17.5% kerugian lebih dalam).
+#### 📊 Data Riil Harian Saham RONY (Neon DB)
+
+| Tanggal | Open | High | Low | Close | Volume (Lot) | Perubahan | Status Fase Setup |
+| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
+| **20 Agu 2026** | 1.225 | 1.265 | 1.225 | 1.230 | **3.600** | +0.4% | Volume mulai mengering |
+| **21 Agu 2026** | 1.245 | 1.250 | 1.225 | 1.240 | **1.900** | +0.8% | **Volume Super Dry (1.900 lot = Rp235 Juta)** |
+| **26 Agu 2026** | 1.215 | 1.270 | 1.205 | 1.220 | 13.600 | -1.6% | Tes swing low 1.205 |
+| **27 Agu 2026** | 1.220 | 1.260 | 1.205 | 1.225 | **3.600** | +0.4% | **Sinyal Candlify Trigger (Skor 88)** |
+| **28 Agu 2026** | 1.220 | 1.310 | 1.220 | 1.230 | 18.500 | +0.4% | Akumulasi broker PD masif |
+| **01 Sep 2026** | 1.235 | 1.270 | 1.200 | 1.215 | **7.500** | -1.2% | Volume kembali menyusut |
+| **02 Sep 2026** | 1.255 | 1.275 | 1.225 | 1.245 | **7.600** | +2.5% | Penutupan rapat di atas MA20 |
+| **04 Sep 2026** | 1.265 | 1.580 | 1.245 | **1.580** | **651.100** | **+24.9%** 🚀 | **EXPLOSION DAY 1 (ARA Rp1.580!)** |
+| **07 Sep 2026** | 1.975 | 1.975 | 1.580 | **1.620** | **2.262.700** | +2.5% | **High 1.975 (+61.2% dari base 1.225!)** |
+
+```text
+Harga
+ 2.000 │                                                   ▲ [High: 1.975 (+61%)]
+ 1.600 │                                         ▲ [ARA: 1.580]
+ 1.300 │        ┌──────────────────────────────┐
+ 1.225 │   ┌─┐  │  ┌─┐    ┌─┐    ┌─┐    ┌─┐    │ <── Resistance Base: 1.265
+ 1.200 │   └─┘  │  └─┘    └─┘    └─┘    └─┘    │ <── Support Base: 1.200 (Stop Loss: 1.185)
+       │  ──────┴──────────────────────────────┴──────────────────────────────
+       │  20 Agu 21 Agu 26 Agu 27 Agu 02 Sep  04 Sep      07 Sep
+Volume │
+  2.2M │                                                   █ (2.2M)
+  650k │                                         █ (651k)
+   10k │    ░      ░      ░      ░      ░
+     0 └────┴──────┴──────┴──────┴──────┴────────┴────────┴──────────────────►
+           [─────────── BASE KERING ───────────] [────── SUPER BREAKOUT ──────]
+```
+
+* **Broksum Base (24 Agu – 02 Sep):** Broker **`PD`** beli bersih 98 lot @ 1.224 tanpa jual di tanggal 28 Agu, dan broker **`CC`** beli 59 lot @ 1.203 tanpa jual pada 31 Agu.
+* **Eksekusi:** Entry di harga **Rp1.225–1.240**, Stop Loss di **Rp1.185** (risiko cuma **-3.2%**).
+* **Hasil:** Saham RONY melonjak ke 1.580 (ARA), lalu di hari berikutnya dibuka gap-up dan menyentuh level tertinggi **Rp1.970 (+61.2%)**!
 
 ---
 
-## 10. Trader's Quick Checklist Sebelum Menekan Tombol Buy
+## 9. ⚠️ Studi Kasus Riil Gagal & Perangkap Distribusi (Trap Trades: LION, RGAS, BKDP)
+
+Berikut 3 kasus riil di mana pola tampak mengering, tetapi **berujung longsor (*breakdown*)** karena adanya distribusi bandar atau ditelantarkan.
+
+---
+
+### 9.1 Studi Kasus Trap 1: LION (02 Sep – 30 Sep 2026) — *Distribusi Siluman ke 302*
+
+*Data riil:* Spike di 400 (Vol 3.63M lot), base mendatar di 366–380, volume menciut ke 10.800 lot.
+* **Bedah Racun Broksum:** Broker institusi **`CC` (-410 lot)** dan **`NI` (-762 lot)** konsisten buang barang, sementara yang menampung adalah broker ritel sejati **`XC` (Ajaib) net buy +996 lot**!
+* **Hasil (30 Sep 2026):** Ritel kehabisan uang nampung, harga dibanting longsor dari 348 ke **302 (-12.7%)** dengan volume guyuran 977k lot.
+
+---
+
+### 9.2 Studi Kasus Trap 2: RGAS (21 Agu – 02 Sep 2026) — *Massive DUMP dari 280 ke 113 (-59%)*
+
+#### 📊 Data Riil Harian Saham RGAS (Neon DB)
+
+| Tanggal | Open | High | Low | Close | Volume (Lot) | Perubahan | Status Lapangan |
+| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
+| **26 Agu 2026** | 236 | 270 | 198 | 268 | **1.728.083.000** | +15.5% | Puncak transaksi 1,7 Miliar lot! |
+| **27 Agu 2026** | 280 | 280 | 228 | **228** | **107.661.300** | **-14.9%** 🔴 | **Volume Drop drastis (Kelihatan sepi tapi ARB!)** |
+| **28 Agu 2026** | 194 | 194 | 194 | **194** | **31.944.100** | **-14.9%** 🔴 | **ARB Terkunci (Volume tinggal 31M)** |
+| **31 Agu 2026** | 179 | 208 | 165 | 165 | 337.187.800 | -14.9% | Guyuran berlanjut |
+| **02 Sep 2026** | 142 | 149 | 121 | **121** | 685.109.100 | -14.8% | Amblas total ke 113 (-59% dari 280) |
+
+```text
+Harga
+ 280 │        ▲ (26-27 Agu: Puncak 280)
+     │       │█│
+ 228 │       └─┘╲
+     │           ▼ [ARB 1: 228]
+ 194 │            ╲
+     │             ▼ [ARB 2: 194]
+ 121 │              ╲
+     │               ▼ [Longsor ke 113 (-59%!)]
+Volume
+1.7B │        █
+100M │        █    ░ (107M seolah kering)
+ 30M │        █    ░    ░ (31M)
+   0 └────────┴────┴────┴────────────────────────────────►
+```
+
+* **Bedah Broksum (26 – 28 Agu):** 
+  * Broker bandar **`CP`** net sell **-111.218 lot**, **`HD`** net sell **-105.027 lot**, dan **`XA`** net sell **-74.425 lot**!
+  * Volume turun dari 1,7 Miliar ke 31 Juta bukan karena "barang kering", tetapi karena **antrean Bid hilang total sehingga tidak ada yang bisa transaksi (ARB Terkunci)**.
+* **Pelajaran Candlify:** Candlify memfilter saham dengan status *price close < MA20* dan *candle bear marubozu*. Saham seperti ini langsung diblokir sistem.
+
+---
+
+### 9.3 Studi Kasus Trap 3: BKDP (08 Sep – 21 Sep 2026) — *Saham Ditelantarkan Pasca Spike*
+
+#### 📊 Data Riil Harian Saham BKDP (Neon DB)
+
+| Tanggal | Open | High | Low | Close | Volume (Lot) | Perubahan | Kondisi Lapangan |
+| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
+| **08 Sep 2026** | 170 | 224 | 161 | 200 | **231.399.000** | +19.7% | Spike masif 231 Juta lot |
+| **09 Sep 2026** | 200 | 212 | 190 | 191 | 40.129.400 | -4.5% | Mulai koreksi |
+| **14 Sep 2026** | 174 | 204 | 165 | 191 | 101.291.200 | +12.3% | Dead cat bounce (Umpan kedua) |
+| **18 Sep 2026** | 180 | 181 | 164 | 168 | **8.291.600** | -4.5% | **Volume menyusut drastis ke 8M lot** |
+| **21 Sep 2026** | 171 | 186 | 162 | 179 | 37.755.700 | +6.5% | Ritel masuk mengira base |
+| **28 Sep 2026** | 190 | 190 | 175 | 184 | 5.585.900 | -1.6% | Volume makin kering |
+| **01 Okt 2026** | 150 | 155 | 132 | **132** | 12.000.000 | **-14.8%** 🔴 | **Ambles -30.5% dari harga 190!** |
+
+* **Bedah Kasus:** Pada BKDP, saat volume menyusut dari 231M ke 5M lot, **tidak ada satu pun broker institusi yang melakukan akumulasi**. Sahamnya kering karena ditinggal pergi. Begitu pasar mengalami tekanan, harga terperosok ke 132.
+* **Filter Candlify:** Syarat `top_accumulator > 30% net flow` gagal terpenuhi di BKDP, sehingga Candlify tidak merekomendasikan saham ini.
+
+---
+
+## 10. ✨ Studi Kasus Riil Unik (Special Edge Cases: MPXL & STAR)
+
+Dua kasus berikut memperlihatkan fenomena khusus bursa: **Wyckoff Spring (Jarum Jebol Sesaat)** dan **Liquidity Vacuum (Gap-Up Lock ARA)**.
+
+---
+
+### 10.1 Kasus Unik 1: MPXL (08 Sep – 23 Sep 2026) — *The Wyckoff Spring Shakeout*
+
+Pernahkah Anda memasang Stop Loss, lalu harga saham turun **hanya 1 tick** menyenggol Stop Loss Anda, kemudian langsung terbang tinggi? Fenomena ini disebut **Wyckoff Spring / Bear Trap**.
+
+#### 📊 Data Riil Harian Saham MPXL (Neon DB)
+
+| Tanggal | Open | High | Low | Close | Volume (Lot) | Perubahan | Status Fase |
+| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
+| **08 Sep 2026** | 169 | 189 | 169 | 173 | **8.466.800** | +3.0% | Prior Spike Tiang Induk |
+| **14 Sep 2026** | 169 | 173 | 165 | 171 | 1.469.000 | +1.2% | Base terbentuk (Support 164) |
+| **17 Sep 2026** | 165 | 171 | 160 | 166 | **227.600** | -1.2% | **Volume mengering -97.3%!** |
+| **18 Sep 2026** | 167 | 171 | 165 | 166 | 357.000 | 0.0% | Base rapat di 166 |
+| **22 Sep 2026** | 166 | 171 | **159** | **164** | 1.285.100 | -1.2% | **THE SHAKEOUT SPRING! Low 159 lalu ditarik!** |
+| **23 Sep 2026** | 165 | 220 | 163 | **220** | **73.483.000** | **+34.1%** 🚀 | **EXPLOSION DAY (ARA Meledak ke 220!)** |
+| **24 Sep – 02 Okt**| 230 | 260 | 199 | **260** | 13.722.500 | +18.1% | Reli lanjut menyentuh level 260 (+56.6%) |
+
+```text
+Harga
+ 260 │                                                            ▲ [Puncak: 260 (+56%)]
+ 220 │                                                  ▲ [ARA: 220 (+34%!)]
+     │                                                  │
+ 170 │              ┌───────────────────────────┐       │
+ 164 │   ▲          │                           │       │
+ 160 │  │█│         │  ┌─┐   ┌─┐   ┌─┐   ┌─┐    │       │ <── Support Base: 164
+ 159 │  │█│         │  │ │   │ │   │ │   │ │  │ │       │ <── Low 159 (SHAKEOUT SPRING!)
+     │  ─┴──────────┴──┴─┴───┴─┴───┴─┴───┴─┴──┴─┴───────┴────────────────────────
+     │  08 Sep         14 Sep 17 Sep 18 Sep 22 Sep    23 Sep
+Volume
+ 73M │                                                  █ (73,4 Juta lot!)
+8.4M │   █ (8.4M)
+220k │   █             ░     ░     ░     ░
+   0 └───┴─────────────┴─────┴─────┴─────┴──────────────┴────────────────────────►
+```
+
+* **Keunikan Bandarmologi:**
+  * Pada **22 September 2026**, support kuat ada di Rp164. Tiba-tiba di sesi perdagangan, harga dijatuhkan ke **Rp159 (1 tick di bawah Rp160)** untuk menjemput Stop Loss trader ritel!
+  * Namun perhatikan penutupannya: **Close langsung ditarik kembali ke Rp164 (*reclaim*)**!
+  * Broksum menunjukkan broker **`CP`** mengumpulkan **+14.988 lot** dan **`HD`** mengumpulkan **+8.244 lot**.
+* **Kuncinya:** Jika candle sempat jebol support tetapi **mampu ditutup kembali ke dalam area base pada akhir sesi (Reclaim)**, itu bukan breakdown, melainkan **Spring (Umpan Pembersih)**. Keesokan harinya MPXL langsung meledak ARA **+34.1% ke 220**!
+
+---
+
+### 10.2 Kasus Unik 2: STAR (24 Jul – 12 Agu 2026) — *The Liquidity Vacuum & Multi Gap-Up Lock ARA*
+
+Kasus unik di mana suplai barang terserap begitu bersih sampai **antrean offer di bursa kosong melompong (*liquidity vacuum*)**, sehingga saat breakout, harga langsung dibuka loncat gap-up tanpa ada kesempatan antre beli di offer.
+
+#### 📊 Data Riil Harian Saham STAR (Neon DB)
+
+| Tanggal | Open | High | Low | Close | Volume (Lot) | Perubahan | Status Fase |
+| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
+| **24 Jul 2026** | 282 | 282 | 274 | 278 | 12.000 | +0.7% | Konsolidasi awal |
+| **28 Jul 2026** | 278 | 278 | 262 | 276 | 32.500 | -0.7% | Tes support 262 |
+| **29 Jul 2026** | 272 | 274 | 270 | 272 | **4.400** | -1.4% | **Volume Kering Ekstrem (4.400 lot = Rp119 Juta)** |
+| **04 Agu 2026** | 280 | 280 | 274 | 276 | **15.900** | -0.7% | Suplai terkunci total |
+| **07 Agu 2026** | 276 | 276 | 262 | 266 | 31.100 | -3.6% | Shakeout terakhir sebelum reli |
+| **10 Agu 2026** | 266 | 332 | 264 | **332** | **2.070.100** | **+24.8%** 🚀 | **EXPLOSION DAY 1 (ARA Rp332!)** |
+| **11 Agu 2026** | **412** | 414 | 382 | **414** | **3.237.800** | **+24.7%** 🚀 | **OPEN GAP-UP DI 412 (+24%) & ARA KE 414!** |
+| **12 Agu 2026** | 480 | **515** | 420 | 420 | 8.291.600 | +1.4% | Puncak reli ke 515 (+89.3% dari base 272!) |
+
+```text
+Harga
+ 515 │                                                            ▲ [High: 515 (+89%)]
+ 414 │                                                  ▲ [GAP OPEN 412 & ARA 414]
+ 332 │                                        ▲ [ARA-1: 332]
+     │                                        │
+ 280 │        ┌───────────────────────────────┤
+ 272 │   ┌─┐  │  ┌─┐    ┌─┐    ┌─┐    ┌─┐     │ <── Resistance Base: 280
+ 262 │   └─┘  │  └─┘    └─┘    └─┘    └─┘     │ <── Support Base: 262 (Stop Loss: 258)
+     │  ──────┴───────────────────────────────┴────────────────────────────────────
+     │  24 Jul 28 Jul 29 Jul 04 Agu 07 Agu   10 Agu     11 Agu          12 Agu
+Volume
+3.2M │                                                  █ (3.2M)
+2.0M │                                        █ (2.0M)
+  15k│    ░      ░      ░      ░      ░
+    0 └───┴──────┴──────┴──────┴──────┴────────┴────────┴───────────────┴────────►
+          [─────────── BASE KERING ───────────] [────── SUPER BREAKOUT GAP ──────]
+```
+
+* **Bedah Broksum Base (24 Jul – 07 Agu):**
+  * Broker **`YB`** akumulasi masif **+58.005 lot** di Avg Rp263.
+  * Broker **`PO`** akumulasi masif **+56.000 lot** di Avg Rp268 tanpa menjual satu lot pun!
+  * Total serapan kedua broker ini mencapai **114.000 lot** di area sepi.
+* **Pelajaran Krusial:** Pada saham yang mengalami *Liquidity Vacuum*, trader yang menunggu "konfirmasi breakout" **TIDAK AKAN BISA BELI**, karena pada tanggal 11 Agustus harga dibuka langsung loncat gap-up di Rp412 (+24% di atas harga kemarin) dan terkunci ARA! Satu-satunya cara menikmati cuan multi-bagger +89% ini adalah **masuk saat fase Pre-Breakout di harga Rp270–276 saat volume sedang sepi**.
+
+---
+
+## 11. Trader's Quick Checklist Sebelum Menekan Tombol Buy
 
 Sebelum Anda memasukkan order beli di sekuritas, centang 7 poin ini:
 
