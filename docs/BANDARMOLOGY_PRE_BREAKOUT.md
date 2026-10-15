@@ -302,13 +302,18 @@ Untuk mencegah menjadi "Whale Lokal" yang merusak order book bandar, terapkan at
 
 ---
 
-### 🚫 Filter Papan Bursa: Larangan Papan Pemantauan Khusus (FCA)
+### 🏷️ Identifikasi Papan Bursa & Protokol Transaksi Saham FCA (Pemantauan Khusus)
 
-> [!WARNING]
-> **Larangan Mutlak Saham Full Call Auction (FCA):**
-> * Saham di **Papan Pemantauan Khusus (FCA)** tidak memiliki perdagangan berkelanjutan (*continuous trading*), melainkan dicocokkan secara buta dalam sesi lelang periodik.
-> * Spread harga dan antrean order di FCA sangat mudah dimanipulasi, dan likuiditas keluar sangat tidak menentu.
-> * **Aturan Candlify:** Setup Pre-Breakout Base **HANYA VALID** untuk saham di **Papan Utama** dan **Papan Pengembangan**. Saham dengan notasi kriteria FCA atau Papan Akselerasi (auto-reject simetris 10%) otomatis dieliminasi dari radar screener!
+Saham di Bursa Efek Indonesia terbagi ke dalam beberapa papan pencatatan resmi: **Papan Utama**, **Papan Pengembangan**, **Papan Pemantauan Khusus (Full Call Auction / FCA)**, dan **Papan Akselerasi**.
+
+> [!NOTE]
+> **Protokol Transaksi Saham Papan Pemantauan Khusus (FCA):**
+> * **Bukan Saham Mati / Suspen:** Saham di Papan Pemantauan Khusus (FCA) tetap aktif diperdagangkan setiap hari, namun tidak menggunakan sistem *continuous trading*, melainkan dicocokkan dalam **5 Sesi Periodic Call Auction** per hari (Sesi 1 s.d Sesi 5) berbasis *Indicative Equilibrium Price (IEP)* dan *Indicative Equilibrium Volume (IEV)*.
+> * **Kecocokan dengan Pola Pre-Breakout:** Karena strategi Pre-Breakout berfokus pada **Buy on Weakness di area base yang sepi**, saham FCA tetap sah dimasukkan ke dalam watchlist jika memenuhi 4 pilar teknikal & akumulasi broksum.
+> * **Aturan Eksekusi Khusus Saham FCA:**
+>   1. **Wajib Cicil Pasif per Sesi Lelang:** Pasang order antrean beli sebelum sesi lelang ditutup pada rentang harga Support Base atau dekat HMB.
+>   2. **Dilarang Breakout Chasing (HAKA Agresif):** Di saham FCA tidak ada running trade kontinu, sehingga upaya HAKA saat harga meloncat di lelang sangat berisiko terkena slippage tinggi atau terkunci batas atas (*ARA 10%*).
+>   3. **Transparansi Badge Sistem:** Candlify memberikan label / badge khusus `⚠️ FCA (Pemantauan Khusus)` pada kartu saham dan chart agar trader sadar penuh akan mekanisme eksekusi lelang periodik ini.
 
 ---
 
@@ -325,7 +330,7 @@ Berikut alur operasional standar langkah demi langkah saat memanfaatkan Candlify
    * **Base $\le 8\%$**
    * **Volume Dry $\le 0.45\times$**
    * **Baseline $\text{ADT}_{20} \ge \text{Rp1,5 Miliar}$**
-   * **Bukan saham FCA / Papan Pemantauan Khusus**
+   * **Cek Label Papan Bursa:** Saham di Papan Utama / Pengembangan diperdagangkan reguler (*continuous trading*). Jika berlabel `⚠️ FCA (Pemantauan Khusus)`, eksekusi wajib menggunakan antrean order pasif sebelum sesi lelang ditutup, dilarang HAKA agresif.
    * Top Accumulator jelas (misal: `CC`, `AK`, `BK`, `YJ`).
 
 ---
@@ -679,7 +684,7 @@ Sebelum memasukkan order beli di sekuritas, centang **8 poin emas** ini:
 - [ ] **6. Likuiditas Sehat & Sizing Terukur:**
   * Baseline $\text{ADT}_{20} \ge \text{Rp1,5 Miliar / hari}$.
   * Porsi pembelian $\le 5\%$ dari volume transaksi harian saat base kering (jika Buy on Weakness), atau $\le 5\%$ dari $\text{ADT}_{20}$ (jika Buy on Breakout).
-- [ ] **7. Bukan Saham FCA / Papan Pemantauan Khusus:** Saham tercatat di Papan Utama atau Papan Pengembangan yang memiliki mekanisme *continuous trading*.
+- [ ] **7. Pahami Karakter Papan Bursa (Utama/Pengembangan vs FCA):** Perhatikan badge papan pencatatan di Candlify. Jika saham masuk `⚠️ FCA (Pemantauan Khusus)`, siapkan strategi cicil pasif per sesi lelang (Call Auction 5 sesi) dan jangan pernah mengejar harga (*chasing breakout*). Jika di Papan Utama/Pengembangan, eksekusi *continuous trading* normal berlaku.
 - [ ] **8. Two-Tier Stop Loss Siap:** 
   * Level *Intraday Hard Stop* terpasang pada $-4.0\%$ s/d $-5.0\%$.
   * Level *EOD Closing Stop* ditetapkan pada batas Support Base (evaluasi pukul 15:45 WIB untuk mengantisipasi *Wyckoff Spring*).
