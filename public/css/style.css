@@ -4408,18 +4408,68 @@ select option:checked,
 /* ======================================================== */
 /* 📖 Kitab Pre-Breakout Markdown Reader Modal              */
 /* ======================================================== */
+.modal-overlay,
+#doc-reader-modal {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    background: rgba(3, 7, 18, 0.88) !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+    z-index: 9999 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 14px !important;
+    box-sizing: border-box !important;
+}
+
+.modal-overlay.hidden,
+#doc-reader-modal.hidden {
+    display: none !important;
+}
+
 .doc-reader-container {
-    width: 95%;
+    width: 100%;
     max-width: 920px;
     height: 88vh;
+    max-height: 92vh;
     background: #0b1120;
-    border: 1px solid rgba(255, 255, 255, 0.14);
+    border: 1px solid rgba(255, 255, 255, 0.16);
     border-radius: 16px;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.85);
+    box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.95), 0 0 0 1px rgba(255, 255, 255, 0.05);
     overflow: hidden;
+    position: relative;
+    z-index: 10000;
     animation: modalScaleUp 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.modal-close-btn {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #cbd5e1;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+}
+
+.modal-close-btn:hover {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: rgba(239, 68, 68, 0.4);
+    color: #fca5a5;
 }
 
 .doc-reader-header {
