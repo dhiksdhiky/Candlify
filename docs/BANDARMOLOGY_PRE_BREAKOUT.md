@@ -1,22 +1,23 @@
 # 📘 PANDUAN LENGKAP BANDARMOLOGI: PRE-BREAKOUT BASE, BACKTEST & LIKUIDITAS VOLUME
 
 > **Candlify Market Intelligence Manual**  
-> *Dokumen referensi resmi analisis pergerakan Smart Money, identifikasi broker kuantitatif, bukti validitas backtest Neon DB, pembacaan volume, serta simulasi riil historis di Bursa Efek Indonesia (IDX).*
+> *Dokumen referensi resmi analisis pergerakan Smart Money, identifikasi broker kuantitatif, bukti validitas backtest Neon DB, pembacaan volume, SOP eksekusi Candlify, serta simulasi riil historis di Bursa Efek Indonesia (IDX).*
 
 ---
 
 ## 📑 DAFTAR ISI
 1. [Filosofi & Konsep Universal: Pre-Breakout Base](#1-filosofi--konsep-universal-pre-breakout-base)
-2. [Anatomi 4 Pilar Pre-Breakout Base](#2-anatomi-4-pilar-pre-breakout-base)
+2. [Anatomi 4 Pilar Pre-Breakout Base (Studi Kasus Saham BALI)](#2-anatomi-4-pilar-pre-breakout-base-studi-kasus-saham-bali)
 3. [🤖 Cara Mesin Menentukan Broker Ritel vs Big Money (Dynamic Behavioral Scoring)](#3--cara-mesin-menentukan-broker-ritel-vs-big-money-dynamic-behavioral-scoring)
 4. [⚖️ Perbandingan Objektif & Backtest: bandar_satu vs Formula Pre-Breakout](#4-️-perbandingan-objektif--backtest-bandar_satu-vs-formula-pre-breakout)
 5. [🔎 Bukti Validitas Historis: 10 Contoh Sukses dari Database Neon](#5--bukti-validitas-historis-10-contoh-sukses-dari-database-neon)
 6. [Cara Membaca Volume di Candlify & Kaitannya dengan Likuiditas](#6-cara-membaca-volume-di-candlify--kaitannya-dengan-likuiditas)
-7. [Kapasitas Modal & Aturan Likuiditas Keluar-Masuk Barang (5% - 10% Rule)](#7-kapasitas-modal--aturan-likuiditas-keluar-masuk-barang-5---10-rule)
-8. [🎯 Studi Kasus Riil Sukses (Win Trades: BALI, PTSP, RONY)](#8--studi-kasus-riil-sukses-win-trades-bali-ptsp-rony)
-9. [⚠️ Studi Kasus Riil Gagal & Perangkap Distribusi (Trap Trades: LION, RGAS, BKDP)](#9-️-studi-kasus-riil-gagal--perangkap-distribusi-trap-trades-lion-rgas-bkdp)
-10. [✨ Studi Kasus Riil Unik (Special Edge Cases: MPXL & STAR)](#10--studi-kasus-riil-unik-special-edge-cases-mpxl--star)
-11. [Trader's Quick Checklist Sebelum Menekan Tombol Buy](#11-traders-quick-checklist-sebelum-menekan-tombol-buy)
+7. [Kapasitas Modal & Aturan Likuiditas Keluar-Masuk Barang](#7-kapasitas-modal--aturan-likuiditas-keluar-masuk-barang)
+8. [🎯 SOP Simulasi Eksekusi Trading Plan di Candlify](#8--sop-simulasi-eksekusi-trading-plan-di-candlify)
+9. [🏆 Studi Kasus Riil Sukses (Win Trades: BALI, PTSP, RONY)](#9--studi-kasus-riil-sukses-win-trades-bali-ptsp-rony)
+10. [⚠️ Studi Kasus Riil Gagal & Perangkap Distribusi (Trap Trades: LION, RGAS, BKDP)](#10-️-studi-kasus-riil-gagal--perangkap-distribusi-trap-trades-lion-rgas-bkdp)
+11. [✨ Studi Kasus Riil Unik (Special Edge Cases: MPXL & STAR)](#11--studi-kasus-riil-unik-special-edge-cases-mpxl--star)
+12. [Trader's Quick Checklist Sebelum Menekan Tombol Buy](#12-traders-quick-checklist-sebelum-menekan-tombol-buy)
 
 ---
 
@@ -34,7 +35,7 @@ Nama saham **BALI** hanyalah salah satu studi kasus empiris yang memperlihatkan 
 
 ---
 
-## 2. Anatomi 4 Pilar Pre-Breakout Base
+## 2. Anatomi 4 Pilar Pre-Breakout Base (Studi Kasus Saham BALI)
 
 Untuk membedakan konsolidasi yang siap meledak dengan saham yang sekadar tidur/mati suri, engine Candlify menguji **4 Pilar Algoritmik**:
 
@@ -64,6 +65,7 @@ Untuk membedakan konsolidasi yang siap meledak dengan saham yang sekadar tidur/m
 ### Pilar 1: Prior Ignition Spike (Tiang Induk)
 * **Karakteristik:** Terjadi 4 sampai 28 hari bursa sebelumnya. Ditandai oleh candle hijau solid ($\ge +5\%$) dengan lonjakan volume $\ge 2.0\times$ Volume MA20.
 * **Makna Bandarmologi:** Ini adalah **jejak modal pertama (*liquidity injection*)**. Bandar menunjukkan taringnya bahwa mereka telah menyuntikkan likuiditas dan memiliki kepentingan di saham ini.
+* **Kasus BALI:** Terjadi lonjakan volume masif pada fase awal kenaikan yang menembus resisten lama, menarik perhatian pasar, lalu sengaja dihentikan kenaikannya agar ritel tidak langsung ikut berpesta.
 
 ### Pilar 2: Volatility Contraction / Tight Base (Kotak Base)
 * **Karakteristik:** 
@@ -170,6 +172,15 @@ Kriteria Sinyal: Prior Spike $\rightarrow$ Base rapat $\le 5\%$ $\rightarrow$ Vo
 
 ---
 
+### ⚠️ Pelajaran dari Kasus Gagal (False Breakout & Trap)
+Tidak ada formula teknikal yang 100% sempurna. Pada histori data, ditemukan anomali seperti kasus saham **BKDP** dan **LION** di mana harga setelah kering justru anjlok turun $-20\%$ s/d $-30\%$.
+
+#### Mengapa Bisa Gagal?
+* **Penyebab Utama:** Pada kasus yang gagal, saat volume kering, **TIDAK ADA AKUMULASI DI BROKER SUMMARY**. Sahamnya kering bukan karena barangnya diserap oleh bandar, melainkan karena **ditelantarkan (ditinggal pergi oleh market maker)**. Akibatnya, saat ada sedikit ritel panik yang menjual, harga langsung longsor tanpa ada antrean Bid yang menopang.
+* **Filter Penyelamat Candlify:** Inilah alasan mutlak mengapa Candlify mewajibkan **Filter Broksum**: Sinyal hanya dinyatakan sah (*Valid*) jika selama base kering, net flow bandar terbukti positif/akumulasi (seperti HMB 1.315 di BALI) dan tidak ada distribusi masif!
+
+---
+
 ## 6. Cara Membaca Volume di Candlify & Kaitannya dengan Likuiditas
 
 Volume adalah satu-satunya data di bursa yang **tidak bisa dipalsukan**. Harga bisa diatur dengan memakan 1–2 antrean lot tipis (*spoofing/marking the close*), namun nilai volume mencerminkan **uang riil (Rupiah)** yang benar-benar ditukarkan.
@@ -191,15 +202,25 @@ Di Candlify, indikator volume dirancang khusus untuk membedakan dua fase:
 
 ---
 
-## 7. Kapasitas Modal & Aturan Likuiditas Keluar-Masuk Barang (5% - 10% Rule)
+## 7. Kapasitas Modal & Aturan Likuiditas Keluar-Masuk Barang
 
 Salah satu risiko terbesar dalam trading saham *mid-cap* dan *small-cap* di IDX adalah **masalah likuiditas**:
 > *"Bisa beli, tapi giliran mau jual malah kejebak karena antrean Bid kosong melompong."*
 
 Likuiditas menentukan seberapa mudah Anda masuk (*entry*) dan keluar (*exit*) tanpa merusak harga pasar.
 
+---
+
+### Metrik Likuiditas: Lot vs Average Daily Turnover (Rupiah)
+Jangan hanya melihat jumlah lembar lot! 10.000 lot di saham harga Rp50 bernilai Rp50 juta, sedangkan 10.000 lot di saham harga Rp5.000 bernilai Rp5 Miliar.
+
 Gunakan rumus **Average Daily Turnover (ADT)**:
 $$\text{ADT (Rupiah)} = \text{Rata-rata Volume Harian (Lot)} \times 100 \times \text{Harga Saham}$$
+
+---
+
+### Aturan Emas: "5% – 10% Liquidity Rule"
+Untuk menghindari jebakan likuiditas (*liquidity black hole*), terapkan batas porsi modal berikut:
 
 | Average Daily Turnover (ADT) | Kategori Saham | Alokasi Modal Maksimal Per Posisi | Gaya Eksekusi Masuk/Keluar |
 | :--- | :--- | :--- | :--- |
@@ -215,13 +236,55 @@ $$\text{ADT (Rupiah)} = \text{Rata-rata Volume Harian (Lot)} \times 100 \times \
 
 ---
 
-## 8. 🎯 Studi Kasus Riil Sukses (Win Trades: BALI, PTSP, RONY)
+## 8. 🎯 SOP Simulasi Eksekusi Trading Plan di Candlify
+
+Berikut alur operasional standar langkah demi langkah saat memanfaatkan Candlify Screener dari malam hari hingga jam bursa:
+
+### Langkah A: Filter Sinyal di Candlify
+1. Buka menu **Screener** di Candlify.
+2. Klik preset **`🎯 Pre-Breakout Base`**.
+3. Di dropdown sort, pilih **`Score Desc`** (urutkan skor kualitas tertinggi).
+4. Pilih saham yang memiliki:
+   * **Skor $\ge 75$**
+   * **Base $\le 8\%$**
+   * **Volume Dry $\le 0.45\times$**
+   * Top Accumulator jelas (misal: `CC`, `AK`, `BK`, `YJ`).
+
+---
+
+### Langkah B: Menentukan Area Tempur (Support & Resistance Base)
+Buka chart saham tersebut di Candlify:
+1. Tarik garis horizontal di titik tertinggi candle konsolidasi 7 hari $\rightarrow$ **Level Resistance Base**.
+2. Tarik garis horizontal di titik terendah candle konsolidasi 7 hari $\rightarrow$ **Level Support Base**.
+3. Cek posisi **HMB (Harga Modal Bandar)** di badge header $\rightarrow$ Biasanya berhimpitan dengan garis tengah base.
+
+---
+
+### Langkah C: Memilih Gaya Eksekusi (2 Pilihan)
+
+#### Opsi 1: Gaya "Buy on Weakness" (Low Risk / Cicil Pasif)
+* **Kapan Dipakai:** Saat pasar sedang sepi / IHSG mendatar, harga saham sedang menguji batas bawah base.
+* **Titik Beli:** Antre di dekat Support Base (misal: Rp1.200).
+* **Stop Loss (SL):** Pasang ketat di **1–2 tick di bawah Support Base** (misal: Rp1.175).  
+  * *Risiko (Risk):* Hanya **-2.0% s/d -2.5%**.
+* **Target Profit (TP):** Minimal uji resisten tiang lama (+10% s/d +20%).  
+  * *Risk-to-Reward Ratio:* **1 : 4** (Sangat sehat!).
+
+#### Opsi 2: Gaya "Buy on Breakout" (Momentum / Konfirmasi)
+* **Kapan Dipakai:** Jam 09:00–10:00 WIB saat pasar buka, harga menembus Resistance Base dengan volume meledak di Running Trade.
+* **Titik Beli:** HAKA begitu harga *break* 1 tick di atas Resistance Base (misal: Rp1.255).
+* **Stop Loss (SL):** Di bawah titik breakout / swing low hari itu (biasanya ~3%).
+* **Target Profit (TP):** Bertahap (TP1 +8%, TP2 trailing stop mengikuti EMA20).
+
+---
+
+## 9. 🏆 Studi Kasus Riil Sukses (Win Trades: BALI, PTSP, RONY)
 
 Berikut adalah 3 simulasi eksekusi menggunakan **data historis riil dari database Neon** yang bisa Mas Dhika cocokkan langsung di broker/chart masing-masing.
 
 ---
 
-### 8.1 Studi Kasus 1: BALI (25 Sep – 06 Okt 2026) — *Explosion ARA +24.8%*
+### 9.1 Studi Kasus 1: BALI (25 Sep – 06 Okt 2026) — *Explosion ARA +24.8%*
 
 #### 📊 Data Riil Harian Saham BALI (Neon DB)
 
@@ -258,7 +321,7 @@ Volume │
 
 ---
 
-### 8.2 Studi Kasus 2: PTSP (18 Agu – 04 Sep 2026) — *ARA Beruntun +94.4%*
+### 9.2 Studi Kasus 2: PTSP (18 Agu – 04 Sep 2026) — *ARA Beruntun +94.4%*
 
 #### 📊 Data Riil Harian Saham PTSP (Neon DB)
 
@@ -299,7 +362,7 @@ Volume │
 
 ---
 
-### 8.3 Studi Kasus 3: RONY (20 Agu – 07 Sep 2026) — *Stagnant Base to +61.2%*
+### 9.3 Studi Kasus 3: RONY (20 Agu – 07 Sep 2026) — *Stagnant Base to +61.2%*
 
 #### 📊 Data Riil Harian Saham RONY (Neon DB)
 
@@ -338,13 +401,13 @@ Volume │
 
 ---
 
-## 9. ⚠️ Studi Kasus Riil Gagal & Perangkap Distribusi (Trap Trades: LION, RGAS, BKDP)
+## 10. ⚠️ Studi Kasus Riil Gagal & Perangkap Distribusi (Trap Trades: LION, RGAS, BKDP)
 
 Berikut 3 kasus riil di mana pola tampak mengering, tetapi **berujung longsor (*breakdown*)** karena adanya distribusi bandar atau ditelantarkan.
 
 ---
 
-### 9.1 Studi Kasus Trap 1: LION (02 Sep – 30 Sep 2026) — *Distribusi Siluman ke 302*
+### 10.1 Studi Kasus Trap 1: LION (02 Sep – 30 Sep 2026) — *Distribusi Siluman ke 302*
 
 *Data riil:* Spike di 400 (Vol 3.63M lot), base mendatar di 366–380, volume menciut ke 10.800 lot.
 * **Bedah Racun Broksum:** Broker institusi **`CC` (-410 lot)** dan **`NI` (-762 lot)** konsisten buang barang, sementara yang menampung adalah broker ritel sejati **`XC` (Ajaib) net buy +996 lot**!
@@ -352,7 +415,7 @@ Berikut 3 kasus riil di mana pola tampak mengering, tetapi **berujung longsor (*
 
 ---
 
-### 9.2 Studi Kasus Trap 2: RGAS (21 Agu – 02 Sep 2026) — *Massive DUMP dari 280 ke 113 (-59%)*
+### 10.2 Studi Kasus Trap 2: RGAS (21 Agu – 02 Sep 2026) — *Massive DUMP dari 280 ke 113 (-59%)*
 
 #### 📊 Data Riil Harian Saham RGAS (Neon DB)
 
@@ -388,7 +451,7 @@ Volume
 
 ---
 
-### 9.3 Studi Kasus Trap 3: BKDP (08 Sep – 21 Sep 2026) — *Saham Ditelantarkan Pasca Spike*
+### 10.3 Studi Kasus Trap 3: BKDP (08 Sep – 21 Sep 2026) — *Saham Ditelantarkan Pasca Spike*
 
 #### 📊 Data Riil Harian Saham BKDP (Neon DB)
 
@@ -402,18 +465,18 @@ Volume
 | **28 Sep 2026** | 190 | 190 | 175 | 184 | 5.585.900 | -1.6% | Volume makin kering |
 | **01 Okt 2026** | 150 | 155 | 132 | **132** | 12.000.000 | **-14.8%** 🔴 | **Ambles -30.5% dari harga 190!** |
 
-* **Bedah Kasus:** Pada BKDP, saat volume menyusut dari 231M ke 5M lot, **tidak ada satu pun broker institusi yang melakukan akumulasi**. Sahamnya kering karena ditinggal pergi. Begitu pasar mengalami tekanan, harga terperosok ke 132.
-* **Filter Candlify:** Syarat `top_accumulator > 30% net flow` gagal terpenuhi di BKDP, sehingga Candlify tidak merekomendasikan saham ini.
+* **Bedah Kasus:** Pada BKDP, saat volume menyusut dari 231M ke 5M lot, **tidak ada satu pun broker institusi yang melakukan akumulasi**. Sahamnya kering karena ditinggal pergi bandarnya (*abandoned*). Begitu pasar mengalami tekanan, harga terperosok ke 132.
+* **Filter Candlify:** Syarat pilar 4 (`top_accumulator > 30% net flow`) gagal terpenuhi di BKDP, sehingga Candlify tidak merekomendasikan saham ini.
 
 ---
 
-## 10. ✨ Studi Kasus Riil Unik (Special Edge Cases: MPXL & STAR)
+## 11. ✨ Studi Kasus Riil Unik (Special Edge Cases: MPXL & STAR)
 
 Dua kasus berikut memperlihatkan fenomena khusus bursa: **Wyckoff Spring (Jarum Jebol Sesaat)** dan **Liquidity Vacuum (Gap-Up Lock ARA)**.
 
 ---
 
-### 10.1 Kasus Unik 1: MPXL (08 Sep – 23 Sep 2026) — *The Wyckoff Spring Shakeout*
+### 11.1 Kasus Unik 1: MPXL (08 Sep – 23 Sep 2026) — *The Wyckoff Spring Shakeout*
 
 Pernahkah Anda memasang Stop Loss, lalu harga saham turun **hanya 1 tick** menyenggol Stop Loss Anda, kemudian langsung terbang tinggi? Fenomena ini disebut **Wyckoff Spring / Bear Trap**.
 
@@ -455,7 +518,7 @@ Volume
 
 ---
 
-### 10.2 Kasus Unik 2: STAR (24 Jul – 12 Agu 2026) — *The Liquidity Vacuum & Multi Gap-Up Lock ARA*
+### 11.2 Kasus Unik 2: STAR (24 Jul – 12 Agu 2026) — *The Liquidity Vacuum & Multi Gap-Up Lock ARA*
 
 Kasus unik di mana suplai barang terserap begitu bersih sampai **antrean offer di bursa kosong melompong (*liquidity vacuum*)**, sehingga saat breakout, harga langsung dibuka loncat gap-up tanpa ada kesempatan antre beli di offer.
 
@@ -499,7 +562,7 @@ Volume
 
 ---
 
-## 11. Trader's Quick Checklist Sebelum Menekan Tombol Buy
+## 12. Trader's Quick Checklist Sebelum Menekan Tombol Buy
 
 Sebelum Anda memasukkan order beli di sekuritas, centang 7 poin ini:
 
