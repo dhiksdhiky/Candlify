@@ -147,6 +147,7 @@ def fetch_all_stocks_from_scanner() -> List[Dict[str, Any]]:
         rows = json_data.get("data", [])
         stocks: List[Dict[str, Any]] = []
         board_map = get_stock_board_map()
+        notasi_map = get_stock_notasi_map()
 
         for item in rows:
             symbol_raw = item.get("s", "")
@@ -179,6 +180,7 @@ def fetch_all_stocks_from_scanner() -> List[Dict[str, Any]]:
 
             board_val = board_map.get(clean_symbol, "Pengembangan")
             is_fca = ("Pemantauan" in board_val)
+            notasi_val = notasi_map.get(clean_symbol, "")
 
             stocks.append({
                 "symbol": clean_symbol,
@@ -199,6 +201,7 @@ def fetch_all_stocks_from_scanner() -> List[Dict[str, Any]]:
                 "pivot_r1": round(float(pivot_r1), 1) if pivot_r1 is not None else None,
                 "board": board_val,
                 "is_fca": is_fca,
+                "notasi_khusus": notasi_val,
             })
 
         return stocks
@@ -305,6 +308,98 @@ def get_pre_breakout_signals(target_date: Optional[str] = None, min_score: int =
     except Exception as e:
         logger.error(f"Error fetching pre-breakout signals: {e}")
         return {"success": False, "error": str(e), "count": 0, "signals": []}
+
+
+# Cache in-memory untuk Universe Market Intelligence IDX: { "timestamp": float, "data": dict }
+_IDX_UNIVERSE_CACHE: Dict[str, Any] = {"timestamp": 0.0, "data": {}}
+_IDX_UNIVERSE_LOCK = threading.Lock()
+_IDX_UNIVERSE_TTL = 60.0
+
+
+def get_idx_market_intelligence_universe() -> Dict[str, Dict[str, Any]]:
+    """
+    Ambil metrik Foreign Net, Trade Size (Whale Ratio), dan Notasi Khusus
+    untuk seluruh 960+ emiten IDX secara efisien dalam satu query batch.
+    """
+    global _IDX_UNIVERSE_CACHE
+    now = time.time()
+    with _IDX_UNIVERSE_LOCK:
+        if now - _IDX_UNIVERSE_CACHE.get("timestamp", 0.0) < _IDX_UNIVERSE_TTL:
+            return _IDX_UNIVERSE_CACHE.get("data", {})
+
+    from lib.db import get_db_engine
+    from sqlalchemy import text
+    engine = get_db_engine()
+    if not engine:
+        return {}
+
+    try:
+        sql = text("""
+            WITH latest_date AS (
+                SELECT MAX(tanggal) as max_d FROM harga_saham
+            ),
+            recent_20d AS (
+                SELECT ticker, tanggal, close, volume, frequency, foreign_net, non_regular_value,
+                       CASE WHEN frequency > 0 THEN (volume / 100.0) / frequency ELSE 0 END as lpt
+                FROM harga_saham
+                WHERE tanggal >= (SELECT max_d - INTERVAL '35 days' FROM latest_date)
+            ),
+            stats_20d AS (
+                SELECT ticker,
+                       AVG(lpt) as avg_lpt_20d,
+                       SUM(foreign_net) as foreign_net_20d
+                FROM recent_20d
+                GROUP BY ticker
+            ),
+            today_stats AS (
+                SELECT r.ticker, r.close, r.volume, r.frequency, r.foreign_net, r.non_regular_value, r.lpt,
+                       (r.foreign_net * r.close) as foreign_val,
+                       s.avg_lpt_20d,
+                       s.foreign_net_20d,
+                       d.notasi_khusus, d.papan_pencatatan
+                FROM recent_20d r
+                JOIN latest_date ld ON r.tanggal = ld.max_d
+                LEFT JOIN stats_20d s ON r.ticker = s.ticker
+                LEFT JOIN daftar_saham d ON r.ticker = d.kode
+            )
+            SELECT * FROM today_stats;
+        """)
+        with engine.connect() as conn:
+            rows = conn.execute(sql).fetchall()
+
+        result = {}
+        for r in rows:
+            m = r._mapping
+            tick = str(m["ticker"]).strip().upper()
+            lpt = float(m["lpt"] or 0.0)
+            avg_lpt = float(m["avg_lpt_20d"] or 0.0)
+            whale_ratio = round(lpt / avg_lpt, 2) if avg_lpt > 0 else 1.0
+            foreign_net = int(m["foreign_net"] or 0)
+            foreign_val = float(m["foreign_val"] or 0.0)
+            nego_val = float(m["non_regular_value"] or 0.0)
+
+            result[tick] = {
+                "ticker": tick,
+                "foreign_net": foreign_net,
+                "foreign_net_lots": int(round(foreign_net / 100.0)),
+                "foreign_val": round(foreign_val, 2),
+                "foreign_net_20d": int(m["foreign_net_20d"] or 0),
+                "lot_per_trade": round(lpt, 1),
+                "avg_lot_per_trade_20d": round(avg_lpt, 1),
+                "whale_ratio": whale_ratio,
+                "is_whale": whale_ratio >= 1.5 and int(m["frequency"] or 0) >= 30,
+                "notasi_khusus": str(m["notasi_khusus"] or "").strip(),
+                "papan_pencatatan": str(m["papan_pencatatan"] or "Utama").strip(),
+                "non_regular_value": nego_val
+            }
+
+        with _IDX_UNIVERSE_LOCK:
+            _IDX_UNIVERSE_CACHE = {"timestamp": now, "data": result}
+
+        return result
+    except Exception as e:
+        logger.error(f"Error fetching IDX market intelligence universe: {e}")
+        return {}
 
 
 def filter_by_preset(stocks: List[Dict[str, Any]], preset: str) -> List[Dict[str, Any]]:
@@ -417,6 +512,43 @@ def filter_by_preset(stocks: List[Dict[str, Any]], preset: str) -> List[Dict[str
 
         return matched
 
+    elif preset in ("foreign_inflow", "asing"):
+        # Foreign Inflow: Saham dengan Net Buy Asing Positif (Diurutkan dari dana asing terbesar)
+        idx_map = get_idx_market_intelligence_universe()
+        matched = []
+        for s in stocks:
+            sym = s.get("symbol")
+            intel = idx_map.get(sym)
+            if intel and intel["foreign_val"] > 0:
+                s_copy = dict(s)
+                s_copy["foreign_val"] = intel["foreign_val"]
+                s_copy["foreign_net_lots"] = intel["foreign_net_lots"]
+                s_copy["notasi_khusus"] = intel["notasi_khusus"] or s.get("notasi_khusus", "")
+                s_copy["whale_ratio"] = intel["whale_ratio"]
+                s_copy["lot_per_trade"] = intel["lot_per_trade"]
+                s_copy["is_foreign_inflow"] = True
+                matched.append(s_copy)
+        return sorted(matched, key=lambda x: x.get("foreign_val", 0.0), reverse=True)
+
+    elif preset in ("whale_footprint", "whale"):
+        # Whale Footprint: Saham dengan Trade Size (Lot/Trade) melonjak >= 1.5x dari rerata 20 hari
+        idx_map = get_idx_market_intelligence_universe()
+        matched = []
+        for s in stocks:
+            sym = s.get("symbol")
+            intel = idx_map.get(sym)
+            if intel and intel["is_whale"] and s.get("price", 0) >= 50:
+                s_copy = dict(s)
+                s_copy["whale_ratio"] = intel["whale_ratio"]
+                s_copy["lot_per_trade"] = intel["lot_per_trade"]
+                s_copy["avg_lot_per_trade_20d"] = intel["avg_lot_per_trade_20d"]
+                s_copy["foreign_val"] = intel["foreign_val"]
+                s_copy["foreign_net_lots"] = intel["foreign_net_lots"]
+                s_copy["notasi_khusus"] = intel["notasi_khusus"] or s.get("notasi_khusus", "")
+                s_copy["is_whale"] = True
+                matched.append(s_copy)
+        return sorted(matched, key=lambda x: x.get("whale_ratio", 0.0), reverse=True)
+
     return stocks
 
 
@@ -449,6 +581,12 @@ def sort_stocks(stocks: List[Dict[str, Any]], sort_key: str) -> List[Dict[str, A
         return sorted(stocks, key=lambda x: (x.get("rsi") is None, x.get("rsi", -999.0)), reverse=True)
     elif sort_key == "score_desc":
         return sorted(stocks, key=lambda x: x.get("score", 0) or 0, reverse=True)
+    elif sort_key == "foreign_desc":
+        return sorted(stocks, key=lambda x: x.get("foreign_val", 0.0) or 0.0, reverse=True)
+    elif sort_key == "foreign_asc":
+        return sorted(stocks, key=lambda x: x.get("foreign_val", 0.0) or 0.0)
+    elif sort_key == "whale_desc":
+        return sorted(stocks, key=lambda x: x.get("whale_ratio", 0.0) or 0.0, reverse=True)
     # Default: change_desc
     return sorted(stocks, key=lambda x: x.get("change_pct", 0.0) or 0.0, reverse=True)
 
@@ -472,6 +610,10 @@ def get_screened_stocks(
     eff_sort = sort or "change_desc"
     if preset in ("pre_breakout", "bali") and eff_sort == "change_desc":
         eff_sort = "score_desc"
+    elif preset in ("foreign_inflow", "asing") and eff_sort == "change_desc":
+        eff_sort = "foreign_desc"
+    elif preset in ("whale_footprint", "whale") and eff_sort == "change_desc":
+        eff_sort = "whale_desc"
 
     sorted_stocks = sort_stocks(filtered, eff_sort)
 

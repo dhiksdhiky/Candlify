@@ -160,6 +160,8 @@
                     <div class="screener-sort-wrap">
                         <select id="screener-sort-select" class="screener-sort-select" title="Urutkan Saham">
                             <option value="change_desc">% Chg High</option>
+                            <option value="foreign_desc">🌐 Net Asing</option>
+                            <option value="whale_desc">🐳 Whale Ratio</option>
                             <option value="score_desc">🎯 Skor Sinyal</option>
                             <option value="change_asc">% Chg Low</option>
                             <option value="volume_desc">Volume</option>
@@ -523,7 +525,10 @@
             <div class="sheet-header">
                 <div class="broksum-title-row">
                     <div>
-                        <h3 class="sheet-title" id="broksum-title">Order Flow &amp; Intelligence BBRI</h3>
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            <h3 class="sheet-title" id="broksum-title">Order Flow &amp; Intelligence BBRI</h3>
+                            <span id="broksum-notasi-pill" class="notasi-badge hidden" title="Notasi Khusus BEI"></span>
+                        </div>
                         <p class="sheet-subtitle" id="broksum-subtitle">Tanggal: 2026-09-23 • End of Day</p>
                     </div>
                     <span id="broksum-status-pill" class="bandar-badge distrib">Distribusi</span>
@@ -585,6 +590,55 @@
                     <div class="broksum-ratio-bar-container">
                         <div id="broksum-ratio-buy" class="ratio-buy-bar" style="width: 50%;"></div>
                         <div id="broksum-ratio-sell" class="ratio-sell-bar" style="width: 50%;"></div>
+                    </div>
+
+                    <!-- Market Intelligence (Foreign Flow, Whale Size, Pasar Nego) -->
+                    <div class="intel-cards-container">
+                        <!-- Card 1: Foreign Flow (Asing) -->
+                        <div class="intel-card">
+                            <div class="intel-card-header">
+                                <span class="intel-card-title">🌐 Foreign Flow (Asing)</span>
+                                <span class="intel-card-badge" id="intel-foreign-status">Net Flow</span>
+                            </div>
+                            <div class="intel-grid">
+                                <div class="intel-grid-item">
+                                    <span class="intel-label">Net 1D (Hari Ini)</span>
+                                    <span class="intel-val" id="intel-foreign-1d">--</span>
+                                </div>
+                                <div class="intel-grid-item">
+                                    <span class="intel-label">Net 5 Hari</span>
+                                    <span class="intel-val" id="intel-foreign-5d">--</span>
+                                </div>
+                                <div class="intel-grid-item">
+                                    <span class="intel-label">Net 20 Hari</span>
+                                    <span class="intel-val" id="intel-foreign-20d">--</span>
+                                </div>
+                            </div>
+                            <div class="intel-subtext" id="intel-foreign-subtext">Buy: -- • Sell: --</div>
+                        </div>
+
+                        <!-- Card 2: Whale vs Ritel & Pasar Nego -->
+                        <div class="intel-card">
+                            <div class="intel-card-header">
+                                <span class="intel-card-title">🐳 Trade Size &amp; Nego</span>
+                                <span class="intel-card-badge" id="intel-whale-status">Normal</span>
+                            </div>
+                            <div class="intel-grid">
+                                <div class="intel-grid-item">
+                                    <span class="intel-label">Lot / Trade</span>
+                                    <span class="intel-val" id="intel-whale-today">-- Lot</span>
+                                </div>
+                                <div class="intel-grid-item">
+                                    <span class="intel-label">Rerata 20H</span>
+                                    <span class="intel-val" id="intel-whale-avg">-- Lot</span>
+                                </div>
+                                <div class="intel-grid-item">
+                                    <span class="intel-label">Pasar Nego</span>
+                                    <span class="intel-val" id="intel-nego-val">Rp 0 B</span>
+                                </div>
+                            </div>
+                            <div class="intel-subtext" id="intel-nego-subtext">Normal • Tidak terdeteksi crossing</div>
+                        </div>
                     </div>
 
                     <!-- Two-Column Side-by-Side Tables -->
@@ -776,6 +830,22 @@
                     <div class="preset-card-left">
                         <div class="preset-card-title">🎯 Pre-Breakout Base</div>
                         <div class="preset-card-desc">Konsolidasi ketat (Range &le; 8%), Volume kering &le; 0.4x &amp; Akumulasi Bandar</div>
+                    </div>
+                    <span class="preset-check">✓</span>
+                </div>
+
+                <div class="preset-card screener-preset-chip" data-preset="foreign_inflow">
+                    <div class="preset-card-left">
+                        <div class="preset-card-title">🌐 Foreign Inflow (Asing)</div>
+                        <div class="preset-card-desc">Net Buy investor asing positif &amp; akumulasi dana asing harian</div>
+                    </div>
+                    <span class="preset-check">✓</span>
+                </div>
+
+                <div class="preset-card screener-preset-chip" data-preset="whale_footprint">
+                    <div class="preset-card-left">
+                        <div class="preset-card-title">🐳 Whale Footprint (Smart Money)</div>
+                        <div class="preset-card-desc">Trade Size (Lot/Trade) melonjak &ge; 1.5x di atas rerata 20 hari</div>
                     </div>
                     <span class="preset-check">✓</span>
                 </div>

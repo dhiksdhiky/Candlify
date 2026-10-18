@@ -166,6 +166,16 @@ Candlify V2.3 secara otomatis mengidentifikasi klasifikasi papan dan status risi
 
 ## 8. 🚀 Catatan Rilis & Log Pembaruan (Changelog)
 
+### Versi 2.4 — Official Market Intelligence & Whale Footprint (Oktober 2026)
+* 🌐 **Foreign Flow Multi-Horizon (1D, 5D, 20D)**: Visualisasi akumulasi/distribusi dana asing resmi BEI dengan rincian lot dan nilai rupiah pada bottom sheet Order Flow serta indikator compact (`🌐 +24M`) di chart header.
+* 🐳 **Trade Size & Whale Footprint Engine**: Perhitungan otomatis rasio Lot/Trade terhadap rerata baseline 20 hari untuk mendeteksi transaksi agresif Smart Money / Whale (`whale_ratio >= 1.5x`) vs aktivitas ritel receh.
+* 🤝 **Deteksi Crossing Pasar Nego**: Filter validasi otomatis transaksi pasar negosiasi skala besar (&ge; Rp 10 Miliar atau &ge; 1% saham beredar) yang sering menjadi sinyal awal crossing kepemilikan institusi.
+* ⚡ **Screener Presets Terintegrasi**: Tambahan dua preset strategi bursa baru:
+  * **🌐 Foreign Inflow**: Menyaring emiten dengan net buy asing positif terbesar hari ini.
+  * **🐳 Whale Footprint**: Menyaring emiten dengan lonjakan trade size (lot per trade) &ge; 1.5x di atas rata-rata historis.
+* 🏷️ **Subtle Notasi Khusus BEI**: Tampilan notasi khusus (`[X]`, `[E]`, `[N]`, dll.) disematkan secara elegan dan non-intrusif di samping ticker tanpa modal peringatan pop-up yang mengganggu.
+* 📱 **Header Order Flow Badge yang Ramping**: Penghapusan ikon bar chart (`📊`) pada badge atas chart sehingga status flow bandar, flow asing, dan HMB selalu muat satu baris rapi di layar smartphone PWA.
+
 ### Versi 2.3 — All-in-One IDX Engine & Foreign Flow (Oktober 2026)
 * 🌐 **All-in-One IDX Trading Engine**: Integrasi langsung API Trading Summary resmi Bursa Efek Indonesia (BEI) via TLS impersonation safari17_0 dengan eksekusi super-cepat (1,3 detik untuk seluruh 963 emiten).
 * 💰 **Penyimpanan Data Asing Resmi (Foreign Flow)**: Database kini menyimpan data transaksi asing murni (Foreign Buy, Foreign Sell, Foreign Net), nilai transaksi rupiah (Turnover), dan frekuensi perdagangan.

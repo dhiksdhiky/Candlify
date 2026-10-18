@@ -780,6 +780,7 @@ class CandlifyChart {
             broksumSheet: document.getElementById('broksum-sheet'),
             closeBroksumSheet: document.getElementById('close-broksum-sheet'),
             broksumTitle: document.getElementById('broksum-title'),
+            broksumNotasiPill: document.getElementById('broksum-notasi-pill'),
             broksumSubtitle: document.getElementById('broksum-subtitle'),
             broksumStatusPill: document.getElementById('broksum-status-pill'),
             broksumNetflow: document.getElementById('broksum-netflow'),
@@ -794,6 +795,18 @@ class CandlifyChart {
             broksumPresetChips: document.querySelectorAll('.broksum-chip'),
             broksumDateFrom: document.getElementById('broksum-date-from'),
             broksumDateTo: document.getElementById('broksum-date-to'),
+
+            // Market Intelligence elements
+            intelForeignStatus: document.getElementById('intel-foreign-status'),
+            intelForeign1d: document.getElementById('intel-foreign-1d'),
+            intelForeign5d: document.getElementById('intel-foreign-5d'),
+            intelForeign20d: document.getElementById('intel-foreign-20d'),
+            intelForeignSubtext: document.getElementById('intel-foreign-subtext'),
+            intelWhaleStatus: document.getElementById('intel-whale-status'),
+            intelWhaleToday: document.getElementById('intel-whale-today'),
+            intelWhaleAvg: document.getElementById('intel-whale-avg'),
+            intelNegoVal: document.getElementById('intel-nego-val'),
+            intelNegoSubtext: document.getElementById('intel-nego-subtext'),
 
             // Order Flow & Intelligence Sub-Tabs
             broksumTabBtns: document.querySelectorAll('.broksum-tab-btn'),
@@ -2213,11 +2226,29 @@ class CandlifyChart {
         const flowMiliar = (summary.latest_net_flow / 1e9).toFixed(1);
         const sign = summary.latest_net_flow > 0 ? '+' : '';
         const statusIcon = isAccum ? '🟢' : '🔴';
-        const statusText = isAccum ? 'Akum' : 'Dist';
+
+        // Foreign Flow token (Official IDX Data)
+        let foreignToken = '';
+        let foreignTitle = '';
+        const foreign = summary.foreign_flow || summary.market_intelligence?.foreign_flow;
+        if (foreign && foreign.today_net_val !== undefined && foreign.today_net_val !== 0) {
+            const fVal = foreign.today_net_val;
+            const fAbs = Math.abs(fVal);
+            const fSign = fVal > 0 ? '+' : '-';
+            let fDisp = '';
+            if (fAbs >= 1e12) fDisp = `${(fAbs / 1e12).toFixed(1)}T`;
+            else if (fAbs >= 1e9) fDisp = `${(fAbs / 1e9).toFixed(1)}B`;
+            else if (fAbs >= 1e6) fDisp = `${(fAbs / 1e6).toFixed(0)}M`;
+            else fDisp = `${(fAbs / 1e3).toFixed(0)}K`;
+
+            foreignToken = ` • 🌐 ${fSign}${fDisp}`;
+            foreignTitle = ` | Asing: ${fSign}${fDisp} (${(foreign.today_net_lots || 0).toLocaleString('id-ID')} Lot)`;
+        }
 
         this.dom.bandarBadge.className = `bandar-badge ${isAccum ? 'accum' : 'distrib'}`;
-        this.dom.bandarBadge.innerHTML = `📊 ${statusIcon} ${sign}${flowMiliar}B • HMB ${summary.latest_hmb.toLocaleString('id-ID')}`;
-        this.dom.bandarBadge.title = `Order Flow & Broksum ${summary.latest_date || ''}: Top 3 Net Flow ${sign}${flowMiliar}B | HMB Rp ${summary.latest_hmb.toLocaleString('id-ID')} (Klik untuk detail Broksum, Riwayat & Flow)`;
+        // Tanpa icon 📊 agar tetap muat satu baris rapi di layar HP!
+        this.dom.bandarBadge.innerHTML = `${statusIcon} ${sign}${flowMiliar}B${foreignToken} • HMB ${summary.latest_hmb.toLocaleString('id-ID')}`;
+        this.dom.bandarBadge.title = `Order Flow ${summary.latest_date || ''}: Top 3 Net ${sign}${flowMiliar}B${foreignTitle} | HMB Rp ${summary.latest_hmb.toLocaleString('id-ID')} (Klik untuk detail Broksum & Intelligence)`;
     }
 
     setupBroksumFilterEvents() {
@@ -2329,6 +2360,16 @@ class CandlifyChart {
         if (this.dom.broksumTitle) {
             this.dom.broksumTitle.textContent = `Broker Summary ${payload.symbol || this.currentSymbol}`;
         }
+        if (this.dom.broksumNotasiPill) {
+            const notasi = summary.notasi_khusus || summary.market_intelligence?.emiten_info?.notasi_khusus || '';
+            if (notasi) {
+                this.dom.broksumNotasiPill.textContent = `[${notasi}]`;
+                this.dom.broksumNotasiPill.title = `Notasi Khusus BEI: ${notasi}`;
+                this.dom.broksumNotasiPill.classList.remove('hidden');
+            } else {
+                this.dom.broksumNotasiPill.classList.add('hidden');
+            }
+        }
         if (this.dom.broksumSubtitle) {
             const fromStr = payload.from_date || summary.latest_date;
             const toStr = payload.to_date || summary.latest_date;
@@ -2387,6 +2428,84 @@ class CandlifyChart {
             if (absVal >= 1e6) return (absVal / 1e6).toFixed(0) + 'M';
             return (absVal / 1e3).toFixed(0) + 'K';
         };
+
+        // Populate Market Intelligence Cards (Foreign Flow, Whale Trade Size, Pasar Nego)
+        const foreign = summary.foreign_flow || summary.market_intelligence?.foreign_flow || {};
+        if (this.dom.intelForeign1d) {
+            const isRange = foreign.range_net_val !== undefined;
+            const netVal1d = isRange ? foreign.range_net_val : (foreign.today_net_val || 0);
+            const netLots1d = isRange ? (foreign.range_net_lots || 0) : (foreign.today_net_lots || 0);
+            const sign1d = netVal1d > 0 ? '+' : '';
+            const cls1d = netVal1d > 0 ? 'up' : (netVal1d < 0 ? 'down' : '');
+
+            this.dom.intelForeign1d.textContent = `${sign1d}${fmtVal(netVal1d)}`;
+            this.dom.intelForeign1d.className = `intel-val ${cls1d}`;
+            this.dom.intelForeign1d.title = `${sign1d}${netLots1d.toLocaleString('id-ID')} Lot`;
+
+            const netVal5d = foreign.flow_5d_val || 0;
+            const sign5d = netVal5d > 0 ? '+' : '';
+            const cls5d = netVal5d > 0 ? 'up' : (netVal5d < 0 ? 'down' : '');
+            if (this.dom.intelForeign5d) {
+                this.dom.intelForeign5d.textContent = `${sign5d}${fmtVal(netVal5d)}`;
+                this.dom.intelForeign5d.className = `intel-val ${cls5d}`;
+            }
+
+            const netVal20d = foreign.flow_20d_val || 0;
+            const sign20d = netVal20d > 0 ? '+' : '';
+            const cls20d = netVal20d > 0 ? 'up' : (netVal20d < 0 ? 'down' : '');
+            if (this.dom.intelForeign20d) {
+                this.dom.intelForeign20d.textContent = `${sign20d}${fmtVal(netVal20d)}`;
+                this.dom.intelForeign20d.className = `intel-val ${cls20d}`;
+            }
+
+            if (this.dom.intelForeignStatus) {
+                const isNetBuy = netVal1d > 0;
+                this.dom.intelForeignStatus.className = `intel-card-badge ${isNetBuy ? 'accum' : (netVal1d < 0 ? 'distrib' : '')}`;
+                this.dom.intelForeignStatus.textContent = isNetBuy ? '🟢 Net Inflow' : (netVal1d < 0 ? '🔴 Net Outflow' : 'Netral');
+            }
+
+            if (this.dom.intelForeignSubtext) {
+                const buyLot = isRange ? Math.round((foreign.range_buy_shares || 0) / 100) : (foreign.today_buy_lots || 0);
+                const sellLot = isRange ? Math.round((foreign.range_sell_shares || 0) / 100) : (foreign.today_sell_lots || 0);
+                this.dom.intelForeignSubtext.textContent = `Buy: ${fmtLot(buyLot)} Lot • Sell: ${fmtLot(sellLot)} Lot`;
+            }
+        }
+
+        const tradeSize = summary.trade_size || summary.market_intelligence?.trade_size || {};
+        const nego = summary.pasar_nego || summary.market_intelligence?.pasar_nego || {};
+
+        if (this.dom.intelWhaleToday) {
+            this.dom.intelWhaleToday.textContent = `${tradeSize.today_lot_per_trade || 0} Lot`;
+            if (this.dom.intelWhaleAvg) {
+                this.dom.intelWhaleAvg.textContent = `${tradeSize.avg_lot_per_trade_20d || 0} Lot`;
+            }
+            if (this.dom.intelWhaleStatus) {
+                const ratio = tradeSize.whale_ratio || 1.0;
+                if (ratio >= 1.5) {
+                    this.dom.intelWhaleStatus.className = 'intel-card-badge whale';
+                    this.dom.intelWhaleStatus.textContent = `🐳 Whale (${ratio.toFixed(1)}x)`;
+                } else if (ratio <= 0.75) {
+                    this.dom.intelWhaleStatus.className = 'intel-card-badge';
+                    this.dom.intelWhaleStatus.textContent = `🦐 Ritel (${ratio.toFixed(1)}x)`;
+                } else {
+                    this.dom.intelWhaleStatus.className = 'intel-card-badge';
+                    this.dom.intelWhaleStatus.textContent = `Normal (1.0x)`;
+                }
+            }
+        }
+
+        if (this.dom.intelNegoVal) {
+            const nVal = nego.value || 0;
+            this.dom.intelNegoVal.textContent = nVal > 0 ? fmtVal(nVal) : 'Rp 0';
+            if (this.dom.intelNegoSubtext) {
+                if (nego.has_crossing) {
+                    this.dom.intelNegoSubtext.innerHTML = `⚠️ <strong style="color: #fbbf24;">Crossing:</strong> ${escapeHtml(nego.crossing_reason || 'Transaksi Nego Signifikan')}`;
+                } else {
+                    const nLot = nego.volume_lots || 0;
+                    this.dom.intelNegoSubtext.textContent = nVal > 0 ? `Pasar Nego: ${fmtLot(nLot)} Lot (Normal)` : 'Pasar Nego: Tidak ada transaksi';
+                }
+            }
+        }
 
         if (this.dom.broksumBuyersList) {
             const buyers = summary.top_buyers || [];
@@ -4011,6 +4130,8 @@ class CandlifyChart {
         const presetNames = {
             'all': 'Semua Saham',
             'pre_breakout': '🎯 Pre-Breakout Base',
+            'foreign_inflow': '🌐 Foreign Inflow',
+            'whale_footprint': '🐳 Whale Footprint',
             'swing': '🚀 Swing Setup',
             'breakout': '💥 Breakout R1',
             'vol_bb': '💎 Akumulasi BB',
@@ -4025,7 +4146,17 @@ class CandlifyChart {
             if (this.dom.screenerSortSelect) {
                 this.dom.screenerSortSelect.value = 'score_desc';
             }
-        } else if (this.currentSort === 'score_desc') {
+        } else if (preset === 'foreign_inflow') {
+            this.currentSort = 'foreign_desc';
+            if (this.dom.screenerSortSelect) {
+                this.dom.screenerSortSelect.value = 'foreign_desc';
+            }
+        } else if (preset === 'whale_footprint') {
+            this.currentSort = 'whale_desc';
+            if (this.dom.screenerSortSelect) {
+                this.dom.screenerSortSelect.value = 'whale_desc';
+            }
+        } else if (['score_desc', 'foreign_desc', 'whale_desc'].includes(this.currentSort)) {
             this.currentSort = 'change_desc';
             if (this.dom.screenerSortSelect) {
                 this.dom.screenerSortSelect.value = 'change_desc';
@@ -4136,6 +4267,18 @@ class CandlifyChart {
         };
 
         const getDynamicMetric = (s) => {
+            if (this.currentSort.startsWith('foreign') || s.is_foreign_inflow) {
+                const val = s.foreign_val ?? 0;
+                const sign = val >= 0 ? '+' : '';
+                const cls = val >= 0 ? 'up' : 'down';
+                const lotStr = s.foreign_net_lots ? ` (${s.foreign_net_lots > 0 ? '+' : ''}${s.foreign_net_lots.toLocaleString('id-ID')} Lot)` : '';
+                return `<span class="metric-dynamic ${cls}">🌐 Asing ${sign}${fmtVal(val)}${lotStr}</span> • `;
+            }
+            if (this.currentSort.startsWith('whale') || s.is_whale) {
+                const ratio = s.whale_ratio ?? 1.0;
+                const lpt = s.lot_per_trade ? ` (${s.lot_per_trade.toFixed(0)} Lot/Trd)` : '';
+                return `<span class="metric-dynamic highlight">🐳 Whale ${ratio.toFixed(1)}x${lpt}</span> • `;
+            }
             if (this.currentSort.startsWith('score') || s.is_pre_breakout) {
                 const val = s.score != null ? s.score : '--';
                 const acc = s.top_accumulator ? ` • Acc ${escapeHtml(s.top_accumulator)}` : '';
@@ -4187,6 +4330,9 @@ class CandlifyChart {
                             ? `<span class="stock-badge-board badge-pengembangan" title="Papan Pengembangan">Pengembangan</span>`
                             : `<span class="stock-badge-board badge-utama" title="Papan Utama">Utama</span>`))
                 : '';
+            const notasiBadge = s.notasi_khusus
+                ? `<span class="stock-badge-board notasi-pill" title="Notasi Khusus BEI: ${escapeHtml(s.notasi_khusus)}">[${escapeHtml(s.notasi_khusus)}]</span>`
+                : '';
             const dynamicMetricHtml = getDynamicMetric(s);
 
             const submetricsText = (s.is_pre_breakout && s.hmb)
@@ -4210,6 +4356,7 @@ class CandlifyChart {
                             ${surgeBadge}
                             ${preBreakoutBadge}
                             ${boardBadge}
+                            ${notasiBadge}
                         </div>
                         <span class="stock-name" title="${s.name || s.symbol}">${s.name || s.symbol}</span>
                     </div>

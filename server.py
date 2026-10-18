@@ -37,7 +37,8 @@ from lib.bandarmologi import (
     get_broksum_range,
     get_historical_price_table,
     get_broker_daily_activity,
-    get_broker_flow
+    get_broker_flow,
+    get_stock_market_intelligence
 )
 from lib.screener import get_screened_stocks, get_pre_breakout_signals, get_stock_board_map
 from lib.database_monitor import get_database_metrics, process_saham_excel, get_calendar_history
@@ -359,6 +360,26 @@ def api_broker_flow(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=result.get("error", "Data broker flow tidak ditemukan"))
 
     response.headers["Cache-Control"] = "public, s-maxage=60, stale-while-revalidate=300"
+    return result
+
+@app.get("/api/bandarmologi/intelligence")
+def api_market_intelligence(
+    response: Response,
+    symbol: str = Query(..., description="Kode saham (e.g. BBRI, GOTO)")
+):
+    """
+    Endpoint Market Intelligence BEI (Official IDX Data):
+    - Foreign Flow (1D, 5D, 20D)
+    - Trade Size (Whale vs Ritel)
+    - Pasar Nego (Crossing Saham)
+    - Notasi Khusus BEI & Tradeable Shares
+    """
+    try:
+        result = get_stock_market_intelligence(symbol=symbol)
+    except Exception as err:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Intelligence Error: {err}")
+
+    response.headers["Cache-Control"] = "public, s-maxage=60, stale-while-revalidate=120"
     return result
 
 @app.get("/api/screen")

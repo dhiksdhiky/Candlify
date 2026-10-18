@@ -43,6 +43,199 @@ _CACHE_MAX_ENTRIES = 128
 _RAW_DF_CACHE: Dict[str, Tuple[float, pd.DataFrame]] = {}
 _RAW_DF_LOCK = threading.Lock()
 
+# Market Intelligence Cache per symbol: {symbol: (timestamp, data_dict)}
+_INTELLIGENCE_CACHE: Dict[str, Tuple[float, Dict[str, Any]]] = {}
+_INTELLIGENCE_LOCK = threading.Lock()
+
+
+def get_stock_market_intelligence(symbol: str) -> Dict[str, Any]:
+    """
+    Menghitung Market Intelligence resmi dari BEI (Official IDX Data):
+    1. Foreign Flow (Asing): 1D, 5D, 20D (Lot & Estimasi Rupiah, Buy vs Sell)
+    2. Trade Size (Whale vs Ritel): Lot/Trade hari ini vs Rerata 20 hari
+    3. Pasar Nego (Crossing Saham): Volume, Value & Deteksi Crossing (> Rp 10 Miliar / > 1% Shares)
+    4. Emiten Info: Notasi Khusus BEI & Tradeable Shares
+    """
+    clean_sym = clean_symbol(symbol)
+    now = time.time()
+    ttl = get_bandar_ttl()
+
+    with _INTELLIGENCE_LOCK:
+        if clean_sym in _INTELLIGENCE_CACHE:
+            ts, cached_intel = _INTELLIGENCE_CACHE[clean_sym]
+            if now - ts < ttl:
+                return cached_intel
+
+    engine = get_db_engine()
+    empty_intel = {
+        "success": False,
+        "symbol": clean_sym,
+        "foreign_flow": {
+            "today_net_shares": 0, "today_net_lots": 0, "today_net_val": 0.0,
+            "today_buy_shares": 0, "today_buy_lots": 0,
+            "today_sell_shares": 0, "today_sell_lots": 0,
+            "flow_5d_shares": 0, "flow_5d_lots": 0, "flow_5d_val": 0.0,
+            "flow_20d_shares": 0, "flow_20d_lots": 0, "flow_20d_val": 0.0,
+            "status_1d": "NEUTRAL", "status_5d": "NEUTRAL", "status_20d": "NEUTRAL"
+        },
+        "trade_size": {
+            "today_lot_per_trade": 0.0, "avg_lot_per_trade_20d": 0.0,
+            "whale_ratio": 1.0, "whale_label": "Normal", "frequency": 0
+        },
+        "pasar_nego": {
+            "volume_shares": 0, "volume_lots": 0, "value": 0.0,
+            "has_crossing": False, "crossing_reason": ""
+        },
+        "emiten_info": {
+            "notasi_khusus": "", "tradeable_shares": 0, "papan_pencatatan": "Utama"
+        }
+    }
+
+    if not engine:
+        return empty_intel
+
+    try:
+        with engine.connect() as conn:
+            # 1. Ambil 20 hari data harga_saham terbaru
+            q_h = text("""
+                SELECT tanggal, close, volume, value, frequency,
+                       foreign_buy, foreign_sell, foreign_net,
+                       non_regular_volume, non_regular_value
+                FROM harga_saham
+                WHERE ticker = :ticker
+                ORDER BY tanggal DESC
+                LIMIT 20
+            """)
+            df_h = pd.read_sql(q_h, conn, params={"ticker": clean_sym})
+
+            # 2. Ambil info daftar_saham
+            q_d = text("""
+                SELECT notasi_khusus, tradeable_shares, papan_pencatatan
+                FROM daftar_saham
+                WHERE kode = :ticker
+            """)
+            meta_row = conn.execute(q_d, {"ticker": clean_sym}).mappings().first()
+
+        notasi = str(meta_row["notasi_khusus"] or "") if meta_row else ""
+        tradeable = int(meta_row["tradeable_shares"] or 0) if meta_row else 0
+        papan = str(meta_row["papan_pencatatan"] or "Utama") if meta_row else "Utama"
+
+        if df_h.empty:
+            empty_intel["emiten_info"] = {
+                "notasi_khusus": notasi, "tradeable_shares": tradeable, "papan_pencatatan": papan
+            }
+            return empty_intel
+
+        # Perhitungan Foreign Flow
+        today = df_h.iloc[0]
+        close_p = float(today["close"] or 0)
+        today_buy_s = int(today.get("foreign_buy") or 0)
+        today_sell_s = int(today.get("foreign_sell") or 0)
+        today_net_s = int(today.get("foreign_net") or 0)
+        today_net_val = float(today_net_s * close_p)
+
+        df_5d = df_h.head(5)
+        net_5d_s = int(df_5d["foreign_net"].sum())
+        val_5d = float((df_5d["foreign_net"] * df_5d["close"].astype(float)).sum())
+
+        net_20d_s = int(df_h["foreign_net"].sum())
+        val_20d = float((df_h["foreign_net"] * df_h["close"].astype(float)).sum())
+
+        foreign_intel = {
+            "today_net_shares": today_net_s,
+            "today_net_lots": int(round(today_net_s / 100.0)),
+            "today_net_val": round(today_net_val, 2),
+            "today_buy_shares": today_buy_s,
+            "today_buy_lots": int(round(today_buy_s / 100.0)),
+            "today_sell_shares": today_sell_s,
+            "today_sell_lots": int(round(today_sell_s / 100.0)),
+            "flow_5d_shares": net_5d_s,
+            "flow_5d_lots": int(round(net_5d_s / 100.0)),
+            "flow_5d_val": round(val_5d, 2),
+            "flow_20d_shares": net_20d_s,
+            "flow_20d_lots": int(round(net_20d_s / 100.0)),
+            "flow_20d_val": round(val_20d, 2),
+            "status_1d": "ACCUM" if today_net_s > 0 else ("DISTRIB" if today_net_s < 0 else "NEUTRAL"),
+            "status_5d": "ACCUM" if net_5d_s > 0 else ("DISTRIB" if net_5d_s < 0 else "NEUTRAL"),
+            "status_20d": "ACCUM" if net_20d_s > 0 else ("DISTRIB" if net_20d_s < 0 else "NEUTRAL")
+        }
+
+        # Perhitungan Trade Size (Whale vs Ritel)
+        freq_today = int(today.get("frequency") or 0)
+        vol_today = int(today.get("volume") or 0)
+        lot_today = vol_today / 100.0
+        today_lpt = round(lot_today / freq_today, 1) if freq_today > 0 else 0.0
+
+        valid_history = df_h[df_h["frequency"] > 0].copy()
+        if not valid_history.empty:
+            lpt_series = (valid_history["volume"] / 100.0) / valid_history["frequency"]
+            avg_20d_lpt = round(float(lpt_series.mean()), 1)
+        else:
+            avg_20d_lpt = today_lpt
+
+        whale_ratio = round(today_lpt / avg_20d_lpt, 2) if avg_20d_lpt > 0 else 1.0
+        if whale_ratio >= 1.5:
+            whale_label = "Dominasi Whale (Smart Money)"
+        elif whale_ratio <= 0.75 and freq_today >= 50:
+            whale_label = "Aktivitas Ritel (Retail Active)"
+        else:
+            whale_label = "Normal"
+
+        trade_size_intel = {
+            "today_lot_per_trade": today_lpt,
+            "avg_lot_per_trade_20d": avg_20d_lpt,
+            "whale_ratio": whale_ratio,
+            "whale_label": whale_label,
+            "frequency": freq_today
+        }
+
+        # Perhitungan Pasar Nego (Crossing Saham)
+        nego_vol_s = int(today.get("non_regular_volume") or 0)
+        nego_val = float(today.get("non_regular_value") or 0.0)
+        nego_lots = int(round(nego_vol_s / 100.0))
+
+        has_crossing = False
+        crossing_reason = ""
+        if nego_val >= 10_000_000_000:
+            has_crossing = True
+            crossing_reason = f"Transaksi Nego Besar Rp {nego_val / 1e9:.1f} Miliar"
+        elif tradeable > 0 and nego_vol_s >= (0.01 * tradeable):
+            has_crossing = True
+            crossing_reason = f"Volume Nego {nego_lots:,} Lot (>= 1% Saham Beredar)"
+
+        nego_intel = {
+            "volume_shares": nego_vol_s,
+            "volume_lots": nego_lots,
+            "value": round(nego_val, 2),
+            "has_crossing": has_crossing,
+            "crossing_reason": crossing_reason
+        }
+
+        result = {
+            "success": True,
+            "symbol": clean_sym,
+            "date": str(today["tanggal"]),
+            "foreign_flow": foreign_intel,
+            "trade_size": trade_size_intel,
+            "pasar_nego": nego_intel,
+            "emiten_info": {
+                "notasi_khusus": notasi,
+                "tradeable_shares": tradeable,
+                "papan_pencatatan": papan
+            }
+        }
+
+        with _INTELLIGENCE_LOCK:
+            if len(_INTELLIGENCE_CACHE) >= _CACHE_MAX_ENTRIES:
+                _INTELLIGENCE_CACHE.clear()
+            _INTELLIGENCE_CACHE[clean_sym] = (now, result)
+
+        return result
+    except Exception as e:
+        logger.error(f"Error calculating market intelligence for {clean_sym}: {e}", exc_info=True)
+        return empty_intel
+
+
 def get_raw_broker_df(clean_sym: str) -> Optional[pd.DataFrame]:
     """
     Ambil atau cache DataFrame raw broker_summary untuk suatu ticker.
@@ -219,6 +412,8 @@ def get_bandarmologi(symbol: str, days_lookback: int = 180) -> Dict[str, Any]:
             })
 
         latest_item = series[-1] if series else None
+        intel = get_stock_market_intelligence(clean_sym)
+
         summary = {
             "latest_date": latest_item["date"] if latest_item else None,
             "latest_hmb": latest_item["hmb"] if latest_item else 0,
@@ -227,7 +422,12 @@ def get_bandarmologi(symbol: str, days_lookback: int = 180) -> Dict[str, Any]:
             "total_buy_val": total_buy_val,
             "total_sell_val": total_sell_val,
             "top_buyers": top_buyers_list,
-            "top_sellers": top_sellers_list
+            "top_sellers": top_sellers_list,
+            "market_intelligence": intel,
+            "foreign_flow": intel.get("foreign_flow", {}),
+            "trade_size": intel.get("trade_size", {}),
+            "pasar_nego": intel.get("pasar_nego", {}),
+            "notasi_khusus": intel.get("emiten_info", {}).get("notasi_khusus", "")
         }
 
         available_range = {
@@ -243,6 +443,7 @@ def get_bandarmologi(symbol: str, days_lookback: int = 180) -> Dict[str, Any]:
             "count": len(series),
             "available_range": available_range,
             "summary": summary,
+            "market_intelligence": intel,
             "data": series
         }
 
@@ -386,6 +587,60 @@ def get_broksum_range(symbol: str, from_date: Optional[str] = None, to_date: Opt
     hhi_sell = float(((neg_sellers['net_val'].abs() / tot_neg_sell) ** 2).sum()) if tot_neg_sell > 0 else 0.0
     aar = round(float(hhi_buy / hhi_sell), 2) if hhi_sell > 0 else (2.0 if hhi_buy > 0 else 1.0)
 
+    intel = get_stock_market_intelligence(clean_sym)
+    range_foreign = dict(intel.get("foreign_flow", {}))
+
+    # Jika rentang waktu lebih dari 1 hari atau tanggal custom, hitung agregasi foreign flow rentang waktu tersebut
+    if start_dt != end_dt:
+        try:
+            engine = get_db_engine()
+            if engine:
+                with engine.connect() as conn:
+                    q_rf = text("""
+                        SELECT SUM(foreign_net) as net_shares,
+                               SUM(foreign_net * close) as net_val,
+                               SUM(foreign_buy) as buy_shares,
+                               SUM(foreign_sell) as sell_shares,
+                               SUM(non_regular_volume) as nego_vol,
+                               SUM(non_regular_value) as nego_val
+                        FROM harga_saham
+                        WHERE ticker = :ticker AND tanggal >= :start_d AND tanggal <= :end_d
+                    """)
+                    r_row = conn.execute(q_rf, {
+                        "ticker": clean_sym,
+                        "start_d": pd.to_datetime(start_dt).date(),
+                        "end_d": pd.to_datetime(end_dt).date()
+                    }).mappings().first()
+                    if r_row and r_row["net_shares"] is not None:
+                        net_s = int(r_row["net_shares"] or 0)
+                        range_foreign["range_net_shares"] = net_s
+                        range_foreign["range_net_lots"] = int(round(net_s / 100.0))
+                        range_foreign["range_net_val"] = float(r_row["net_val"] or 0.0)
+                        range_foreign["range_buy_shares"] = int(r_row["buy_shares"] or 0)
+                        range_foreign["range_sell_shares"] = int(r_row["sell_shares"] or 0)
+                        range_foreign["range_status"] = "ACCUM" if net_s > 0 else ("DISTRIB" if net_s < 0 else "NEUTRAL")
+        except Exception as e:
+            logger.warning(f"Error calculating range foreign flow for {clean_sym}: {e}")
+
+    summary_dict = {
+        "latest_date": pd.to_datetime(end_dt).strftime("%Y-%m-%d"),
+        "latest_hmb": hmb,
+        "latest_net_flow": net_flow,
+        "latest_status": "ACCUM" if net_flow > 0 else "DISTRIB",
+        "aar": aar,
+        "hhi_buy": round(hhi_buy, 4),
+        "hhi_sell": round(hhi_sell, 4),
+        "total_buy_val": total_buy_val,
+        "total_sell_val": total_sell_val,
+        "top_buyers": top_buyers,
+        "top_sellers": top_sellers,
+        "market_intelligence": intel,
+        "foreign_flow": range_foreign,
+        "trade_size": intel.get("trade_size", {}),
+        "pasar_nego": intel.get("pasar_nego", {}),
+        "notasi_khusus": intel.get("emiten_info", {}).get("notasi_khusus", "")
+    }
+
     return {
         "success": True,
         "symbol": clean_sym,
@@ -397,19 +652,8 @@ def get_broksum_range(symbol: str, from_date: Optional[str] = None, to_date: Opt
             "max_date": max_date_str,
             "total_dates": len(all_dates)
         },
-        "summary": {
-            "latest_date": pd.to_datetime(end_dt).strftime("%Y-%m-%d"),
-            "latest_hmb": hmb,
-            "latest_net_flow": net_flow,
-            "latest_status": "ACCUM" if net_flow > 0 else "DISTRIB",
-            "aar": aar,
-            "hhi_buy": round(hhi_buy, 4),
-            "hhi_sell": round(hhi_sell, 4),
-            "total_buy_val": total_buy_val,
-            "total_sell_val": total_sell_val,
-            "top_buyers": top_buyers,
-            "top_sellers": top_sellers
-        }
+        "summary": summary_dict,
+        "market_intelligence": intel
     }
 
 
