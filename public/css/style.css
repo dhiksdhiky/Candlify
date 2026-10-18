@@ -1944,6 +1944,7 @@ html, body {
 }
 
 #ticker-board-badge {
+    display: none !important;
     font-size: 9px;
     padding: 2px 6px;
     vertical-align: middle;

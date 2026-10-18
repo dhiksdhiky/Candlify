@@ -6962,29 +6962,8 @@ class CandlifyChart {
         }
 
         if (this.dom.tickerBoardBadge) {
-            const board = payload.board;
-            const isFca = payload.is_fca;
-            if (board) {
-                this.dom.tickerBoardBadge.classList.remove('hidden', 'badge-utama', 'badge-pengembangan', 'badge-akselerasi', 'badge-fca');
-                if (isFca || board.includes('FCA') || board.includes('Pemantauan')) {
-                    this.dom.tickerBoardBadge.className = 'stock-badge-board badge-fca';
-                    this.dom.tickerBoardBadge.textContent = '⚠️ FCA';
-                } else if (board.includes('Utama')) {
-                    this.dom.tickerBoardBadge.className = 'stock-badge-board badge-utama';
-                    this.dom.tickerBoardBadge.textContent = 'Utama';
-                } else if (board.includes('Pengembangan')) {
-                    this.dom.tickerBoardBadge.className = 'stock-badge-board badge-pengembangan';
-                    this.dom.tickerBoardBadge.textContent = 'Pengembangan';
-                } else if (board.includes('Akselerasi')) {
-                    this.dom.tickerBoardBadge.className = 'stock-badge-board badge-akselerasi';
-                    this.dom.tickerBoardBadge.textContent = 'Akselerasi';
-                } else {
-                    this.dom.tickerBoardBadge.className = 'stock-badge-board badge-pengembangan';
-                    this.dom.tickerBoardBadge.textContent = board;
-                }
-            } else {
-                this.dom.tickerBoardBadge.classList.add('hidden');
-            }
+            this.dom.tickerBoardBadge.classList.add('hidden');
+            this.dom.tickerBoardBadge.style.display = 'none';
         }
     }
     
