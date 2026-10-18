@@ -5903,8 +5903,8 @@ class CandlifyChart {
 
                 contentHtml = `
                     <div class="cal-stats">
-                        <span>Harga: <strong>${hist.ohlcv_scraped}</strong></span>
-                        <span>Broksum: <strong>${hist.broksum_synced}</strong></span>
+                        <span>H: <strong>${hist.ohlcv_scraped}</strong></span>
+                        <span>B: <strong>${hist.broksum_synced}</strong></span>
                     </div>
                 `;
             }
@@ -5913,7 +5913,8 @@ class CandlifyChart {
 
             html += `
                 <div class="cal-box ${boxClass}" style="${isToday}">
-                    <div class="cal-date">${day}${idxDotHtml}</div>
+                    ${idxDotHtml}
+                    <div class="cal-date">${day}</div>
                     ${contentHtml}
                 </div>
             `;

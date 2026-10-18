@@ -246,8 +246,15 @@ def test_watchlist_ux_and_calendar_dot():
     assert "wl-near-target" in js
     assert "flex: 1 1 0%" in css
 
-    # Calendar IDX green checkmark dot
+    # Calendar IDX green checkmark dot at top-right corner & micro-legend
+    with open("public/index.html", "r", encoding="utf-8") as f:
+        html = f.read()
     assert "cal-idx-dot" in js
+    assert "H: <strong>" in js and "B: <strong>" in js
     assert ".cal-idx-dot" in css
+    assert "top: -4px;" in css and "right: -4px;" in css
+    assert "cal-micro-legend" in html
+    assert ".cal-micro-legend" in css
+
 
 

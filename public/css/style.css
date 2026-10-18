@@ -4464,7 +4464,8 @@ select option:checked,
 .calendar-grid {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
-    gap: 5px;
+    gap: 6px;
+    padding-top: 3px;
     transition: opacity 0.15s ease, transform 0.15s ease;
 }
 
@@ -4487,10 +4488,11 @@ select option:checked,
 }
 
 .cal-box {
+    position: relative;
     background: rgba(255, 255, 255, 0.03);
     border-radius: 8px;
     padding: 6px 2px;
-    min-height: 56px;
+    min-height: 52px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -4514,25 +4516,72 @@ select option:checked,
     margin-bottom: 2px;
     color: var(--text-secondary);
     font-family: var(--font-mono);
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
+    text-align: center;
 }
 
 .cal-idx-dot {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    background: #064e3b;
+    border: 1.5px solid #34d399;
+    color: #34d399;
+    font-size: 7.5px;
+    font-weight: 900;
+    line-height: 1;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.6), 0 0 6px rgba(16, 185, 129, 0.28);
+    pointer-events: auto;
+}
+
+.cal-micro-legend {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding-top: 4px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    font-size: 9.5px;
+    color: var(--text-muted);
+    font-family: var(--font-sans);
+}
+
+.cal-micro-legend strong {
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    font-weight: 800;
+}
+
+.cal-micro-legend .legend-sep {
+    opacity: 0.4;
+}
+
+.cal-micro-legend .legend-idx-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.cal-idx-dot-inline {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     width: 12px;
     height: 12px;
     border-radius: 50%;
-    background: rgba(16, 185, 129, 0.22);
-    border: 1px solid rgba(52, 211, 153, 0.65);
+    background: #064e3b;
+    border: 1.2px solid #34d399;
     color: #34d399;
-    font-size: 7.5px;
+    font-size: 7px;
     font-weight: 900;
     line-height: 1;
-    box-shadow: 0 0 6px rgba(16, 185, 129, 0.25);
 }
 
 .cal-box-green {
