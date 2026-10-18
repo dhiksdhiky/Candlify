@@ -792,8 +792,52 @@ class CandlifyChart {
             broksumSellersList: document.getElementById('broksum-sellers-list'),
             broksumPresetChips: document.querySelectorAll('.broksum-chip'),
             broksumDateFrom: document.getElementById('broksum-date-from'),
-            broksumDateTo: document.getElementById('broksum-date-to')
+            broksumDateTo: document.getElementById('broksum-date-to'),
+
+            // Order Flow & Intelligence Sub-Tabs
+            broksumTabBtns: document.querySelectorAll('.broksum-tab-btn'),
+            tabPaneSummary: document.getElementById('tab-pane-summary'),
+            tabPaneHistory: document.getElementById('tab-pane-history'),
+            tabPaneFlow: document.getElementById('tab-pane-flow'),
+            tabPaneActivity: document.getElementById('tab-pane-activity'),
+
+            // Tab 2: Historical Data Table
+            historyTfPills: document.querySelectorAll('.history-tf-pill'),
+            historyRowCount: document.getElementById('history-row-count'),
+            historyTableBody: document.getElementById('history-table-body'),
+
+            // Tab 3: Broker Flow Visualizer
+            flowMeterStatus: document.getElementById('flow-meter-status'),
+            flowMeterFill: document.getElementById('flow-meter-fill'),
+            flowMetricBtns: document.querySelectorAll('.flow-metric-toggle .flow-btn'),
+            flowTfPills: document.querySelectorAll('.flow-tf-pill'),
+            flowCanvas: document.getElementById('broker-flow-canvas'),
+            flowTooltip: document.getElementById('flow-tooltip'),
+            flowBrokerChips: document.getElementById('flow-broker-chips'),
+
+            // Tab 4: Broker Daily Activity
+            activityBrokerSelect: document.getElementById('activity-broker-select'),
+            activityPrevMonthBtn: document.getElementById('btn-activity-prev-month'),
+            activityNextMonthBtn: document.getElementById('btn-activity-next-month'),
+            activityMonthLabel: document.getElementById('activity-month-label'),
+            actSumVal: document.getElementById('act-sum-val'),
+            actSumVol: document.getElementById('act-sum-vol'),
+            actSumDays: document.getElementById('act-sum-days'),
+            activityCalendarGrid: document.getElementById('activity-calendar-grid'),
+
+            // Header Board Badge
+            tickerBoardBadge: document.getElementById('ticker-board-badge')
         };
+
+        // State for Order Flow sub-views
+        this.activeBroksumTab = 'summary';
+        this.activeHistoryTf = 'daily';
+        this.activeFlowDays = 30;
+        this.activeFlowMetric = 'val';
+        this.activeFlowBrokers = new Set();
+        this.currentFlowData = null;
+        this.activeActivityBroker = 'XL';
+        this.activeActivityMonth = null;
         
         this.init();
     }
@@ -1531,6 +1575,7 @@ class CandlifyChart {
 
         // Setup Filter Rentang Tanggal Broksum
         this.setupBroksumFilterEvents();
+        this.setupBroksumSubTabEvents();
     }
 
     openSheet(type) {
@@ -2164,11 +2209,11 @@ class CandlifyChart {
         const flowMiliar = (summary.latest_net_flow / 1e9).toFixed(1);
         const sign = summary.latest_net_flow > 0 ? '+' : '';
         const statusIcon = isAccum ? '🟢' : '🔴';
-        const statusText = isAccum ? 'Akumulasi' : 'Distribusi';
+        const statusText = isAccum ? 'Akum' : 'Dist';
 
         this.dom.bandarBadge.className = `bandar-badge ${isAccum ? 'accum' : 'distrib'}`;
-        this.dom.bandarBadge.innerHTML = `${statusIcon} ${statusText} (${sign}${flowMiliar}B) • HMB Rp ${summary.latest_hmb.toLocaleString('id-ID')}`;
-        this.dom.bandarBadge.title = `Bandarmologi ${summary.latest_date || ''}: Top 3 Net Flow ${sign}${flowMiliar}B | HMB Rp ${summary.latest_hmb.toLocaleString('id-ID')} (Klik untuk detail Broksum)`;
+        this.dom.bandarBadge.innerHTML = `📊 Order Flow (${statusIcon} ${sign}${flowMiliar}B) • HMB Rp ${summary.latest_hmb.toLocaleString('id-ID')}`;
+        this.dom.bandarBadge.title = `Order Flow & Broksum ${summary.latest_date || ''}: Top 3 Net Flow ${sign}${flowMiliar}B | HMB Rp ${summary.latest_hmb.toLocaleString('id-ID')} (Klik untuk detail Broksum, Riwayat & Flow)`;
     }
 
     setupBroksumFilterEvents() {
@@ -2412,7 +2457,526 @@ class CandlifyChart {
             summary: summary
         });
 
+        // Sinkronisasi data ke sub-tab aktif
+        if (this.activeBroksumTab === 'summary') {
+            this.switchBroksumTab('summary');
+        } else if (this.activeBroksumTab === 'history') {
+            this.loadHistoryTable(this.currentSymbol, this.activeHistoryTf || 'daily');
+        } else if (this.activeBroksumTab === 'flow') {
+            this.loadBrokerFlow(this.currentSymbol, this.activeFlowDays || 30, this.activeFlowMetric || 'val');
+        } else if (this.activeBroksumTab === 'activity') {
+            this.loadBrokerActivity(this.currentSymbol, this.activeActivityBroker || 'XL', this.activeActivityMonth);
+        }
+
         this.openSheet('broksum');
+    }
+
+    setupBroksumSubTabEvents() {
+        if (this.dom.broksumTabBtns) {
+            this.dom.broksumTabBtns.forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const tab = btn.dataset.tab;
+                    this.switchBroksumTab(tab);
+                });
+            });
+        }
+
+        // Tab 2 History controls
+        if (this.dom.historyTfPills) {
+            this.dom.historyTfPills.forEach(pill => {
+                pill.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const tf = pill.dataset.tf;
+                    this.dom.historyTfPills.forEach(p => p.classList.toggle('active', p === pill));
+                    this.activeHistoryTf = tf;
+                    this.loadHistoryTable(this.currentSymbol, tf);
+                });
+            });
+        }
+
+        // Tab 3 Flow controls
+        if (this.dom.flowMetricBtns) {
+            this.dom.flowMetricBtns.forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const metric = btn.dataset.metric;
+                    this.dom.flowMetricBtns.forEach(b => b.classList.toggle('active', b === btn));
+                    this.activeFlowMetric = metric;
+                    this.loadBrokerFlow(this.currentSymbol, this.activeFlowDays, metric);
+                });
+            });
+        }
+
+        if (this.dom.flowTfPills) {
+            this.dom.flowTfPills.forEach(pill => {
+                pill.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const days = parseInt(pill.dataset.days, 10);
+                    this.dom.flowTfPills.forEach(p => p.classList.toggle('active', p === pill));
+                    this.activeFlowDays = days;
+                    this.loadBrokerFlow(this.currentSymbol, days, this.activeFlowMetric);
+                });
+            });
+        }
+
+        // Tab 4 Activity controls
+        if (this.dom.activityBrokerSelect) {
+            this.dom.activityBrokerSelect.addEventListener('change', () => {
+                const broker = this.dom.activityBrokerSelect.value;
+                this.activeActivityBroker = broker;
+                this.loadBrokerActivity(this.currentSymbol, broker, this.activeActivityMonth);
+            });
+        }
+
+        if (this.dom.activityPrevMonthBtn) {
+            this.dom.activityPrevMonthBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.navigateActivityMonth(-1);
+            });
+        }
+
+        if (this.dom.activityNextMonthBtn) {
+            this.dom.activityNextMonthBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.navigateActivityMonth(1);
+            });
+        }
+    }
+
+    switchBroksumTab(tabId) {
+        this.activeBroksumTab = tabId;
+        if (this.dom.broksumTabBtns) {
+            this.dom.broksumTabBtns.forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.tab === tabId);
+            });
+        }
+
+        if (this.dom.tabPaneSummary) this.dom.tabPaneSummary.classList.toggle('hidden', tabId !== 'summary');
+        if (this.dom.tabPaneHistory) this.dom.tabPaneHistory.classList.toggle('hidden', tabId !== 'history');
+        if (this.dom.tabPaneFlow) this.dom.tabPaneFlow.classList.toggle('hidden', tabId !== 'flow');
+        if (this.dom.tabPaneActivity) this.dom.tabPaneActivity.classList.toggle('hidden', tabId !== 'activity');
+
+        if (tabId === 'history') {
+            this.loadHistoryTable(this.currentSymbol, this.activeHistoryTf || 'daily');
+        } else if (tabId === 'flow') {
+            this.loadBrokerFlow(this.currentSymbol, this.activeFlowDays || 30, this.activeFlowMetric || 'val');
+        } else if (tabId === 'activity') {
+            this.loadBrokerActivity(this.currentSymbol, this.activeActivityBroker || 'XL', this.activeActivityMonth);
+        }
+    }
+
+    async loadHistoryTable(symbol, timeframe = 'daily') {
+        if (!symbol || !this.dom.historyTableBody) return;
+        if (this.dom.historyRowCount) {
+            this.dom.historyRowCount.textContent = 'Memuat riwayat harga...';
+        }
+
+        try {
+            const symEnc = encodeURIComponent(symbol);
+            const tfEnc = encodeURIComponent(timeframe);
+            const resp = await fetch(`/api/stock/historical-data?symbol=${symEnc}&timeframe=${tfEnc}&limit=60`);
+            const json = await resp.json();
+
+            if (resp.ok && json.success) {
+                const rows = json.data || [];
+                if (rows.length === 0) {
+                    this.dom.historyTableBody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding: 20px; color: var(--text-muted);">Tidak ada riwayat harga</td></tr>';
+                    if (this.dom.historyRowCount) this.dom.historyRowCount.textContent = '0 baris data';
+                    return;
+                }
+
+                if (this.dom.historyRowCount) {
+                    this.dom.historyRowCount.textContent = `${rows.length} baris data • ${timeframe.toUpperCase()}`;
+                }
+
+                this.dom.historyTableBody.innerHTML = rows.map(r => {
+                    const isUp = r.change_pct > 0;
+                    const isDown = r.change_pct < 0;
+                    const sign = isUp ? '+' : '';
+                    const cls = isUp ? 'val-up' : (isDown ? 'val-down' : 'val-neutral');
+                    const chgText = (r.change_pct !== null && !isNaN(r.change_pct)) ? `${sign}${r.change_pct.toFixed(2)}%` : '-';
+                    let valText = '-';
+                    if (r.value) {
+                        const valNum = Number(r.value);
+                        if (valNum >= 1e9) valText = `${(valNum / 1e9).toFixed(1)} B`;
+                        else if (valNum >= 1e6) valText = `${(valNum / 1e6).toFixed(0)} M`;
+                        else valText = `${(valNum / 1e3).toFixed(0)} K`;
+                    }
+                    return `
+                        <tr>
+                            <td>${r.date}</td>
+                            <td style="font-weight: 700;">${Number(r.close).toLocaleString('id-ID')}</td>
+                            <td class="${cls}">${chgText}</td>
+                            <td style="color: #cbd5e1;">${valText}</td>
+                        </tr>
+                    `;
+                }).join('');
+            } else {
+                if (this.dom.historyTableBody) {
+                    this.dom.historyTableBody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding: 20px; color: #f87171;">${json.detail || 'Gagal memuat data'}</td></tr>`;
+                }
+            }
+        } catch (err) {
+            console.error('loadHistoryTable error:', err);
+            if (this.dom.historyTableBody) {
+                this.dom.historyTableBody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding: 20px; color: #f87171;">Error: ${err.message}</td></tr>`;
+            }
+        }
+    }
+
+    async loadBrokerFlow(symbol, days = 30, metric = 'val') {
+        if (!symbol || !this.dom.flowCanvas) return;
+        try {
+            const symEnc = encodeURIComponent(symbol);
+            const resp = await fetch(`/api/bandarmologi/broker-flow?symbol=${symEnc}&days=${days}&metric=${metric}`);
+            const json = await resp.json();
+
+            if (resp.ok && json.success) {
+                this.currentFlowData = json;
+                const flowSummary = json.summary || {};
+                const topBrokers = json.top_brokers || [];
+                
+                // Initialize default selected brokers if empty or not present
+                if (!this.activeFlowBrokers || this.activeFlowBrokers.size === 0) {
+                    this.activeFlowBrokers = new Set(topBrokers.slice(0, 5));
+                }
+
+                // Update Gauge Meter
+                const netFlow = flowSummary.net_flow || 0;
+                const totalBuy = flowSummary.total_buy || 1;
+                const totalSell = flowSummary.total_sell || 1;
+                const isAcc = netFlow >= 0;
+                const isVal = metric === 'val';
+                const unit = isVal ? 'B' : 'K Lot';
+                const divisor = isVal ? 1e9 : 1000;
+                const netFlowFormatted = `${isAcc ? '+' : ''}${(netFlow / divisor).toFixed(1)} ${unit}`;
+
+                if (this.dom.flowMeterStatus) {
+                    this.dom.flowMeterStatus.innerHTML = `Net ${isAcc ? 'Acc' : 'Dist'}: <strong style="color: ${isAcc ? '#34d399' : '#f87171'}">${netFlowFormatted}</strong>`;
+                }
+
+                if (this.dom.flowMeterFill) {
+                    const ratio = totalBuy / (totalBuy + totalSell); // 0.0 to 1.0
+                    const leftPct = Math.max(5, Math.min(95, ratio * 100));
+                    this.dom.flowMeterFill.style.left = `${Math.min(50, leftPct)}%`;
+                    this.dom.flowMeterFill.style.width = `${Math.max(4, Math.abs(leftPct - 50))}%`;
+                    this.dom.flowMeterFill.style.background = isAcc ? '#34d399' : '#f87171';
+                }
+
+                // Render broker toggle chips
+                this.renderFlowBrokerChips(topBrokers);
+
+                // Render canvas chart
+                this.renderBrokerFlowCanvas();
+            }
+        } catch (err) {
+            console.error('loadBrokerFlow error:', err);
+        }
+    }
+
+    renderFlowBrokerChips(topBrokers) {
+        if (!this.dom.flowBrokerChips) return;
+        const colors = ['#34d399', '#60a5fa', '#f87171', '#fbbf24', '#a855f7', '#38bdf8', '#f472b6', '#fb923c', '#4ade80', '#e879f9'];
+
+        this.dom.flowBrokerChips.innerHTML = topBrokers.map((brk, idx) => {
+            const color = colors[idx % colors.length];
+            const isActive = this.activeFlowBrokers.has(brk);
+            return `
+                <div class="flow-chip ${isActive ? 'active' : ''}" data-broker="${brk}" style="${isActive ? `border-color: ${color}; background: ${color}22; color: #fff;` : ''}">
+                    <span class="flow-chip-dot" style="background: ${color};"></span>
+                    <span>${brk}</span>
+                </div>
+            `;
+        }).join('');
+
+        // Attach click handlers to chips
+        this.dom.flowBrokerChips.querySelectorAll('.flow-chip').forEach(chip => {
+            chip.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const brk = chip.dataset.broker;
+                if (this.activeFlowBrokers.has(brk)) {
+                    if (this.activeFlowBrokers.size > 1) {
+                        this.activeFlowBrokers.delete(brk);
+                    }
+                } else {
+                    this.activeFlowBrokers.add(brk);
+                }
+                this.renderFlowBrokerChips(this.currentFlowData?.top_brokers || []);
+                this.renderBrokerFlowCanvas();
+            });
+        });
+    }
+
+    renderBrokerFlowCanvas() {
+        const canvas = this.dom.flowCanvas;
+        if (!canvas || !this.currentFlowData) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        const dpr = window.devicePixelRatio || 1;
+        const rect = canvas.getBoundingClientRect();
+        canvas.width = (rect.width || 360) * dpr;
+        canvas.height = (rect.height || 200) * dpr;
+        ctx.resetTransform();
+        ctx.scale(dpr, dpr);
+
+        const width = rect.width || 360;
+        const height = rect.height || 200;
+        ctx.clearRect(0, 0, width, height);
+
+        const dates = this.currentFlowData.dates || [];
+        const series = this.currentFlowData.series || {};
+        const colors = ['#34d399', '#60a5fa', '#f87171', '#fbbf24', '#a855f7', '#38bdf8', '#f472b6', '#fb923c', '#4ade80', '#e879f9'];
+        const topBrokers = this.currentFlowData.top_brokers || [];
+
+        if (dates.length < 2) {
+            ctx.fillStyle = '#64748b';
+            ctx.font = '11px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('Data flow belum mencukupi', width / 2, height / 2);
+            return;
+        }
+
+        // Find min and max across selected series
+        let minVal = 0;
+        let maxVal = 0;
+        let hasData = false;
+
+        topBrokers.forEach(brk => {
+            if (!this.activeFlowBrokers.has(brk)) return;
+            const points = series[brk] || [];
+            points.forEach(v => {
+                hasData = true;
+                if (v < minVal) minVal = v;
+                if (v > maxVal) maxVal = v;
+            });
+        });
+
+        if (!hasData) {
+            minVal = -100;
+            maxVal = 100;
+        }
+
+        // Add 12% padding
+        const range = Math.max(1, maxVal - minVal);
+        const pad = range * 0.12;
+        const yMin = minVal - pad;
+        const yMax = maxVal + pad;
+        const yRange = yMax - yMin;
+
+        const padLeft = 14;
+        const padRight = 36;
+        const padTop = 15;
+        const padBottom = 22;
+        const chartW = width - padLeft - padRight;
+        const chartH = height - padTop - padBottom;
+
+        const getY = (val) => padTop + chartH - ((val - yMin) / yRange) * chartH;
+        const getX = (idx) => padLeft + (idx / (dates.length - 1)) * chartW;
+
+        // Draw Zero Baseline
+        const zeroY = getY(0);
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(padLeft, zeroY);
+        ctx.lineTo(width - padRight, zeroY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Label 0
+        ctx.fillStyle = '#64748b';
+        ctx.font = '9px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('0', padLeft + 2, zeroY - 3);
+
+        // Draw curves for each active broker
+        topBrokers.forEach((brk, idx) => {
+            if (!this.activeFlowBrokers.has(brk)) return;
+            const points = series[brk] || [];
+            if (points.length < 2) return;
+
+            const color = colors[idx % colors.length];
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+
+            for (let i = 0; i < points.length; i++) {
+                const x = getX(i);
+                const y = getY(points[i]);
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+
+            // Draw endpoint marker with broker tag
+            const lastX = getX(points.length - 1);
+            const lastY = getY(points[points.length - 1]);
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(lastX, lastY, 3, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.font = 'bold 9px sans-serif';
+            ctx.textAlign = 'left';
+            ctx.fillText(brk, lastX + 5, lastY + 3);
+        });
+
+        // Draw X-axis Dates (first, middle, last)
+        ctx.fillStyle = '#64748b';
+        ctx.font = '9px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText(dates[0], padLeft, height - 6);
+        ctx.textAlign = 'center';
+        const midIdx = Math.floor(dates.length / 2);
+        ctx.fillText(dates[midIdx], getX(midIdx), height - 6);
+        ctx.textAlign = 'right';
+        ctx.fillText(dates[dates.length - 1], width - padRight, height - 6);
+    }
+
+    async loadBrokerActivity(symbol, brokerCode = 'XL', monthStr = null) {
+        if (!symbol) return;
+        const brk = brokerCode.toUpperCase();
+        this.activeActivityBroker = brk;
+
+        // Populate broker selector
+        if (this.dom.activityBrokerSelect) {
+            const topBrokers = new Set(['XL', 'CC', 'AK', 'BK', 'ZP', 'YP', 'PD', 'NI', 'SQ', 'DX', 'GR', 'LG', 'MG', 'IF', 'CP', 'BB', 'CS']);
+            if (this.bandarData?.summary?.top_buyers) {
+                this.bandarData.summary.top_buyers.forEach(b => topBrokers.add(b.broker));
+            }
+            if (this.bandarData?.summary?.top_sellers) {
+                this.bandarData.summary.top_sellers.forEach(s => topBrokers.add(s.broker));
+            }
+            const currentSelected = this.dom.activityBrokerSelect.value || brk;
+            this.dom.activityBrokerSelect.innerHTML = Array.from(topBrokers).sort().map(b => `
+                <option value="${b}" ${b === currentSelected ? 'selected' : ''}>${b}</option>
+            `).join('');
+            this.dom.activityBrokerSelect.value = brk;
+        }
+
+        try {
+            const symEnc = encodeURIComponent(symbol);
+            const brkEnc = encodeURIComponent(brk);
+            const monthParam = monthStr ? `&month=${encodeURIComponent(monthStr)}` : '';
+            const resp = await fetch(`/api/bandarmologi/broker-activity?symbol=${symEnc}&broker_code=${brkEnc}${monthParam}`);
+            const json = await resp.json();
+
+            if (resp.ok && json.success) {
+                this.activeActivityMonth = json.month;
+                
+                // Format Month Title: "2026-09" -> "September 2026"
+                if (this.dom.activityMonthLabel) {
+                    const [y, m] = json.month.split('-');
+                    const dateObj = new Date(parseInt(y, 10), parseInt(m, 10) - 1, 1);
+                    this.dom.activityMonthLabel.textContent = dateObj.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+                }
+
+                // Summary Card
+                const netVal = json.monthly_net_val || 0;
+                const netVol = json.monthly_net_vol || 0;
+                const isAcc = netVal >= 0;
+                const sign = isAcc ? '+' : '';
+                const valText = `${sign}Rp ${(Math.abs(netVal) / 1e9).toFixed(2)} B`;
+                const volText = `${sign}${(netVol / 1000).toFixed(0)}K Lot`;
+
+                if (this.dom.actSumVal) {
+                    this.dom.actSumVal.textContent = valText;
+                    this.dom.actSumVal.style.color = isAcc ? '#34d399' : '#f87171';
+                }
+                if (this.dom.actSumVol) {
+                    this.dom.actSumVol.textContent = volText;
+                    this.dom.actSumVol.style.color = isAcc ? '#34d399' : '#f87171';
+                }
+                if (this.dom.actSumDays) {
+                    this.dom.actSumDays.textContent = `${json.accum_days || 0} / ${json.trading_days || 0} Hari`;
+                }
+
+                // Render Calendar
+                this.renderActivityCalendar(json);
+            }
+        } catch (err) {
+            console.error('loadBrokerActivity error:', err);
+        }
+    }
+
+    navigateActivityMonth(delta) {
+        if (!this.activeActivityMonth) return;
+        const [yStr, mStr] = this.activeActivityMonth.split('-');
+        let year = parseInt(yStr, 10);
+        let month = parseInt(mStr, 10) + delta;
+        if (month > 12) {
+            year += 1;
+            month = 1;
+        } else if (month < 1) {
+            year -= 1;
+            month = 12;
+        }
+        const newMonthStr = `${year}-${String(month).padStart(2, '0')}`;
+        this.loadBrokerActivity(this.currentSymbol, this.activeActivityBroker || 'XL', newMonthStr);
+    }
+
+    renderActivityCalendar(data) {
+        if (!this.dom.activityCalendarGrid) return;
+        const monthStr = data.month;
+        const [yStr, mStr] = monthStr.split('-');
+        const year = parseInt(yStr, 10);
+        const month = parseInt(mStr, 10);
+
+        const daysInMonth = new Date(year, month, 0).getDate();
+        const activityMap = new Map();
+        (data.daily_activity || []).forEach(act => {
+            activityMap.set(act.date, act);
+        });
+
+        // Generate Mon-Fri grid cells
+        const cells = [];
+        for (let d = 1; d <= daysInMonth; d++) {
+            const dateObj = new Date(year, month - 1, d);
+            const dayOfWeek = dateObj.getDay(); // 0 = Sun, 1 = Mon... 6 = Sat
+            if (dayOfWeek === 0 || dayOfWeek === 6) continue; // Skip weekends
+
+            const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            const act = activityMap.get(dateStr);
+
+            if (act) {
+                const isBuy = act.net_vol > 0;
+                const isSell = act.net_vol < 0;
+                const badgeClass = isBuy ? 'buy' : 'sell';
+                const badgeText = isBuy ? 'BUY' : 'SELL';
+                const lotClass = isBuy ? 'buy' : 'sell';
+                const lotFormatted = `${isBuy ? '+' : ''}${(act.net_vol / 1000).toFixed(0)}K`;
+                const avgPrice = act.avg_price ? `Rp ${Math.round(act.avg_price).toLocaleString('id-ID')}` : '-';
+
+                cells.push(`
+                    <div class="activity-day-cell ${isBuy ? 'buy-day' : 'sell-day'}" title="${dateStr}: Net ${act.net_vol.toLocaleString('id-ID')} lot @ ${avgPrice}">
+                        <div class="act-day-hdr">
+                            <span class="act-day-num">${d}</span>
+                            <span class="act-day-badge ${badgeClass}">${badgeText}</span>
+                        </div>
+                        <div class="act-day-body">
+                            <span class="act-day-lot ${lotClass}">${lotFormatted}</span>
+                            <span class="act-day-avg">${avgPrice}</span>
+                        </div>
+                    </div>
+                `);
+            } else {
+                cells.push(`
+                    <div class="activity-day-cell inactive-day">
+                        <div class="act-day-hdr">
+                            <span class="act-day-num">${d}</span>
+                        </div>
+                        <div class="act-day-body">
+                            <span class="act-day-avg">-</span>
+                        </div>
+                    </div>
+                `);
+            }
+        }
+
+        this.dom.activityCalendarGrid.innerHTML = cells.join('');
     }
 
     syncBandarDataToCandles(candles) {
@@ -3961,6 +4525,18 @@ class CandlifyChart {
             const ageStr = (item.created_at ? this.getHumanAge(item.created_at) : (item.age || 'Baru'));
             const isFresh = ageStr.includes('Baru') || ageStr.includes('j lalu') || ageStr === 'Kemarin';
 
+            let boardBadge = '';
+            const bName = item.board || '';
+            if (item.is_fca || bName.includes('FCA') || bName.includes('Pemantauan')) {
+                boardBadge = `<span class="stock-badge-board badge-fca" title="Papan Pemantauan Khusus / Full Call Auction">⚠️ FCA</span>`;
+            } else if (bName.includes('Utama')) {
+                boardBadge = `<span class="stock-badge-board badge-utama" title="Papan Utama">Utama</span>`;
+            } else if (bName.includes('Pengembangan')) {
+                boardBadge = `<span class="stock-badge-board badge-pengembangan" title="Papan Pengembangan">Pengembangan</span>`;
+            } else if (bName.includes('Akselerasi')) {
+                boardBadge = `<span class="stock-badge-board badge-akselerasi" title="Papan Akselerasi">Akselerasi</span>`;
+            }
+
             return `
                 <div class="watchlist-card" data-id="${item.id}" data-symbol="${sym}">
                     <div class="wl-card-left">
@@ -3972,6 +4548,7 @@ class CandlifyChart {
                         <div class="wl-stock-info">
                             <div class="wl-symbol-row">
                                 <span class="wl-symbol">${sym}</span>
+                                ${boardBadge}
                                 <span class="wl-category-badge">${escapeHtml(item.category)}</span>
                             </div>
                             <div class="wl-name">${escapeHtml(name)}</div>
@@ -6127,6 +6704,32 @@ class CandlifyChart {
 
         if (this.dom.activeTfLabel) {
             this.dom.activeTfLabel.textContent = (payload.interval || this.currentInterval).toUpperCase();
+        }
+
+        if (this.dom.tickerBoardBadge) {
+            const board = payload.board;
+            const isFca = payload.is_fca;
+            if (board) {
+                this.dom.tickerBoardBadge.classList.remove('hidden', 'badge-utama', 'badge-pengembangan', 'badge-akselerasi', 'badge-fca');
+                if (isFca || board.includes('FCA') || board.includes('Pemantauan')) {
+                    this.dom.tickerBoardBadge.className = 'stock-badge-board badge-fca';
+                    this.dom.tickerBoardBadge.textContent = '⚠️ FCA';
+                } else if (board.includes('Utama')) {
+                    this.dom.tickerBoardBadge.className = 'stock-badge-board badge-utama';
+                    this.dom.tickerBoardBadge.textContent = 'Utama';
+                } else if (board.includes('Pengembangan')) {
+                    this.dom.tickerBoardBadge.className = 'stock-badge-board badge-pengembangan';
+                    this.dom.tickerBoardBadge.textContent = 'Pengembangan';
+                } else if (board.includes('Akselerasi')) {
+                    this.dom.tickerBoardBadge.className = 'stock-badge-board badge-akselerasi';
+                    this.dom.tickerBoardBadge.textContent = 'Akselerasi';
+                } else {
+                    this.dom.tickerBoardBadge.className = 'stock-badge-board badge-pengembangan';
+                    this.dom.tickerBoardBadge.textContent = board;
+                }
+            } else {
+                this.dom.tickerBoardBadge.classList.add('hidden');
+            }
         }
     }
     

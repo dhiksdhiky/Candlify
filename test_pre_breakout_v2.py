@@ -122,11 +122,9 @@ def test_dual_constraint_position_sizing():
     Memverifikasi perlindungan Dual-Constraint Sizing:
     min(Risk-based Lot, 20% Equity Cap) untuk mencegah 'all-in' pada Stop Loss ketat.
     """
-    from lib.portfolio import get_risk_settings
-    settings = get_risk_settings()
-    total_capital = float(settings.get("total_capital") or 100000000.0) # Rp 100 jt
-    max_risk_rp = float(settings.get("risk_nominal") or 1000000.0)      # Rp 1 jt (1%)
-    max_exposure_pct = float(settings.get("max_exposure_pct") or 0.20)  # 20%
+    total_capital = 100000000.0 # Rp 100 jt
+    max_risk_rp = 1000000.0      # Rp 1 jt (1%)
+    max_exposure_pct = 0.20      # 20%
 
     entry_price = 1000.0
     sl_price = 985.0 # SL sangat ketat: -1.5% (risk per share = 15)

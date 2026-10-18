@@ -48,6 +48,65 @@ _CACHE_LOCK = threading.Lock()
 _CACHE_TTL = 60.0  # 60 detik
 
 
+# Cache in-memory untuk pemetaan papan pencatatan BEI
+_BOARD_MAP: Dict[str, str] = {}
+_BOARD_MAP_TIMESTAMP: float = 0.0
+_BOARD_MAP_LOCK = threading.Lock()
+_BOARD_MAP_TTL = 3600.0  # 1 jam
+
+
+def get_stock_board_map() -> Dict[str, str]:
+    """
+    Ambil mapping kode saham -> papan pencatatan (Utama, Pengembangan, Pemantauan Khusus, Akselerasi).
+    Prioritas: Database daftar_saham -> Fallback: worker/daftar_saham.csv.
+    """
+    global _BOARD_MAP, _BOARD_MAP_TIMESTAMP
+    now = time.time()
+    if _BOARD_MAP and (now - _BOARD_MAP_TIMESTAMP < _BOARD_MAP_TTL):
+        return _BOARD_MAP
+
+    with _BOARD_MAP_LOCK:
+        if _BOARD_MAP and (time.time() - _BOARD_MAP_TIMESTAMP < _BOARD_MAP_TTL):
+            return _BOARD_MAP
+
+        b_map: Dict[str, str] = {}
+        # 1. Coba dari database Neon DB
+        try:
+            from lib.db import get_db_engine
+            from sqlalchemy import text
+            eng = get_db_engine()
+            if eng:
+                with eng.connect() as conn:
+                    rows = conn.execute(text("SELECT kode, papan_pencatatan FROM daftar_saham")).fetchall()
+                    for r in rows:
+                        if r[0]:
+                            b_map[str(r[0]).strip().upper()] = str(r[1] or "Pengembangan").strip()
+        except Exception as e:
+            logger.warning(f"Gagal mengambil board map dari DB, mencoba CSV: {e}")
+
+        # 2. Fallback dari CSV jika DB kosong/error
+        if not b_map:
+            import os
+            import csv
+            csv_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "worker", "daftar_saham.csv")
+            if os.path.exists(csv_path):
+                try:
+                    with open(csv_path, mode="r", encoding="utf-8-sig") as f:
+                        reader = csv.reader(f, delimiter=";")
+                        for row in reader:
+                            if len(row) >= 6 and row[1] and row[1] != "Kode":
+                                b_map[row[1].strip().upper()] = row[5].strip()
+                except Exception as e:
+                    logger.warning(f"Gagal membaca fallback CSV daftar_saham: {e}")
+
+        if b_map:
+            _BOARD_MAP = b_map
+            _BOARD_MAP_TIMESTAMP = time.time()
+            logger.info(f"Loaded board map for {len(_BOARD_MAP)} stocks")
+
+        return _BOARD_MAP
+
+
 def fetch_all_stocks_from_scanner() -> List[Dict[str, Any]]:
     """Tarik seluruh data saham BEI via TradingView scanner dalam satu kali panggilan batch."""
     payload = {
@@ -70,6 +129,7 @@ def fetch_all_stocks_from_scanner() -> List[Dict[str, Any]]:
         json_data = resp.json()
         rows = json_data.get("data", [])
         stocks: List[Dict[str, Any]] = []
+        board_map = get_stock_board_map()
 
         for item in rows:
             symbol_raw = item.get("s", "")
@@ -100,6 +160,9 @@ def fetch_all_stocks_from_scanner() -> List[Dict[str, Any]]:
             if close_p <= 0:
                 continue
 
+            board_val = board_map.get(clean_symbol, "Pengembangan")
+            is_fca = ("Pemantauan" in board_val)
+
             stocks.append({
                 "symbol": clean_symbol,
                 "name": str(desc),
@@ -117,6 +180,8 @@ def fetch_all_stocks_from_scanner() -> List[Dict[str, Any]]:
                 "bb_lower": round(float(bb_lower), 1) if bb_lower is not None else None,
                 "bb_upper": round(float(bb_upper), 1) if bb_upper is not None else None,
                 "pivot_r1": round(float(pivot_r1), 1) if pivot_r1 is not None else None,
+                "board": board_val,
+                "is_fca": is_fca,
             })
 
         return stocks

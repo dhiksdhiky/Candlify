@@ -104,7 +104,9 @@ def get_all_watchlists(category: Optional[str] = None) -> List[Dict[str, Any]]:
             "change_pct": live.get("change_pct", 0.0),
             "volume": live.get("volume", 0),
             "market_cap": live.get("market_cap", 0),
-            "name": live.get("name", sym)
+            "name": live.get("name", sym),
+            "board": live.get("board", "Utama"),
+            "is_fca": live.get("is_fca", False)
         })
 
     return items

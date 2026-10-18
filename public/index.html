@@ -297,6 +297,7 @@
                     spellcheck="false"
                     title="Klik untuk langsung ganti kode saham"
                 >
+                <span id="ticker-board-badge" class="stock-badge-board badge-utama" title="Papan Pencatatan BEI">Utama</span>
                 <span id="current-price-label" class="current-price">--</span>
                 <span id="current-change-label" class="current-change">0.00%</span>
             </div>
@@ -514,13 +515,13 @@
             </div>
         </div>
 
-        <!-- 8. Broker Summary (Broksum) Bottom Sheet -->
+        <!-- 8. Broker Summary & Market Intelligence (Order Flow) Bottom Sheet -->
         <div id="broksum-sheet" class="bottom-sheet broksum-sheet hidden">
             <div class="sheet-handle"></div>
             <div class="sheet-header">
                 <div class="broksum-title-row">
                     <div>
-                        <h3 class="sheet-title" id="broksum-title">Broker Summary BBRI</h3>
+                        <h3 class="sheet-title" id="broksum-title">Order Flow &amp; Intelligence BBRI</h3>
                         <p class="sheet-subtitle" id="broksum-subtitle">Tanggal: 2026-09-23 • End of Day</p>
                     </div>
                     <span id="broksum-status-pill" class="bandar-badge distrib">Distribusi</span>
@@ -528,84 +529,209 @@
                 <button id="close-broksum-sheet" class="sheet-close">✕</button>
             </div>
 
+            <!-- Segmented Sub-Tabs Nav -->
+            <div class="broksum-nav-tabs">
+                <button class="broksum-tab-btn active" data-tab="summary">🏦 Broksum</button>
+                <button class="broksum-tab-btn" data-tab="history">📜 History Data</button>
+                <button class="broksum-tab-btn" data-tab="flow">📈 Broker Flow</button>
+                <button class="broksum-tab-btn" data-tab="activity">📅 Daily Activity</button>
+            </div>
+
             <div class="broksum-content-scroll">
-                <!-- Date Range Selector (Instant / No "Cek" Button) -->
-                <div class="broksum-filter-bar">
-                    <div class="broksum-presets" id="broksum-presets">
-                        <button class="broksum-chip active" data-preset="1d">1D</button>
-                        <button class="broksum-chip" data-preset="1w">1W</button>
-                        <button class="broksum-chip" data-preset="2w">2W</button>
-                        <button class="broksum-chip" data-preset="1m">1M</button>
-                        <button class="broksum-chip" data-preset="3m">3M</button>
-                        <button class="broksum-chip" data-preset="6m">6M</button>
-                    </div>
-                    <div class="broksum-date-inputs">
-                        <div class="date-input-wrap">
-                            <label for="broksum-date-from">Dari</label>
-                            <input type="date" id="broksum-date-from" class="broksum-date-picker">
+                <!-- Tab Pane 1: Broker Summary (Existing) -->
+                <div id="tab-pane-summary" class="broksum-tab-pane active">
+                    <!-- Date Range Selector (Instant / No "Cek" Button) -->
+                    <div class="broksum-filter-bar">
+                        <div class="broksum-presets" id="broksum-presets">
+                            <button class="broksum-chip active" data-preset="1d">1D</button>
+                            <button class="broksum-chip" data-preset="1w">1W</button>
+                            <button class="broksum-chip" data-preset="2w">2W</button>
+                            <button class="broksum-chip" data-preset="1m">1M</button>
+                            <button class="broksum-chip" data-preset="3m">3M</button>
+                            <button class="broksum-chip" data-preset="6m">6M</button>
                         </div>
-                        <span class="date-sep">→</span>
-                        <div class="date-input-wrap">
-                            <label for="broksum-date-to">Sampai</label>
-                            <input type="date" id="broksum-date-to" class="broksum-date-picker">
+                        <div class="broksum-date-inputs">
+                            <div class="date-input-wrap">
+                                <label for="broksum-date-from">Dari</label>
+                                <input type="date" id="broksum-date-from" class="broksum-date-picker">
+                            </div>
+                            <span class="date-sep">→</span>
+                            <div class="date-input-wrap">
+                                <label for="broksum-date-to">Sampai</label>
+                                <input type="date" id="broksum-date-to" class="broksum-date-picker">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Metrics Bar -->
+                    <div class="broksum-metrics-card">
+                        <div class="broksum-metric-item">
+                            <span class="metric-label">Net Flow Bandar</span>
+                            <span class="metric-val" id="broksum-netflow">-Rp 80.7 B</span>
+                        </div>
+                        <div class="broksum-metric-item">
+                            <span class="metric-label">Harga Modal (HMB)</span>
+                            <span class="metric-val gold" id="broksum-hmb">Rp 3.351</span>
+                        </div>
+                        <div class="broksum-metric-item">
+                            <span class="metric-label">Rasio Buy / Sell</span>
+                            <span class="metric-val" id="broksum-ratio">42% / 58%</span>
+                        </div>
+                    </div>
+
+                    <!-- Comparison Ratio Bar -->
+                    <div class="broksum-ratio-bar-container">
+                        <div id="broksum-ratio-buy" class="ratio-buy-bar" style="width: 50%;"></div>
+                        <div id="broksum-ratio-sell" class="ratio-sell-bar" style="width: 50%;"></div>
+                    </div>
+
+                    <!-- Two-Column Side-by-Side Tables -->
+                    <div class="broksum-columns">
+                        <!-- Left Column: Top Buyers (Hijau) -->
+                        <div class="broksum-col buyer-col">
+                            <div class="col-header">
+                                <span class="col-title green">🟢 TOP BUYERS</span>
+                                <span class="col-sub" id="broksum-total-buy">Total: Rp 0 B</span>
+                            </div>
+                            <div class="table-header">
+                                <span class="th-broker">Broker</span>
+                                <span class="th-vol">Lot</span>
+                                <span class="th-val">Val</span>
+                                <span class="th-avg">Avg</span>
+                            </div>
+                            <div class="broksum-list" id="broksum-buyers-list">
+                                <!-- Populated dynamically via JS -->
+                            </div>
+                        </div>
+
+                        <!-- Right Column: Top Sellers (Merah) -->
+                        <div class="broksum-col seller-col">
+                            <div class="col-header">
+                                <span class="col-title red">🔴 TOP SELLERS</span>
+                                <span class="col-sub" id="broksum-total-sell">Total: Rp 0 B</span>
+                            </div>
+                            <div class="table-header">
+                                <span class="th-broker">Broker</span>
+                                <span class="th-vol">Lot</span>
+                                <span class="th-val">Val</span>
+                                <span class="th-avg">Avg</span>
+                            </div>
+                            <div class="broksum-list" id="broksum-sellers-list">
+                                <!-- Populated dynamically via JS -->
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Metrics Bar -->
-                <div class="broksum-metrics-card">
-                    <div class="broksum-metric-item">
-                        <span class="metric-label">Net Flow Bandar</span>
-                        <span class="metric-val" id="broksum-netflow">-Rp 80.7 B</span>
+                <!-- Tab Pane 2: Historical Data Table (Gambar 3 Stockbit) -->
+                <div id="tab-pane-history" class="broksum-tab-pane hidden">
+                    <div class="history-controls">
+                        <div class="history-tf-pills">
+                            <button class="history-tf-pill active" data-tf="daily">Daily</button>
+                            <button class="history-tf-pill" data-tf="weekly">Weekly</button>
+                            <button class="history-tf-pill" data-tf="monthly">Monthly</button>
+                        </div>
+                        <span class="history-info-label" id="history-row-count">Memuat riwayat harga...</span>
                     </div>
-                    <div class="broksum-metric-item">
-                        <span class="metric-label">Harga Modal (HMB)</span>
-                        <span class="metric-val gold" id="broksum-hmb">Rp 3.351</span>
-                    </div>
-                    <div class="broksum-metric-item">
-                        <span class="metric-label">Rasio Buy / Sell</span>
-                        <span class="metric-val" id="broksum-ratio">42% / 58%</span>
+                    <div class="history-table-container">
+                        <table class="history-table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Close</th>
+                                    <th>Change</th>
+                                    <th>Value</th>
+                                </tr>
+                            </thead>
+                            <tbody id="history-table-body">
+                                <!-- Populated dynamically via JS -->
+                            </tbody>
+                        </table>
                     </div>
                 </div>
 
-                <!-- Comparison Ratio Bar -->
-                <div class="broksum-ratio-bar-container">
-                    <div id="broksum-ratio-buy" class="ratio-buy-bar" style="width: 50%;"></div>
-                    <div id="broksum-ratio-sell" class="ratio-sell-bar" style="width: 50%;"></div>
-                </div>
+                <!-- Tab Pane 3: Broker Flow Multi-Line Visualizer (Gambar 1 Stockbit) -->
+                <div id="tab-pane-flow" class="broksum-tab-pane hidden">
+                    <!-- Top Acc / Dist Gauge Meter -->
+                    <div class="flow-meter-container">
+                        <div class="flow-meter-labels">
+                            <span class="meter-lbl dist">Net Dist</span>
+                            <span class="meter-status" id="flow-meter-status">Net Flow: 0 B</span>
+                            <span class="meter-lbl acc">Net Acc</span>
+                        </div>
+                        <div class="flow-meter-bar">
+                            <div id="flow-meter-fill" class="flow-meter-fill" style="left: 50%; width: 2px;"></div>
+                        </div>
+                    </div>
 
-                <!-- Two-Column Side-by-Side Tables -->
-                <div class="broksum-columns">
-                    <!-- Left Column: Top Buyers (Hijau) -->
-                    <div class="broksum-col buyer-col">
-                        <div class="col-header">
-                            <span class="col-title green">🟢 TOP BUYERS</span>
-                            <span class="col-sub" id="broksum-total-buy">Total: Rp 0 B</span>
+                    <!-- Filter Controls (Metric & Timeframe) -->
+                    <div class="flow-controls-row">
+                        <div class="flow-metric-toggle">
+                            <button class="flow-btn active" data-metric="val">Value</button>
+                            <button class="flow-btn" data-metric="vol">Volume</button>
                         </div>
-                        <div class="table-header">
-                            <span class="th-broker">Broker</span>
-                            <span class="th-vol">Lot</span>
-                            <span class="th-val">Val</span>
-                            <span class="th-avg">Avg</span>
+                        <div class="flow-tf-pills">
+                            <button class="flow-tf-pill" data-days="7">1W</button>
+                            <button class="flow-tf-pill active" data-days="30">1M</button>
+                            <button class="flow-tf-pill" data-days="60">3M</button>
+                            <button class="flow-tf-pill" data-days="120">6M</button>
                         </div>
-                        <div class="broksum-list" id="broksum-buyers-list">
+                    </div>
+
+                    <!-- Flow Canvas Chart -->
+                    <div class="flow-chart-wrapper">
+                        <canvas id="broker-flow-canvas" height="200"></canvas>
+                        <div id="flow-tooltip" class="flow-tooltip hidden"></div>
+                    </div>
+
+                    <!-- Broker Selector Chips -->
+                    <div class="flow-chips-section">
+                        <span class="flow-chips-title">Broker Flow (Tap chip untuk toggle):</span>
+                        <div id="flow-broker-chips" class="flow-chips-container">
                             <!-- Populated dynamically via JS -->
                         </div>
                     </div>
+                </div>
 
-                    <!-- Right Column: Top Sellers (Merah) -->
-                    <div class="broksum-col seller-col">
-                        <div class="col-header">
-                            <span class="col-title red">🔴 TOP SELLERS</span>
-                            <span class="col-sub" id="broksum-total-sell">Total: Rp 0 B</span>
+                <!-- Tab Pane 4: Broker Daily Activity Calendar (Gambar 2 Stockbit) -->
+                <div id="tab-pane-activity" class="broksum-tab-pane hidden">
+                    <!-- Broker & Month Selectors -->
+                    <div class="activity-filter-bar">
+                        <div class="activity-broker-select-wrap">
+                            <label for="activity-broker-select">Broker:</label>
+                            <select id="activity-broker-select" class="form-select activity-select">
+                                <!-- Populated dynamically e.g. XL, CC, YP -->
+                            </select>
                         </div>
-                        <div class="table-header">
-                            <span class="th-broker">Broker</span>
-                            <span class="th-vol">Lot</span>
-                            <span class="th-val">Val</span>
-                            <span class="th-avg">Avg</span>
+                        <div class="activity-month-nav">
+                            <button id="btn-activity-prev-month" class="activity-nav-btn" title="Bulan Sebelumnya">◀</button>
+                            <span id="activity-month-label" class="activity-month-title">October 2026</span>
+                            <button id="btn-activity-next-month" class="activity-nav-btn" title="Bulan Selanjutnya">▶</button>
                         </div>
-                        <div class="broksum-list" id="broksum-sellers-list">
+                    </div>
+
+                    <!-- Activity Summary Card -->
+                    <div class="activity-summary-card">
+                        <div class="activity-sum-item">
+                            <span class="act-sum-label">Net Transaksi</span>
+                            <span id="act-sum-val" class="act-sum-val">--</span>
+                        </div>
+                        <div class="activity-sum-item">
+                            <span class="act-sum-label">Volume Bersih</span>
+                            <span id="act-sum-vol" class="act-sum-val">--</span>
+                        </div>
+                        <div class="activity-sum-item">
+                            <span class="act-sum-label">Hari Akumulasi</span>
+                            <span id="act-sum-days" class="act-sum-val">--</span>
+                        </div>
+                    </div>
+
+                    <!-- Calendar Grid -->
+                    <div class="activity-calendar">
+                        <div class="activity-cal-weekdays">
+                            <span>MON</span><span>TUE</span><span>WED</span><span>THU</span><span>FRI</span>
+                        </div>
+                        <div id="activity-calendar-grid" class="activity-cal-grid">
                             <!-- Populated dynamically via JS -->
                         </div>
                     </div>

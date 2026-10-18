@@ -411,3 +411,357 @@ def get_broksum_range(symbol: str, from_date: Optional[str] = None, to_date: Opt
             "top_sellers": top_sellers
         }
     }
+
+
+def get_historical_price_table(symbol: str, timeframe: str = "daily", limit: int = 60) -> Dict[str, Any]:
+    """
+    Mengambil tabel data historis harga saham & turnover (Gambar 3 Stockbit):
+    Date | Close | Change | Value (Turnover)
+    Mendukung timeframe: 'daily', 'weekly', 'monthly'.
+    """
+    clean_sym = clean_symbol(symbol)
+    engine = get_db_engine()
+    if not engine:
+        return {"success": False, "symbol": clean_sym, "data": []}
+
+    try:
+        with engine.connect() as conn:
+            # 1. Ambil riwayat harga harian
+            q_price = text("""
+                SELECT tanggal as date, open, high, low, close, volume
+                FROM harga_saham
+                WHERE ticker = :ticker
+                ORDER BY tanggal DESC
+                LIMIT 300
+            """)
+            df_price = pd.read_sql(q_price, conn, params={"ticker": clean_sym})
+
+            # 2. Ambil turnover harian dari broker_summary
+            q_turnover = text("""
+                SELECT date, SUM(buy_val) as turnover
+                FROM broker_summary
+                WHERE ticker = :ticker
+                GROUP BY date
+            """)
+            df_turnover = pd.read_sql(q_turnover, conn, params={"ticker": clean_sym})
+
+        if df_price.empty:
+            return {"success": True, "symbol": clean_sym, "timeframe": timeframe, "data": []}
+
+        df_price['date'] = pd.to_datetime(df_price['date'])
+        if not df_turnover.empty:
+            df_turnover['date'] = pd.to_datetime(df_turnover['date'])
+            merged = pd.merge(df_price, df_turnover, on='date', how='left')
+        else:
+            merged = df_price.copy()
+            merged['turnover'] = 0.0
+
+        # Fallback turnover jika dari broker_summary kosong: close * volume * 100
+        merged['turnover'] = merged['turnover'].fillna(merged['close'] * merged['volume'] * 100.0)
+        merged = merged.sort_values('date', ascending=True)
+
+        tf = (timeframe or "daily").lower().strip()
+        if tf == "weekly":
+            merged['period'] = merged['date'].dt.to_period('W-FRI')
+            resampled = merged.groupby('period').agg({
+                'date': 'last',
+                'open': 'first',
+                'high': 'max',
+                'low': 'min',
+                'close': 'last',
+                'volume': 'sum',
+                'turnover': 'sum'
+            }).reset_index(drop=True)
+            df_final = resampled
+        elif tf == "monthly":
+            merged['period'] = merged['date'].dt.to_period('M')
+            resampled = merged.groupby('period').agg({
+                'date': 'last',
+                'open': 'first',
+                'high': 'max',
+                'low': 'min',
+                'close': 'last',
+                'volume': 'sum',
+                'turnover': 'sum'
+            }).reset_index(drop=True)
+            df_final = resampled
+        else:
+            df_final = merged
+
+        df_final['prev_close'] = df_final['close'].shift(1)
+        df_final['change'] = df_final['close'] - df_final['prev_close']
+        df_final['change_pct'] = ((df_final['change'] / df_final['prev_close']) * 100.0).fillna(0.0)
+
+        # Urutkan dari yang paling baru ke lama
+        df_final = df_final.sort_values('date', ascending=False).head(limit)
+
+        records = []
+        for _, r in df_final.iterrows():
+            d_obj = pd.to_datetime(r['date'])
+            d_display = d_obj.strftime("%d %b %y")
+            val = float(r['turnover'] or 0.0)
+
+            if val >= 1e12:
+                val_str = f"{val / 1e12:.2f} B"
+            elif val >= 1e9:
+                val_str = f"{val / 1e9:.2f} B"
+            elif val >= 1e6:
+                val_str = f"{val / 1e6:.2f} M"
+            else:
+                val_str = f"{val:,.0f}"
+
+            chg = float(r['change'] if pd.notna(r['change']) else 0.0)
+            chg_pct = float(r['change_pct'] if pd.notna(r['change_pct']) else 0.0)
+            sign = '+' if chg > 0 else ''
+
+            records.append({
+                "date": d_obj.strftime("%Y-%m-%d"),
+                "date_display": d_display,
+                "close": int(round(r['close'])) if r['close'] >= 1 else round(r['close'], 2),
+                "change": chg,
+                "change_pct": round(chg_pct, 2),
+                "change_display": f"{sign}{int(chg) if abs(chg) >= 1 else chg} ({sign}{chg_pct:.2f}%)",
+                "value": val,
+                "value_display": val_str,
+                "volume": int(r['volume'] or 0)
+            })
+
+        return {
+            "success": True,
+            "symbol": clean_sym,
+            "timeframe": tf,
+            "count": len(records),
+            "data": records
+        }
+    except Exception as e:
+        logger.error(f"Error fetching historical price table for {clean_sym}: {e}")
+        return {"success": False, "symbol": clean_sym, "error": str(e), "data": []}
+
+
+def get_broker_daily_activity(symbol: str, broker_code: str, month_str: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Mengambil kalender aktivitas harian untuk satu broker tertentu (Gambar 2 Stockbit):
+    Menampilkan transaksi harian (Net Val, Net Vol, Avg Price, status BUY/SELL).
+    """
+    clean_sym = clean_symbol(symbol)
+    clean_brk = (broker_code or "XL").strip().upper()
+    df = get_raw_broker_df(clean_sym)
+
+    if df is None or df.empty:
+        return {
+            "success": True,
+            "symbol": clean_sym,
+            "broker": clean_brk,
+            "broker_code": clean_brk,
+            "month": month_str or now_wib().strftime("%Y-%m"),
+            "available_months": [],
+            "available_brokers": [],
+            "trading_days": 0,
+            "accum_days": 0,
+            "monthly_net_val": 0.0,
+            "monthly_net_vol": 0,
+            "daily_activity": [],
+            "days": {},
+            "summary": {"total_net_val": 0, "total_net_vol": 0, "buy_days": 0, "sell_days": 0}
+        }
+
+    # Available months & brokers
+    df['month'] = df['date'].dt.strftime("%Y-%m")
+    available_months = sorted(df['month'].unique().tolist(), reverse=True)
+    
+    # Broker list diurutkan dari yang paling aktif (total net volume atau buy volume)
+    top_brks = df.groupby('broker_code')['buy_vol'].sum().sort_values(ascending=False).head(30).index.tolist()
+    if clean_brk not in top_brks and clean_brk in df['broker_code'].values:
+        top_brks.insert(0, clean_brk)
+
+    target_month = month_str if (month_str and month_str in available_months) else (available_months[0] if available_months else now_wib().strftime("%Y-%m"))
+    
+    df_filtered = df[(df['broker_code'] == clean_brk) & (df['month'] == target_month)].sort_values('date', ascending=True)
+
+    days_data = {}
+    tot_val = 0.0
+    tot_vol = 0
+    buy_days = 0
+    sell_days = 0
+
+    for _, r in df_filtered.iterrows():
+        d_str = r['date'].strftime("%Y-%m-%d")
+        net_v = int(r['net_vol'])
+        net_val = float(r['net_val'])
+        buy_vol = int(r['buy_vol']) if 'buy_vol' in r else 0
+        buy_val = float(r['buy_val']) if 'buy_val' in r else 0.0
+        sell_vol = int(r['sell_vol']) if 'sell_vol' in r else 0
+        sell_val = float(r['sell_val']) if 'sell_val' in r else 0.0
+
+        if net_val >= 0:
+            avg_p = round(buy_val / (buy_vol * 100)) if buy_vol > 0 else (round(net_val / (net_v * 100)) if net_v > 0 else 0)
+            status_act = "BUY"
+            if net_val > 0:
+                buy_days += 1
+        else:
+            avg_p = round(sell_val / (sell_vol * 100)) if sell_vol > 0 else (round(abs(net_val) / (abs(net_v) * 100)) if net_v < 0 else 0)
+            status_act = "SELL"
+            sell_days += 1
+
+        val_abs = abs(net_val)
+        if val_abs >= 1e9:
+            val_disp = f"{val_abs / 1e9:.1f}B"
+        elif val_abs >= 1e6:
+            val_disp = f"{val_abs / 1e6:.1f}M"
+        elif val_abs >= 1e3:
+            val_disp = f"{val_abs / 1e3:.0f}K"
+        else:
+            val_disp = f"{val_abs:.0f}"
+
+        vol_abs = abs(net_v)
+        if vol_abs >= 1000:
+            vol_disp = f"{vol_abs / 1000:.1f}K Lot"
+        else:
+            vol_disp = f"{vol_abs} Lot"
+
+        days_data[d_str] = {
+            "date": d_str,
+            "day": r['date'].day,
+            "net_vol": net_v,
+            "net_vol_display": vol_disp,
+            "net_val": net_val,
+            "net_val_display": val_disp,
+            "avg_price": avg_p,
+            "status": status_act,
+            "buy_vol": buy_vol,
+            "sell_vol": sell_vol
+        }
+        tot_val += net_val
+        tot_vol += net_v
+
+    return {
+        "success": True,
+        "symbol": clean_sym,
+        "broker": clean_brk,
+        "broker_code": clean_brk,
+        "month": target_month,
+        "available_months": available_months,
+        "available_brokers": top_brks,
+        "trading_days": len(days_data),
+        "accum_days": buy_days,
+        "monthly_net_val": tot_val,
+        "monthly_net_vol": tot_vol,
+        "daily_activity": list(days_data.values()),
+        "summary": {
+            "total_net_val": tot_val,
+            "total_net_vol": tot_vol,
+            "buy_days": buy_days,
+            "sell_days": sell_days
+        },
+        "days": days_data
+    }
+
+
+def get_broker_flow(symbol: str, days: int = 30, metric: str = "val", broker_list: Optional[List[str]] = None) -> Dict[str, Any]:
+    """
+    Mengambil data garis visualisasi akumulasi/distribusi kumulatif per broker (Gambar 1 Stockbit):
+    Nilai kumulatif per tanggal untuk Top Accumulators & Top Distributors (atau broker terpilih).
+    """
+    clean_sym = clean_symbol(symbol)
+    df = get_raw_broker_df(clean_sym)
+
+    if df is None or df.empty:
+        return {
+            "success": True,
+            "symbol": clean_sym,
+            "dates": [],
+            "series": {},
+            "series_list": [],
+            "top_brokers": [],
+            "top_buyers": [],
+            "top_sellers": [],
+            "summary": {"net_flow": 0, "total_buy": 0, "total_sell": 0, "status": "NEUTRAL"},
+            "meter": {"acc_pct": 50, "dist_pct": 50, "net_status": "NEUTRAL", "net_flow": 0}
+        }
+
+    all_dates = sorted(df['date'].unique())
+    target_dates = all_dates[-days:] if len(all_dates) >= days else all_dates
+    df_window = df[df['date'].isin(target_dates)].copy()
+
+    val_col = 'net_val' if metric == 'val' else 'net_vol'
+    piv = df_window.pivot_table(index='date', columns='broker_code', values=val_col, fill_value=0)
+    cum_flow = piv.cumsum()
+
+    # Hitung total akhir tiap broker untuk menentukan Top 5 Buyers & Top 5 Sellers
+    latest_totals = cum_flow.iloc[-1]
+    top_buyers = latest_totals[latest_totals > 0].nlargest(5).index.tolist()
+    top_sellers = latest_totals[latest_totals < 0].nsmallest(5).index.tolist()
+
+    if broker_list and len(broker_list) > 0:
+        selected_brokers = [b.upper() for b in broker_list if b.upper() in cum_flow.columns]
+    else:
+        # Default: Top 3 Buyers & Top 3 Sellers
+        selected_brokers = (top_buyers[:3] + top_sellers[:3])
+
+    # Warna khas untuk garis broker (Stockbit style)
+    PALETTE = [
+        "#a855f7", # CC - Purple
+        "#ec4899", # YU - Pink
+        "#eab308", # SQ - Yellow
+        "#f97316", # MG - Orange
+        "#22c55e", # XL - Green
+        "#06b6d4", # NI - Cyan
+        "#3b82f6", # PD - Blue
+        "#ef4444", # YP - Red
+        "#14b8a6", # CS - Teal
+        "#f43f5e"  # BK - Rose
+    ]
+
+    dates_str = [pd.to_datetime(d).strftime("%Y-%m-%d") for d in cum_flow.index]
+    series = []
+    for i, brk in enumerate(selected_brokers):
+        if brk not in cum_flow.columns:
+            continue
+        vals = [round(float(v), 2) for v in cum_flow[brk].values]
+        final_val = vals[-1] if vals else 0
+        series.append({
+            "broker": brk,
+            "color": PALETTE[i % len(PALETTE)],
+            "data": vals,
+            "final_val": final_val,
+            "is_buyer": final_val >= 0
+        })
+
+    # Meter Net Distribution vs Net Accumulation
+    tot_pos = float(latest_totals[latest_totals > 0].sum())
+    tot_neg = abs(float(latest_totals[latest_totals < 0].sum()))
+    total_flow = tot_pos + tot_neg
+    acc_pct = round((tot_pos / total_flow) * 100, 1) if total_flow > 0 else 50.0
+    dist_pct = round((tot_neg / total_flow) * 100, 1) if total_flow > 0 else 50.0
+
+    top_brokers = list(dict.fromkeys(top_buyers + top_sellers))
+    series_dict = {s["broker"]: s["data"] for s in series}
+
+    summary_flow = {
+        "net_flow": round(tot_pos - tot_neg),
+        "total_buy": tot_pos,
+        "total_sell": tot_neg,
+        "status": "ACCUM" if tot_pos > tot_neg else "DISTRIB"
+    }
+
+    return {
+        "success": True,
+        "symbol": clean_sym,
+        "metric": metric,
+        "days": len(target_dates),
+        "dates": dates_str,
+        "series": series_dict,
+        "series_list": series,
+        "top_brokers": top_brokers,
+        "available_brokers": sorted(df['broker_code'].unique().tolist()),
+        "top_buyers": top_buyers,
+        "top_sellers": top_sellers,
+        "summary": summary_flow,
+        "meter": {
+            "acc_pct": acc_pct,
+            "dist_pct": dist_pct,
+            "net_flow": round(tot_pos - tot_neg),
+            "status": "ACCUM" if tot_pos > tot_neg else "DISTRIB"
+        }
+    }
+

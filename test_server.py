@@ -311,3 +311,72 @@ def test_doc_reader_ui_elements():
     assert "marked.parse" in res_js.text
 
 
+def test_api_stock_historical_data_bbri():
+    res = client.get("/api/stock/historical-data?symbol=BBRI&timeframe=daily&limit=20")
+    assert res.status_code == 200
+    data = res.json()
+    assert data.get("success") is True
+    assert data.get("symbol") == "BBRI"
+    assert data.get("timeframe") == "daily"
+    assert "data" in data
+    assert isinstance(data["data"], list)
+    if data["data"]:
+        first = data["data"][0]
+        assert "date" in first
+        assert "close" in first
+        assert "change_pct" in first
+        assert "value" in first
+
+
+def test_api_bandarmologi_broker_activity_bbri():
+    res = client.get("/api/bandarmologi/broker-activity?symbol=BBRI&broker_code=XL")
+    assert res.status_code == 200
+    data = res.json()
+    assert data.get("success") is True
+    assert data.get("symbol") == "BBRI"
+    assert data.get("broker_code") == "XL"
+    assert "month" in data
+    assert "trading_days" in data
+    assert "monthly_net_vol" in data
+    assert "monthly_net_val" in data
+    assert "daily_activity" in data
+    assert isinstance(data["daily_activity"], list)
+
+
+def test_api_bandarmologi_broker_flow_bbri():
+    res = client.get("/api/bandarmologi/broker-flow?symbol=BBRI&days=30&metric=val")
+    assert res.status_code == 200
+    data = res.json()
+    assert data.get("success") is True
+    assert data.get("symbol") == "BBRI"
+    assert data.get("metric") == "val"
+    assert "dates" in data
+    assert "series" in data
+    assert "top_brokers" in data
+    assert "summary" in data
+    assert isinstance(data["dates"], list)
+    assert isinstance(data["top_brokers"], list)
+
+
+def test_order_flow_ui_elements():
+    res_html = client.get("/")
+    assert res_html.status_code == 200
+    assert "broksum-nav-tabs" in res_html.text
+    assert "tab-pane-summary" in res_html.text
+    assert "tab-pane-history" in res_html.text
+    assert "tab-pane-flow" in res_html.text
+    assert "tab-pane-activity" in res_html.text
+    assert "ticker-board-badge" in res_html.text
+    assert "broker-flow-canvas" in res_html.text
+    assert "activity-calendar-grid" in res_html.text
+
+    res_js = client.get("/js/chart.js")
+    assert res_js.status_code == 200
+    assert "setupBroksumSubTabEvents" in res_js.text
+    assert "loadHistoryTable" in res_js.text
+    assert "loadBrokerFlow" in res_js.text
+    assert "loadBrokerActivity" in res_js.text
+    assert "renderActivityCalendar" in res_js.text
+
+
+

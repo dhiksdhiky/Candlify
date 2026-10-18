@@ -32,8 +32,14 @@ sys.path.insert(0, BASE_DIR)
 
 from pydantic import BaseModel, Field
 from lib.history import get_candlesticks
-from lib.bandarmologi import get_bandarmologi, get_broksum_range
-from lib.screener import get_screened_stocks, get_pre_breakout_signals
+from lib.bandarmologi import (
+    get_bandarmologi,
+    get_broksum_range,
+    get_historical_price_table,
+    get_broker_daily_activity,
+    get_broker_flow
+)
+from lib.screener import get_screened_stocks, get_pre_breakout_signals, get_stock_board_map
 from lib.database_monitor import get_database_metrics, process_saham_excel, get_calendar_history
 from lib.portfolio import (
     get_all_watchlists,
@@ -215,6 +221,12 @@ def api_history(
         response.headers["Cache-Control"] = "public, s-maxage=60, stale-while-revalidate=300"
         response.headers["X-Data-Status"] = "fresh"
 
+    b_map = get_stock_board_map()
+    sym_clean = result.get("symbol", "").upper()
+    board_val = b_map.get(sym_clean, "Pengembangan")
+    result["board"] = board_val
+    result["is_fca"] = ("Pemantauan" in board_val)
+
     return result
 
 @app.get("/api/bandarmologi")
@@ -240,6 +252,12 @@ def api_bandarmologi(
     if not result.get("success", False):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=result.get("error", "Data broker summary tidak ditemukan"))
 
+    b_map = get_stock_board_map()
+    sym_clean = result.get("symbol", "").upper()
+    board_val = b_map.get(sym_clean, "Pengembangan")
+    result["board"] = board_val
+    result["is_fca"] = ("Pemantauan" in board_val)
+
     response.headers["Cache-Control"] = "public, s-maxage=60, stale-while-revalidate=300"
     return result
 
@@ -263,6 +281,80 @@ def api_bandarmologi_broksum(
 
     if not result.get("success", False):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=result.get("error", "Data broker summary tidak ditemukan"))
+
+    response.headers["Cache-Control"] = "public, s-maxage=60, stale-while-revalidate=300"
+    return result
+
+@app.get("/api/stock/historical-data")
+def api_stock_historical_data(
+    response: Response,
+    symbol: str = Query(..., description="Kode saham (e.g. BBRI, PGJO)"),
+    timeframe: str = Query("daily", description="Timeframe: daily, weekly, monthly"),
+    limit: int = Query(60, ge=1, le=200, description="Jumlah baris data")
+):
+    """
+    Endpoint Tabel Riwayat Harga Saham & Turnover (Gambar 3 Stockbit):
+    Date | Close | Change | Value (Turnover).
+    """
+    try:
+        result = get_historical_price_table(symbol=symbol, timeframe=timeframe, limit=limit)
+    except ValueError as val_err:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(val_err))
+    except Exception as err:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Internal Server Error: {err}")
+
+    if not result.get("success", False):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=result.get("error", "Data historis tidak ditemukan"))
+
+    response.headers["Cache-Control"] = "public, s-maxage=60, stale-while-revalidate=300"
+    return result
+
+@app.get("/api/bandarmologi/broker-activity")
+def api_broker_activity(
+    response: Response,
+    symbol: str = Query(..., description="Kode saham (e.g. BBRI, PGJO)"),
+    broker: str = Query("XL", description="Kode broker sekuritas (e.g. XL, CC, YP)"),
+    month: Optional[str] = Query(None, description="Bulan (YYYY-MM), e.g. 2026-10")
+):
+    """
+    Endpoint Kalender Aktivitas Harian Broker Spesifik (Gambar 2 Stockbit):
+    Menampilkan jejak beli/jual, lot, avg price, dan status per tanggal bursa.
+    """
+    try:
+        result = get_broker_daily_activity(symbol=symbol, broker_code=broker, month_str=month)
+    except ValueError as val_err:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(val_err))
+    except Exception as err:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Internal Server Error: {err}")
+
+    if not result.get("success", False):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=result.get("error", "Data aktivitas broker tidak ditemukan"))
+
+    response.headers["Cache-Control"] = "public, s-maxage=60, stale-while-revalidate=300"
+    return result
+
+@app.get("/api/bandarmologi/broker-flow")
+def api_broker_flow(
+    response: Response,
+    symbol: str = Query(..., description="Kode saham (e.g. BBRI, PGJO)"),
+    days: int = Query(30, ge=5, le=180, description="Jumlah hari bursa lookback"),
+    metric: str = Query("val", description="Metrik: 'val' (Rupiah) atau 'vol' (Lot)"),
+    brokers: Optional[str] = Query(None, description="Kode broker koma-terpisah e.g. CC,YU,XL,MG,SQ")
+):
+    """
+    Endpoint Garis Visualisasi Akumulasi/Distribusi Multi-Broker (Gambar 1 Stockbit):
+    Menghitung saldo flow kumulatif per tanggal untuk perbandingan visual.
+    """
+    try:
+        broker_list = [b.strip().upper() for b in brokers.split(",") if b.strip()] if brokers else None
+        result = get_broker_flow(symbol=symbol, days=days, metric=metric, broker_list=broker_list)
+    except ValueError as val_err:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(val_err))
+    except Exception as err:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Internal Server Error: {err}")
+
+    if not result.get("success", False):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=result.get("error", "Data broker flow tidak ditemukan"))
 
     response.headers["Cache-Control"] = "public, s-maxage=60, stale-while-revalidate=300"
     return result
