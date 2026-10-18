@@ -293,38 +293,55 @@ def sync_daftar_saham_bulk(daftar_rows: List[Dict[str, Any]]) -> int:
         return 0
 
     dialect = get_dialect()
-    if dialect == "sqlite":
-        upsert_stmt = text("""
-            INSERT INTO daftar_saham (
-                kode, no, nama_perusahaan, saham, tradeable_shares, papan_pencatatan, notasi_khusus, tanggal_update
-            ) VALUES (
-                :kode, :no, :nama_perusahaan, :saham, :tradeable_shares, :papan_pencatatan, :notasi_khusus, CURRENT_DATE
-            )
-            ON CONFLICT (kode) DO UPDATE SET
-                no = EXCLUDED.no,
-                nama_perusahaan = EXCLUDED.nama_perusahaan,
-                saham = EXCLUDED.saham,
-                tradeable_shares = EXCLUDED.tradeable_shares,
-                papan_pencatatan = EXCLUDED.papan_pencatatan,
-                notasi_khusus = EXCLUDED.notasi_khusus,
-                tanggal_update = CURRENT_DATE
-        """)
-    else:
-        upsert_stmt = text("""
-            INSERT INTO daftar_saham (
-                kode, no, nama_perusahaan, saham, tradeable_shares, papan_pencatatan, notasi_khusus, tanggal_update
-            ) VALUES (
-                :kode, :no, :nama_perusahaan, :saham, :tradeable_shares, :papan_pencatatan, :notasi_khusus, CURRENT_DATE
-            )
-            ON CONFLICT (kode) DO UPDATE SET
-                no = EXCLUDED.no,
-                nama_perusahaan = EXCLUDED.nama_perusahaan,
-                saham = EXCLUDED.saham,
-                tradeable_shares = EXCLUDED.tradeable_shares,
-                papan_pencatatan = EXCLUDED.papan_pencatatan,
-                notasi_khusus = EXCLUDED.notasi_khusus,
-                tanggal_update = CURRENT_DATE
-        """)
+    if dialect == "postgresql":
+        try:
+            from psycopg2.extras import execute_values
+            raw_conn = engine.raw_connection()
+            cursor = raw_conn.cursor()
+            sql = """
+                INSERT INTO daftar_saham (
+                    kode, no, nama_perusahaan, saham, tradeable_shares, papan_pencatatan, notasi_khusus, tanggal_update
+                ) VALUES %s
+                ON CONFLICT (kode) DO UPDATE SET
+                    no = EXCLUDED.no,
+                    nama_perusahaan = EXCLUDED.nama_perusahaan,
+                    saham = EXCLUDED.saham,
+                    tradeable_shares = EXCLUDED.tradeable_shares,
+                    papan_pencatatan = EXCLUDED.papan_pencatatan,
+                    notasi_khusus = EXCLUDED.notasi_khusus,
+                    tanggal_update = CURRENT_DATE
+            """
+            data_tuples = [
+                (
+                    r["kode"], r["no"], r["nama_perusahaan"], r["saham"],
+                    r["tradeable_shares"], r["papan_pencatatan"], r["notasi_khusus"],
+                    date.today()
+                )
+                for r in daftar_rows
+            ]
+            execute_values(cursor, sql, data_tuples, page_size=1000)
+            raw_conn.commit()
+            raw_conn.close()
+            logger.info("✅ Master emiten tersinkronisasi (fast execute_values): %d emiten.", len(daftar_rows))
+            return len(daftar_rows)
+        except Exception as pg_err:
+            logger.warning("⚠️ execute_values gagal (%s), fallback ke standard execute...", pg_err)
+
+    upsert_stmt = text("""
+        INSERT INTO daftar_saham (
+            kode, no, nama_perusahaan, saham, tradeable_shares, papan_pencatatan, notasi_khusus, tanggal_update
+        ) VALUES (
+            :kode, :no, :nama_perusahaan, :saham, :tradeable_shares, :papan_pencatatan, :notasi_khusus, CURRENT_DATE
+        )
+        ON CONFLICT (kode) DO UPDATE SET
+            no = EXCLUDED.no,
+            nama_perusahaan = EXCLUDED.nama_perusahaan,
+            saham = EXCLUDED.saham,
+            tradeable_shares = EXCLUDED.tradeable_shares,
+            papan_pencatatan = EXCLUDED.papan_pencatatan,
+            notasi_khusus = EXCLUDED.notasi_khusus,
+            tanggal_update = CURRENT_DATE
+    """)
 
     with engine.begin() as conn:
         conn.execute(upsert_stmt, daftar_rows)
@@ -339,6 +356,53 @@ def sync_harga_saham_bulk(harga_rows: List[Dict[str, Any]]) -> int:
         return 0
 
     dialect = get_dialect()
+    if dialect == "postgresql":
+        try:
+            from psycopg2.extras import execute_values
+            raw_conn = engine.raw_connection()
+            cursor = raw_conn.cursor()
+            sql = """
+                INSERT INTO harga_saham (
+                    ticker, tanggal, open, high, low, close, volume,
+                    value, frequency, foreign_buy, foreign_sell, foreign_net,
+                    offer, offer_volume, bid, bid_volume,
+                    non_regular_volume, non_regular_value
+                ) VALUES %s
+                ON CONFLICT (ticker, tanggal) DO UPDATE SET
+                    open = EXCLUDED.open,
+                    high = EXCLUDED.high,
+                    low = EXCLUDED.low,
+                    close = EXCLUDED.close,
+                    volume = EXCLUDED.volume,
+                    value = EXCLUDED.value,
+                    frequency = EXCLUDED.frequency,
+                    foreign_buy = EXCLUDED.foreign_buy,
+                    foreign_sell = EXCLUDED.foreign_sell,
+                    foreign_net = EXCLUDED.foreign_net,
+                    offer = EXCLUDED.offer,
+                    offer_volume = EXCLUDED.offer_volume,
+                    bid = EXCLUDED.bid,
+                    bid_volume = EXCLUDED.bid_volume,
+                    non_regular_volume = EXCLUDED.non_regular_volume,
+                    non_regular_value = EXCLUDED.non_regular_value
+            """
+            data_tuples = [
+                (
+                    r["ticker"], r["tanggal"], r["open"], r["high"], r["low"], r["close"], r["volume"],
+                    r["value"], r["frequency"], r["foreign_buy"], r["foreign_sell"], r["foreign_net"],
+                    r["offer"], r["offer_volume"], r["bid"], r["bid_volume"],
+                    r["non_regular_volume"], r["non_regular_value"]
+                )
+                for r in harga_rows
+            ]
+            execute_values(cursor, sql, data_tuples, page_size=1000)
+            raw_conn.commit()
+            raw_conn.close()
+            logger.info("✅ Harga & flow harian tersinkronisasi (fast execute_values): %d baris.", len(harga_rows))
+            return len(harga_rows)
+        except Exception as pg_err:
+            logger.warning("⚠️ execute_values gagal (%s), fallback ke standard execute...", pg_err)
+
     upsert_stmt = text("""
         INSERT INTO harga_saham (
             ticker, tanggal, open, high, low, close, volume,

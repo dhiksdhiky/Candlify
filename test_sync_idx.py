@@ -251,3 +251,25 @@ class TestDatabaseIntegration:
         # BBCA harus ada di b_map
         assert "BBCA" in b_map
         assert b_map["BBCA"] == "Utama"
+
+
+class TestBackfiller:
+    """Pengujian logika backfiller historis BEI."""
+
+    def test_get_existing_dates_in_db(self):
+        from worker.backfill_idx import get_existing_dates_in_db
+        dates_set = get_existing_dates_in_db()
+        assert isinstance(dates_set, set)
+        assert len(dates_set) >= 20
+        # 16 Oktober 2026 harus ada
+        assert date(2026, 10, 16) in dates_set
+
+    def test_backfill_skips_when_complete(self):
+        from worker.backfill_idx import run_backfill
+        # Ketika dijalankan untuk 5 hari bursa yang sudah lengkap, semuanya harus dilewati (0 yang baru ditarik)
+        result = run_backfill(target_trading_days=5, skip_existing=True)
+        assert result["status"] == "completed"
+        assert result["total_available_days"] == 5
+        assert result["synced_days_count"] == 0
+        assert result["skipped_existing_count"] == 5
+
