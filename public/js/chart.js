@@ -4193,25 +4193,32 @@ class CandlifyChart {
         if (this.dom.screenerCountBadge) {
             this.dom.screenerCountBadge.textContent = 'Memindai...';
         }
+        let stocksData = null;
         try {
             const pEnc = encodeURIComponent(preset);
             const sEnc = encodeURIComponent(sort);
             const resp = await fetch(`/api/screen?preset=${pEnc}&sort=${sEnc}`);
             const json = await resp.json();
             if (resp.ok && json.success && Array.isArray(json.stocks)) {
-                this.screenerStocks = json.stocks;
-                this.filterAndRenderScreener();
+                stocksData = json.stocks;
             } else {
                 if (this.dom.screenerCountBadge) {
                     this.dom.screenerCountBadge.textContent = 'Gagal';
                 }
                 this.showToast('Gagal memuat data screener', 'error');
+                return;
             }
         } catch (err) {
             console.error('Screener fetch error:', err);
             if (this.dom.screenerCountBadge) {
                 this.dom.screenerCountBadge.textContent = 'Koneksi terganggu';
             }
+            return;
+        }
+
+        if (stocksData) {
+            this.screenerStocks = stocksData;
+            this.filterAndRenderScreener();
         }
     }
 
@@ -4264,6 +4271,14 @@ class CandlifyChart {
             if (m >= 1e12) return (m / 1e12).toFixed(1) + 'T';
             if (m >= 1e9) return (m / 1e9).toFixed(1) + 'B';
             return '-';
+        };
+        const fmtVal = (val) => {
+            const absVal = Math.abs(val || 0);
+            if (absVal >= 1e12) return (absVal / 1e12).toFixed(1) + 'T';
+            if (absVal >= 1e9) return (absVal / 1e9).toFixed(1) + 'B';
+            if (absVal >= 1e6) return (absVal / 1e6).toFixed(0) + 'M';
+            if (absVal >= 1e3) return (absVal / 1e3).toFixed(0) + 'K';
+            return absVal.toLocaleString('id-ID');
         };
 
         const getDynamicMetric = (s) => {
@@ -4321,17 +4336,25 @@ class CandlifyChart {
                 ? `<span class="stock-badge-prebreakout">🎯 Base ${escapeHtml(s.range_7)}%</span>` 
                 : '';
             const boardName = s.board || s.papan_pencatatan || '';
-            const boardBadge = boardName
-                ? (boardName.includes('Pemantauan') || s.is_fca)
-                    ? `<span class="stock-badge-board badge-fca" title="Papan Pemantauan Khusus (Full Call Auction 5 Sesi)">⚠️ FCA</span>`
-                    : (boardName.includes('Akselerasi')
-                        ? `<span class="stock-badge-board badge-akselerasi" title="Papan Akselerasi">Akselerasi</span>`
-                        : (boardName.includes('Pengembangan')
-                            ? `<span class="stock-badge-board badge-pengembangan" title="Papan Pengembangan">Pengembangan</span>`
-                            : `<span class="stock-badge-board badge-utama" title="Papan Utama">Utama</span>`))
-                : '';
-            const notasiBadge = s.notasi_khusus
-                ? `<span class="stock-badge-board notasi-pill" title="Notasi Khusus BEI: ${escapeHtml(s.notasi_khusus)}">[${escapeHtml(s.notasi_khusus)}]</span>`
+            const isFca = (boardName.includes('Pemantauan') || s.is_fca);
+            
+            // Papan bursa (selain FCA/Pemantauan karena sudah diwakili notasi resmi [X])
+            let boardBadge = '';
+            if (boardName.includes('Akselerasi')) {
+                boardBadge = `<span class="stock-badge-board badge-akselerasi" title="Papan Akselerasi">Akselerasi</span>`;
+            } else if (boardName.includes('Pengembangan')) {
+                boardBadge = `<span class="stock-badge-board badge-pengembangan" title="Papan Pengembangan">Pengembangan</span>`;
+            } else if (boardName.includes('Utama')) {
+                boardBadge = `<span class="stock-badge-board badge-utama" title="Papan Utama">Utama</span>`;
+            }
+
+            // Notasi Khusus Resmi BEI (X, E, M, dll.)
+            let notasiText = (s.notasi_khusus || '').trim();
+            if (isFca && !notasiText.includes('X')) {
+                notasiText = notasiText ? `X, ${notasiText}` : 'X';
+            }
+            const notasiBadge = notasiText
+                ? `<span class="stock-badge-board notasi-pill" title="Notasi Khusus BEI: ${escapeHtml(notasiText)}">[${escapeHtml(notasiText)}]</span>`
                 : '';
             const dynamicMetricHtml = getDynamicMetric(s);
 
@@ -4924,17 +4947,25 @@ class CandlifyChart {
             const ageStr = (item.created_at ? this.getHumanAge(item.created_at) : (item.age || 'Baru'));
             const isFresh = ageStr.includes('Baru') || ageStr.includes('j lalu') || ageStr === 'Kemarin';
 
-            let boardBadge = '';
             const bName = item.board || '';
-            if (item.is_fca || bName.includes('FCA') || bName.includes('Pemantauan')) {
-                boardBadge = `<span class="stock-badge-board badge-fca" title="Papan Pemantauan Khusus / Full Call Auction">⚠️ FCA</span>`;
-            } else if (bName.includes('Utama')) {
-                boardBadge = `<span class="stock-badge-board badge-utama" title="Papan Utama">Utama</span>`;
+            const isFca = (item.is_fca || bName.includes('FCA') || bName.includes('Pemantauan'));
+
+            let boardBadge = '';
+            if (bName.includes('Akselerasi')) {
+                boardBadge = `<span class="stock-badge-board badge-akselerasi" title="Papan Akselerasi">Akselerasi</span>`;
             } else if (bName.includes('Pengembangan')) {
                 boardBadge = `<span class="stock-badge-board badge-pengembangan" title="Papan Pengembangan">Pengembangan</span>`;
-            } else if (bName.includes('Akselerasi')) {
-                boardBadge = `<span class="stock-badge-board badge-akselerasi" title="Papan Akselerasi">Akselerasi</span>`;
+            } else if (bName.includes('Utama')) {
+                boardBadge = `<span class="stock-badge-board badge-utama" title="Papan Utama">Utama</span>`;
             }
+
+            let notasiText = (item.notasi_khusus || '').trim();
+            if (isFca && !notasiText.includes('X')) {
+                notasiText = notasiText ? `X, ${notasiText}` : 'X';
+            }
+            const notasiBadge = notasiText
+                ? `<span class="stock-badge-board notasi-pill" title="Notasi Khusus BEI: ${escapeHtml(notasiText)}">[${escapeHtml(notasiText)}]</span>`
+                : '';
 
             return `
                 <div class="watchlist-card" data-id="${item.id}" data-symbol="${sym}">
@@ -4948,6 +4979,7 @@ class CandlifyChart {
                             <div class="wl-symbol-row">
                                 <span class="wl-symbol">${sym}</span>
                                 ${boardBadge}
+                                ${notasiBadge}
                                 <span class="wl-category-badge">${escapeHtml(item.category)}</span>
                             </div>
                             <div class="wl-name">${escapeHtml(name)}</div>

@@ -151,3 +151,16 @@ def test_ui_market_intelligence_elements():
     # Screener Sort Options
     assert 'value="foreign_desc"' in html
     assert 'value="whale_desc"' in html
+
+
+def test_screener_js_syntax_and_notasi():
+    """Verifikasi fmtVal terdefinisi di filterAndRenderScreener dan tidak ada badge-fca redundan."""
+    with open("public/js/chart.js", "r", encoding="utf-8") as f:
+        js = f.read()
+
+    # Pastikan fmtVal terdefinisi di dalam filterAndRenderScreener
+    assert "const fmtVal = (val) => {" in js
+    # Pastikan notasi khusus resmi BEI [X], [E], dll. digunakan
+    assert "notasi-pill" in js
+    # Pastikan tidak ada rendering badge-fca redundan di screener list
+    assert "badge-fca" not in js

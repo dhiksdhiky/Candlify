@@ -313,7 +313,7 @@ def get_pre_breakout_signals(target_date: Optional[str] = None, min_score: int =
 # Cache in-memory untuk Universe Market Intelligence IDX: { "timestamp": float, "data": dict }
 _IDX_UNIVERSE_CACHE: Dict[str, Any] = {"timestamp": 0.0, "data": {}}
 _IDX_UNIVERSE_LOCK = threading.Lock()
-_IDX_UNIVERSE_TTL = 60.0
+_IDX_UNIVERSE_TTL = 300.0  # 5 menit (sangat hemat DB query & responsif)
 
 
 def get_idx_market_intelligence_universe() -> Dict[str, Dict[str, Any]]:
