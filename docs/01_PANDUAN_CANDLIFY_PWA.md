@@ -142,11 +142,38 @@ Di tab **Settings**, Mas Dhika dapat menyesuaikan konfigurasi mesin sesuai kenya
 3. **Pusat Panduan & Dokumentasi Dinamis**:
    * Mengakses seluruh buku materi strategi, teori bandarmologi, dan modul SOP langsung di dalam aplikasi.
 
+### C. Papan Pencatatan & Notasi Khusus BEI
+Candlify V2.3 secara otomatis mengidentifikasi klasifikasi papan dan status risiko setiap emiten langsung dari Bursa Efek Indonesia:
+
+1. **Papan Pencatatan:**
+   * **Utama**: Emiten mapan dengan aset besar dan rekam jejak keuangan solid (contoh: BBCA, BMRI).
+   * **Pengembangan**: Emiten dalam fase bertumbuh.
+   * **Akselerasi**: Emiten skala kecil/menengah (UKM).
+   * **Pemantauan Khusus (FCA)**: Saham dalam pengawasan khusus bursa dengan metode perdagangan Full Call Auction.
+   * **Ekonomi Baru (New Economy)**: Emiten dengan model bisnis berbasis teknologi inovatif (contoh: GOTO).
+
+2. **Kamus Notasi Khusus & Aksi Korporasi:**
+   * **`X`** : Saham tercatat di **Papan Pemantauan Khusus (FCA)**.
+   * **`E`** : Laporan keuangan terakhir menunjukkan **Ekuitas Negatif**.
+   * **`M`** : Terdapat permohonan **PKPU** (Penundaan Kewajiban Pembayaran Utang).
+   * **`D`** : Opini auditor 'Disclaimer' (Tidak Menyatakan Pendapat).
+   * **`A`** : Opini auditor 'Adverse' (Tidak Wajar).
+   * **`N`** : Emiten dengan Saham Hak Suara Multipel (MVS).
+   * **`XD`** : **Ex-Dividend** (perdagangan tanpa hak dividen tunai).
+   * **`XR`** : **Ex-Right** (perdagangan tanpa hak HMETD).
+
 ---
 
 ## 8. 🚀 Catatan Rilis & Log Pembaruan (Changelog)
 
-### Versi 2.2 — Rilis Terbaru (Oktober 2026)
+### Versi 2.3 — All-in-One IDX Engine & Foreign Flow (Oktober 2026)
+* 🌐 **All-in-One IDX Trading Engine**: Integrasi langsung API Trading Summary resmi Bursa Efek Indonesia (BEI) via TLS impersonation safari17_0 dengan eksekusi super-cepat (1,3 detik untuk seluruh 963 emiten).
+* 💰 **Penyimpanan Data Asing Resmi (Foreign Flow)**: Database kini menyimpan data transaksi asing murni (Foreign Buy, Foreign Sell, Foreign Net), nilai transaksi rupiah (Turnover), dan frekuensi perdagangan.
+* 🏛️ **Papan Pencatatan & Notasi Khusus Real-Time**: Deteksi otomatis papan pencatatan (Utama, Pengembangan, Akselerasi, FCA, Ekonomi Baru) dan kode notasi (X, E, M, XD, XR).
+* 🚀 **Backfiller Multi-Minggu Cepat**: Script backfiller otomatis mengisi 20 hari bursa (~4 minggu) data resmi BEI dalam hitungan detik untuk kebutuhan analisis rolling 5D & 20D.
+* 🗄️ **Kompatibilitas Archiver & Database Monitor**: Auto-archiver dan modul monitor database telah diperbarui penuh mendukung seluruh kolom transaksi baru.
+
+### Versi 2.2 — Rilis Sebelumnya (Oktober 2026)
 * ✨ **Pusat Dokumentasi Dinamis**: Seluruh panduan dipecah modular ke dalam file Markdown yang disinkronisasi langsung oleh server secara otomatis.
 * 🧹 **Simplifikasi Tab Settings**: Desain ultra-clean dengan segmented switch pills, penghapusan dropdown kategori default yang mubazir, dan ringkasan footer arsitektur minimalis.
 * 🛡️ **Eliminasi Watchlist Flicker**: Modal bintang ⭐ kini terbuka bersih tanpa flicker auto-unselect untuk pengalaman pengguna PWA smartphone yang mulus.

@@ -147,6 +147,7 @@ def get_database_metrics(target_month: Optional[str] = None) -> Dict[str, Any]:
                     h.tanggal as date,
                     COUNT(DISTINCT h.ticker) as harga_total,
                     SUM(CASE WHEN h.volume > 0 THEN 1 ELSE 0 END) as target_harvester,
+                    SUM(CASE WHEN COALESCE(h.frequency, 0) > 0 THEN 1 ELSE 0 END) as idx_official_total,
                     (SELECT COUNT(DISTINCT b.ticker) FROM broker_summary b WHERE b.date = h.tanggal) as broker_total
                 FROM harga_saham h
                 WHERE h.tanggal >= :first_day AND h.tanggal < :next_month_first_day
@@ -163,6 +164,7 @@ def get_database_metrics(target_month: Optional[str] = None) -> Dict[str, Any]:
                     "date": str(r.date),
                     "ohlcv_scraped": int(r.harga_total) if r.harga_total else 0,
                     "target_harvester": int(r.target_harvester) if r.target_harvester else 0,
+                    "idx_official_synced": int(r.idx_official_total) if hasattr(r, 'idx_official_total') and r.idx_official_total else 0,
                     "broksum_synced": int(r.broker_total) if r.broker_total else 0
                 })
         except Exception as e:
@@ -222,13 +224,15 @@ def get_database_metrics(target_month: Optional[str] = None) -> Dict[str, Any]:
                     (SELECT COUNT(*) FROM harga_saham) as total_harga,
                     (SELECT COUNT(*) FROM broker_summary) as total_broksum,
                     (SELECT MIN(tanggal) FROM harga_saham) as min_date,
-                    (SELECT MAX(tanggal) FROM harga_saham) as max_date
+                    (SELECT MAX(tanggal) FROM harga_saham) as max_date,
+                    (SELECT COUNT(*) FROM harga_saham WHERE COALESCE(frequency, 0) > 0) as total_idx_official
             """)
             stats_row = db.execute(sql_stats).fetchone()
             if stats_row:
                 db_stats = {
                     "total_harga": int(stats_row.total_harga) if stats_row.total_harga else 0,
                     "total_broksum": int(stats_row.total_broksum) if stats_row.total_broksum else 0,
+                    "total_idx_official": int(stats_row.total_idx_official) if hasattr(stats_row, 'total_idx_official') and stats_row.total_idx_official else 0,
                     "min_date": str(stats_row.min_date) if stats_row.min_date else "N/A",
                     "max_date": str(stats_row.max_date) if stats_row.max_date else "N/A"
                 }

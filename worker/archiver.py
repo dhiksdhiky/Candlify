@@ -206,11 +206,15 @@ def archive_and_delete_old_data():
                 "gap_threshold": gap_threshold
             }).scalar() is not None
 
-            # Ambil data kedua tabel
+            # Ambil data kedua tabel (harga_saham menyertakan seluruh kolom baru BEI)
             df_h = pd.read_sql_query(
                 text("SELECT * FROM harga_saham WHERE tanggal >= :s AND tanggal < :e"),
                 conn, params={"s": month_start, "e": next_month_start}
             )
+            # Drop kolom 'id' auto-increment agar arsip data bersih
+            if "id" in df_h.columns:
+                df_h.drop(columns=["id"], inplace=True)
+
             # F5: Drop kolom 'id' pada broker_summary
             df_b = pd.read_sql_query(
                 text("""

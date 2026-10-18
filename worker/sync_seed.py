@@ -95,12 +95,19 @@ def sync():
         conn = sqlite3.connect(sqlite_path)
         cursor = conn.cursor()
 
-        # Buat tabel dengan constraint yang benar
+        # Buat tabel dengan constraint yang benar dan skema terbaru
         cursor.executescript("""
             DROP TABLE IF EXISTS daftar_saham;
             CREATE TABLE daftar_saham (
                 kode TEXT PRIMARY KEY,
-                nama TEXT
+                no INTEGER,
+                nama_perusahaan TEXT,
+                tanggal_pencatatan DATE,
+                saham INTEGER,
+                tradeable_shares INTEGER,
+                papan_pencatatan TEXT,
+                notasi_khusus TEXT,
+                tanggal_update DATE
             );
 
             DROP TABLE IF EXISTS harga_saham;
@@ -110,6 +117,17 @@ def sync():
                 tanggal DATE NOT NULL,
                 open REAL, high REAL, low REAL, close REAL,
                 volume INTEGER,
+                value REAL DEFAULT 0,
+                frequency INTEGER DEFAULT 0,
+                foreign_buy INTEGER DEFAULT 0,
+                foreign_sell INTEGER DEFAULT 0,
+                foreign_net INTEGER DEFAULT 0,
+                offer REAL,
+                offer_volume INTEGER,
+                bid REAL,
+                bid_volume INTEGER,
+                non_regular_volume INTEGER DEFAULT 0,
+                non_regular_value REAL DEFAULT 0,
                 UNIQUE (ticker, tanggal)
             );
 
@@ -143,21 +161,19 @@ def sync():
         """)
 
         # Insert data (tanpa kolom id agar AUTOINCREMENT bekerja)
-        cols_saham = ['kode', 'nama']
+        valid_ds_cols = ['kode', 'no', 'nama_perusahaan', 'tanggal_pencatatan', 'saham', 'tradeable_shares', 'papan_pencatatan', 'notasi_khusus', 'tanggal_update']
+        cols_saham = [c for c in df_saham.columns if c in valid_ds_cols]
+        if not cols_saham:
+            cols_saham = ['kode', 'nama'] if 'nama' in df_saham.columns else ['kode']
         df_saham[cols_saham].to_sql("daftar_saham", conn, if_exists="append", index=False)
 
-        cols_harga = ['ticker', 'tanggal', 'open', 'high', 'low', 'close', 'volume']
-        if 'id' in df_harga.columns:
-            df_harga[cols_harga].to_sql("harga_saham", conn, if_exists="append", index=False)
-        else:
-            df_harga.to_sql("harga_saham", conn, if_exists="append", index=False)
+        cols_harga = [c for c in df_harga.columns if c != 'id']
+        df_harga[cols_harga].to_sql("harga_saham", conn, if_exists="append", index=False)
 
         cols_broksum = ['ticker', 'date', 'broker_code', 'buy_vol', 'buy_val',
                         'buy_avg', 'sell_vol', 'sell_val', 'sell_avg', 'net_vol', 'net_val']
-        if 'id' in df_broksum.columns:
-            df_broksum[cols_broksum].to_sql("broker_summary", conn, if_exists="append", index=False)
-        else:
-            df_broksum.to_sql("broker_summary", conn, if_exists="append", index=False)
+        cols_broksum_avail = [c for c in df_broksum.columns if c in cols_broksum]
+        df_broksum[cols_broksum_avail].to_sql("broker_summary", conn, if_exists="append", index=False)
 
         conn.close()
 
