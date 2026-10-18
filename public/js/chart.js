@@ -836,6 +836,7 @@ class CandlifyChart {
         this.activeFlowMetric = 'val';
         this.activeFlowBrokers = new Set();
         this.currentFlowData = null;
+        this.hoverFlowDateIdx = null;
         this.activeActivityBroker = 'XL';
         this.activeActivityMonth = null;
         
@@ -2520,6 +2521,85 @@ class CandlifyChart {
             });
         }
 
+        // Tab 3 Flow Canvas Hover / Crosshair Interactions
+        if (this.dom.flowCanvas) {
+            const handleFlowHover = (e) => {
+                if (!this.currentFlowData || !this.currentFlowData.dates || this.currentFlowData.dates.length < 2) return;
+                const rect = this.dom.flowCanvas.getBoundingClientRect();
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                const mouseX = clientX - rect.left;
+                const mouseY = clientY - rect.top;
+
+                const padLeft = 48;
+                const padRight = 62;
+                const chartW = rect.width - padLeft - padRight;
+                if (chartW <= 0) return;
+
+                const dates = this.currentFlowData.dates;
+                const ratio = Math.max(0, Math.min(1, (mouseX - padLeft) / chartW));
+                const dateIdx = Math.round(ratio * (dates.length - 1));
+
+                this.hoverFlowDateIdx = dateIdx;
+                this.renderBrokerFlowCanvas();
+
+                // Update Tooltip
+                if (this.dom.flowTooltip) {
+                    const dateStr = dates[dateIdx];
+                    const series = this.currentFlowData.series || {};
+                    const colors = ['#34d399', '#60a5fa', '#f87171', '#fbbf24', '#a855f7', '#38bdf8', '#f472b6', '#fb923c', '#4ade80', '#e879f9'];
+                    const topBrokers = this.currentFlowData.top_brokers || [];
+                    const isVal = this.activeFlowMetric === 'val';
+                    const unit = isVal ? 'B' : 'K';
+                    const divisor = isVal ? 1e9 : 1000;
+
+                    let rowsHtml = '';
+                    topBrokers.forEach((brk, idx) => {
+                        if (!this.activeFlowBrokers.has(brk)) return;
+                        const pts = series[brk] || [];
+                        const val = pts[dateIdx] !== undefined ? pts[dateIdx] : 0;
+                        const color = colors[idx % colors.length];
+                        const valFormatted = `${val >= 0 ? '+' : ''}${(val / divisor).toFixed(1)} ${unit}`;
+                        const valColor = val >= 0 ? '#34d399' : '#f87171';
+                        rowsHtml += `
+                            <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; line-height:1.4;">
+                                <span style="color:${color}; font-weight:700;">${brk}</span>
+                                <span style="color:${valColor}; font-weight:600; font-family:var(--font-mono, monospace);">${valFormatted}</span>
+                            </div>
+                        `;
+                    });
+
+                    this.dom.flowTooltip.innerHTML = `
+                        <div style="font-weight:700; color:#94a3b8; font-size:9.5px; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:3px; margin-bottom:4px;">${dateStr}</div>
+                        ${rowsHtml || '<div style="color:#64748b;">Tidak ada broker aktif</div>'}
+                    `;
+                    this.dom.flowTooltip.classList.remove('hidden');
+
+                    const tooltipW = this.dom.flowTooltip.offsetWidth || 110;
+                    let tipX = mouseX + 12;
+                    if (tipX + tooltipW > rect.width) {
+                        tipX = mouseX - tooltipW - 12;
+                    }
+                    let tipY = Math.max(8, Math.min(rect.height - 60, mouseY - 20));
+                    this.dom.flowTooltip.style.left = `${tipX}px`;
+                    this.dom.flowTooltip.style.top = `${tipY}px`;
+                }
+            };
+
+            const clearFlowHover = () => {
+                this.hoverFlowDateIdx = null;
+                if (this.dom.flowTooltip) {
+                    this.dom.flowTooltip.classList.add('hidden');
+                }
+                this.renderBrokerFlowCanvas();
+            };
+
+            this.dom.flowCanvas.addEventListener('mousemove', handleFlowHover);
+            this.dom.flowCanvas.addEventListener('mouseleave', clearFlowHover);
+            this.dom.flowCanvas.addEventListener('touchmove', handleFlowHover, { passive: true });
+            this.dom.flowCanvas.addEventListener('touchend', clearFlowHover);
+        }
+
         // Tab 4 Activity controls
         if (this.dom.activityBrokerSelect) {
             this.dom.activityBrokerSelect.addEventListener('change', () => {
@@ -2636,10 +2716,13 @@ class CandlifyChart {
                 this.currentFlowData = json;
                 const flowSummary = json.summary || {};
                 const topBrokers = json.top_brokers || [];
+                const topBuyers = json.top_buyers || [];
+                const topSellers = json.top_sellers || [];
                 
-                // Initialize default selected brokers if empty or not present
+                // Initialize default selected brokers: Top 3 Buyers + Top 2 Sellers
                 if (!this.activeFlowBrokers || this.activeFlowBrokers.size === 0) {
-                    this.activeFlowBrokers = new Set(topBrokers.slice(0, 5));
+                    const defaultSelection = [...topBuyers.slice(0, 3), ...topSellers.slice(0, 2)];
+                    this.activeFlowBrokers = new Set(defaultSelection.length > 0 ? defaultSelection : topBrokers.slice(0, 5));
                 }
 
                 // Update Gauge Meter
@@ -2659,9 +2742,9 @@ class CandlifyChart {
                 if (this.dom.flowMeterFill) {
                     const ratio = totalBuy / (totalBuy + totalSell); // 0.0 to 1.0
                     const leftPct = Math.max(5, Math.min(95, ratio * 100));
-                    this.dom.flowMeterFill.style.left = `${Math.min(50, leftPct)}%`;
-                    this.dom.flowMeterFill.style.width = `${Math.max(4, Math.abs(leftPct - 50))}%`;
+                    this.dom.flowMeterFill.style.left = `${leftPct}%`;
                     this.dom.flowMeterFill.style.background = isAcc ? '#34d399' : '#f87171';
+                    this.dom.flowMeterFill.style.boxShadow = isAcc ? '0 0 10px rgba(52, 211, 153, 0.8)' : '0 0 10px rgba(248, 113, 113, 0.8)';
                 }
 
                 // Render broker toggle chips
@@ -2729,6 +2812,15 @@ class CandlifyChart {
         const series = this.currentFlowData.series || {};
         const colors = ['#34d399', '#60a5fa', '#f87171', '#fbbf24', '#a855f7', '#38bdf8', '#f472b6', '#fb923c', '#4ade80', '#e879f9'];
         const topBrokers = this.currentFlowData.top_brokers || [];
+        const isVal = this.activeFlowMetric === 'val';
+        const unit = isVal ? 'B' : 'K';
+        const divisor = isVal ? 1e9 : 1000;
+
+        const formatFlowVal = (v) => {
+            if (Math.abs(v) < 1) return '0';
+            const num = v / divisor;
+            return `${num >= 0 ? '+' : ''}${num.toFixed(1)}${unit}`;
+        };
 
         if (dates.length < 2) {
             ctx.fillStyle = '#64748b';
@@ -2758,15 +2850,15 @@ class CandlifyChart {
             maxVal = 100;
         }
 
-        // Add 12% padding
+        // Add 14% padding
         const range = Math.max(1, maxVal - minVal);
-        const pad = range * 0.12;
+        const pad = range * 0.14;
         const yMin = minVal - pad;
         const yMax = maxVal + pad;
         const yRange = yMax - yMin;
 
-        const padLeft = 14;
-        const padRight = 36;
+        const padLeft = 48;
+        const padRight = 64;
         const padTop = 15;
         const padBottom = 22;
         const chartW = width - padLeft - padRight;
@@ -2777,20 +2869,61 @@ class CandlifyChart {
 
         // Draw Zero Baseline
         const zeroY = getY(0);
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+        ctx.save();
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
         ctx.lineWidth = 1;
         ctx.setLineDash([4, 4]);
         ctx.beginPath();
         ctx.moveTo(padLeft, zeroY);
         ctx.lineTo(width - padRight, zeroY);
         ctx.stroke();
-        ctx.setLineDash([]);
+        ctx.restore();
 
         // Label 0
-        ctx.fillStyle = '#64748b';
+        ctx.fillStyle = '#94a3b8';
         ctx.font = '9px monospace';
-        ctx.textAlign = 'left';
-        ctx.fillText('0', padLeft + 2, zeroY - 3);
+        ctx.textAlign = 'right';
+        ctx.fillText('0', padLeft - 6, zeroY + 3);
+
+        // Max Positive Guideline & Label
+        if (maxVal > 0) {
+            const topY = getY(maxVal);
+            if (Math.abs(topY - zeroY) > 20) {
+                ctx.save();
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(padLeft, topY);
+                ctx.lineTo(width - padRight, topY);
+                ctx.stroke();
+                ctx.restore();
+
+                ctx.fillStyle = '#34d399';
+                ctx.font = '9px monospace';
+                ctx.textAlign = 'right';
+                ctx.fillText(formatFlowVal(maxVal), padLeft - 6, topY + 3);
+            }
+        }
+
+        // Min Negative Guideline & Label
+        if (minVal < 0) {
+            const botY = getY(minVal);
+            if (Math.abs(botY - zeroY) > 20) {
+                ctx.save();
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(padLeft, botY);
+                ctx.lineTo(width - padRight, botY);
+                ctx.stroke();
+                ctx.restore();
+
+                ctx.fillStyle = '#f87171';
+                ctx.font = '9px monospace';
+                ctx.textAlign = 'right';
+                ctx.fillText(formatFlowVal(minVal), padLeft - 6, botY + 3);
+            }
+        }
 
         // Draw curves for each active broker
         topBrokers.forEach((brk, idx) => {
@@ -2811,18 +2944,52 @@ class CandlifyChart {
             }
             ctx.stroke();
 
-            // Draw endpoint marker with broker tag
+            // Draw endpoint marker with broker tag & final value
             const lastX = getX(points.length - 1);
             const lastY = getY(points[points.length - 1]);
+            const finalVal = points[points.length - 1];
+            const finalStr = formatFlowVal(finalVal);
+
             ctx.fillStyle = color;
             ctx.beginPath();
-            ctx.arc(lastX, lastY, 3, 0, Math.PI * 2);
+            ctx.arc(lastX, lastY, 3.5, 0, Math.PI * 2);
             ctx.fill();
 
             ctx.font = 'bold 9px sans-serif';
             ctx.textAlign = 'left';
-            ctx.fillText(brk, lastX + 5, lastY + 3);
+            ctx.fillText(`${brk} ${finalStr}`, lastX + 6, lastY + 3);
         });
+
+        // Draw Interactive Crosshair & Highlight Dots if Hovered
+        if (this.hoverFlowDateIdx !== null && this.hoverFlowDateIdx !== undefined && this.hoverFlowDateIdx >= 0 && this.hoverFlowDateIdx < dates.length) {
+            const hX = getX(this.hoverFlowDateIdx);
+            ctx.save();
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([3, 3]);
+            ctx.beginPath();
+            ctx.moveTo(hX, padTop);
+            ctx.lineTo(hX, height - padBottom);
+            ctx.stroke();
+            ctx.restore();
+
+            // Highlight dots on each active line
+            topBrokers.forEach((brk, idx) => {
+                if (!this.activeFlowBrokers.has(brk)) return;
+                const pts = series[brk] || [];
+                const val = pts[this.hoverFlowDateIdx];
+                if (val === undefined) return;
+                const color = colors[idx % colors.length];
+                const ptY = getY(val);
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                ctx.arc(hX, ptY, 4, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+            });
+        }
 
         // Draw X-axis Dates (first, middle, last)
         ctx.fillStyle = '#64748b';
