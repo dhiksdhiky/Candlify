@@ -5777,7 +5777,7 @@ class CandlifyChart {
         const rawCapital = this.dom.settingInputCapital ? this.dom.settingInputCapital.value : '100000000';
         const capital = parseFloat(String(rawCapital).replace(/[^0-9.]/g, '')) || 0;
         const pct = this.dom.settingSliderPct ? parseFloat(this.dom.settingSliderPct.value) || 1.0 : 1.0;
-        const category = this.dom.settingSelectCategory ? this.dom.settingSelectCategory.value : 'Breakout';
+        const category = this.dom.settingSelectCategory?.value || this.riskSettings?.default_category || 'Breakout';
         const source = this.dom.radioSourceYahoo && this.dom.radioSourceYahoo.checked ? 'yahoo' : 'neon_db';
 
         if (capital <= 0) {
@@ -5857,7 +5857,7 @@ class CandlifyChart {
         const rawCapital = this.dom.riskInputCapital ? this.dom.riskInputCapital.value : '100000000';
         const capital = parseFloat(String(rawCapital).replace(/[^0-9.]/g, '')) || 0;
         const pct = this.dom.riskSliderPct ? parseFloat(this.dom.riskSliderPct.value) || 1.0 : 1.0;
-        const category = this.dom.riskSelectCategory ? this.dom.riskSelectCategory.value : 'Breakout';
+        const category = this.dom.riskSelectCategory?.value || this.riskSettings?.default_category || 'Breakout';
         const source = this.riskSettings?.daily_source || 'neon_db';
 
         if (capital <= 0) {

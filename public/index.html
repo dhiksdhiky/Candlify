@@ -911,35 +911,22 @@
 
             <main class="settings-content">
                 <!-- 1. Data Feed Candlestick Harian (1D) -->
-                <div class="settings-card">
-                    <div class="settings-card-hdr">
-                        <span class="settings-card-icon">📡</span>
-                        <div>
-                            <h4 class="settings-card-title">Sumber Data Candlestick Harian (1D)</h4>
-                            <p class="settings-card-desc">Pilih feed data utama untuk timeframe 1D di chart</p>
+                <div class="settings-card compact-card">
+                    <div class="settings-card-row">
+                        <div class="settings-title-group">
+                            <h4 class="settings-card-title">📡 Sumber Data 1D</h4>
+                            <p class="settings-card-desc">Feed candlestick chart harian</p>
                         </div>
-                    </div>
-                    <div class="source-toggle-group">
-                        <label class="source-radio-card" id="source-card-neon">
-                            <input type="radio" name="daily_source" value="neon_db" id="radio-source-neon" checked>
-                            <div class="source-radio-content">
-                                <div class="source-radio-title">
-                                    <span class="source-radio-badge neon">Neon DB</span>
-                                    <span>Cloud Postgres (Glory Engine)</span>
-                                </div>
-                                <p class="source-radio-sub">Terintegrasi langsung dengan database master emiten &amp; sinkronisasi broksum instan.</p>
-                            </div>
-                        </label>
-                        <label class="source-radio-card" id="source-card-yahoo">
-                            <input type="radio" name="daily_source" value="yahoo" id="radio-source-yahoo">
-                            <div class="source-radio-content">
-                                <div class="source-radio-title">
-                                    <span class="source-radio-badge yahoo">Yahoo Finance</span>
-                                    <span>Direct Live Feed</span>
-                                </div>
-                                <p class="source-radio-sub">Mengambil candlestick harian langsung dari Yahoo Finance API sebagai pembanding.</p>
-                            </div>
-                        </label>
+                        <div class="source-segmented-pills">
+                            <label class="source-pill" id="source-card-neon">
+                                <input type="radio" name="daily_source" value="neon_db" id="radio-source-neon" checked>
+                                <span class="pill-badge neon">⚡ Neon DB</span>
+                            </label>
+                            <label class="source-pill" id="source-card-yahoo">
+                                <input type="radio" name="daily_source" value="yahoo" id="radio-source-yahoo">
+                                <span class="pill-badge yahoo">🌐 Yahoo</span>
+                            </label>
+                        </div>
                     </div>
                 </div>
 
@@ -949,20 +936,22 @@
                         <span class="settings-card-icon">🛡️</span>
                         <div>
                             <h4 class="settings-card-title">Manajemen Risiko Portofolio</h4>
-                            <p class="settings-card-desc">Pengaturan modal trading &amp; batas toleransi risiko per posisi</p>
+                            <p class="settings-card-desc">Modal trading &amp; batas toleransi risiko per posisi</p>
                         </div>
                     </div>
 
-                    <div class="form-modal-body">
+                    <div class="form-modal-body" style="padding: 0; gap: 14px;">
                         <div class="form-group">
-                            <label class="form-label" for="setting-input-capital">Total Modal Portofolio (Rp)</label>
+                            <div class="form-label-row">
+                                <label class="form-label" for="setting-input-capital">Total Modal Portofolio</label>
+                                <span class="form-hint-inline" id="setting-capital-hint">Rp 100.000.000</span>
+                            </div>
                             <input type="number" id="setting-input-capital" class="form-input mono" min="1000000" step="1000000" value="100000000">
-                            <div class="form-hint" id="setting-capital-hint">Rp 100.000.000</div>
                         </div>
 
                         <div class="form-group">
                             <div class="form-label-row">
-                                <label class="form-label" for="setting-slider-pct">Toleransi Risiko per Posisi (% Modal)</label>
+                                <label class="form-label" for="setting-slider-pct">Toleransi Risiko per Posisi</label>
                                 <span class="risk-pct-badge" id="setting-pct-badge">1.0%</span>
                             </div>
                             <input type="range" id="setting-slider-pct" class="form-slider" min="0.25" max="5.0" step="0.25" value="1.0">
@@ -973,77 +962,37 @@
                             </div>
                         </div>
 
-                        <!-- Live Auto-Calculated Risk Nominal Card -->
-                        <div class="risk-calc-card">
-                            <div class="risk-calc-row">
-                                <span class="calc-label">Maksimal Risiko per Posisi:</span>
-                                <span class="calc-value gold" id="setting-preview-nominal">Rp 1.000.000</span>
-                            </div>
-                            <p class="calc-desc">
-                                💡 Batas maksimal kerugian rupiah per swing setup (modal × toleransi %). Gunakan nilai ini untuk menghitung alokasi lot dan stop loss.
-                            </p>
+                        <!-- Live Inline Risk Nominal Bar -->
+                        <div class="risk-compact-bar">
+                            <span class="calc-label">Maks. Risiko / Setup:</span>
+                            <span class="calc-value gold" id="setting-preview-nominal">Rp 1.000.000</span>
                         </div>
 
-                        <div class="form-group">
-                            <label class="form-label" for="setting-select-category">Kategori Watchlist Default</label>
-                            <div class="custom-select-wrap">
-                                <select id="setting-select-category" class="form-select">
-                                    <option value="Breakout" selected>💥 Breakout</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <button id="btn-save-all-settings" class="filter-btn-primary" style="margin-top: 8px;">
+                        <button id="btn-save-all-settings" class="filter-btn-primary" style="margin-top: 4px;">
                             💾 Simpan Pengaturan
                         </button>
                     </div>
                 </div>
 
-                <!-- Kitab Pre-Breakout & Bandarmology Reader Card -->
-                <div class="settings-card">
-                    <div class="settings-card-hdr">
-                        <span class="settings-card-icon">📖</span>
-                        <div>
-                            <h4 class="settings-card-title">Kitab Pre-Breakout & Bandarmology</h4>
-                            <p class="settings-card-desc">SOP lengkap, mikrostruktur pasar, 4 pilar teknikal, & panduan eksekusi lelang FCA</p>
+                <!-- Kitab Pre-Breakout & Bandarmology Action Tile -->
+                <button id="btn-open-doc-modal" class="settings-action-tile" type="button" title="Buka Kitab Panduan Pre-Breakout">
+                    <div class="action-tile-left">
+                        <span class="action-tile-icon">📖</span>
+                        <div class="action-tile-text">
+                            <div class="action-tile-title">Kitab Pre-Breakout &amp; Bandarmology</div>
+                            <div class="action-tile-sub">SOP trading, lelang FCA &amp; 4 pilar teknikal</div>
                         </div>
                     </div>
-                    <div class="form-modal-body">
-                        <p style="font-size: 11px; color: var(--text-secondary); margin-bottom: 12px; line-height: 1.5;">
-                            Pelajari teori mendalam mengenai titik masuk low-risk di atas MA20, perhitungan HMB Net-Inventory, serta strategi eksekusi real-time.
-                        </p>
-                        <button id="btn-open-doc-modal" class="filter-btn-primary" style="background: linear-gradient(135deg, #4f46e5, #3b82f6); display: flex; align-items: center; justify-content: center; gap: 8px;">
-                            <span>📖 Buka Kitab Panduan (Markdown)</span>
-                        </button>
-                    </div>
-                </div>
+                    <span class="action-tile-arrow">›</span>
+                </button>
 
-                <!-- 3. Info Sistem & Arsitektur -->
-                <div class="settings-card">
-                    <div class="settings-card-hdr">
-                        <span class="settings-card-icon">⚡</span>
-                        <div>
-                            <h4 class="settings-card-title">Informasi Sistem Candlify</h4>
-                            <p class="settings-card-desc">Arsitektur terpadu IDX Analytics</p>
-                        </div>
-                    </div>
-                    <div class="settings-info-grid">
-                        <div class="info-row">
-                            <span class="info-label">Versi:</span>
-                            <span class="info-val">Candlify v2.2 (PWA Standalone)</span>
-                        </div>
-                        <div class="info-row">
-                            <span class="info-label">Database Cloud:</span>
-                            <span class="info-val">Neon PostgreSQL Serverless</span>
-                        </div>
-                        <div class="info-row">
-                            <span class="info-label">Harvester Engine:</span>
-                            <span class="info-val">Glory Engine v2 Service</span>
-                        </div>
-                        <div class="info-row">
-                            <span class="info-label">Chart Engine:</span>
-                            <span class="info-val">KLineCharts v9 + Canvas Overlays</span>
-                        </div>
+                <!-- 4. Info Sistem Minimalist Footer -->
+                <div class="settings-footer-card">
+                    <div class="footer-info-brand">⚡ Candlify v2.2 (PWA Standalone)</div>
+                    <div class="footer-info-meta">
+                        <span>Neon Postgres Serverless</span> • 
+                        <span>Glory Engine v2</span> • 
+                        <span>KLineCharts v9</span>
                     </div>
                 </div>
             </main>
@@ -1149,14 +1098,16 @@
 
             <div class="form-modal-body">
                 <div class="form-group">
-                    <label class="form-label" for="risk-input-capital">Total Modal Portofolio (Rp)</label>
+                    <div class="form-label-row">
+                        <label class="form-label" for="risk-input-capital">Total Modal Portofolio</label>
+                        <span class="form-hint-inline" id="risk-capital-hint">Rp 100.000.000</span>
+                    </div>
                     <input type="number" id="risk-input-capital" class="form-input mono" min="1000000" step="1000000" value="100000000">
-                    <div class="form-hint" id="risk-capital-hint">Rp 100.000.000</div>
                 </div>
 
                 <div class="form-group">
                     <div class="form-label-row">
-                        <label class="form-label" for="risk-slider-pct">Toleransi Risiko per Posisi (% Modal)</label>
+                        <label class="form-label" for="risk-slider-pct">Toleransi Risiko per Posisi</label>
                         <span class="risk-pct-badge" id="risk-pct-badge">1.0%</span>
                     </div>
                     <input type="range" id="risk-slider-pct" class="form-slider" min="0.25" max="5.0" step="0.25" value="1.0">
@@ -1167,24 +1118,10 @@
                     </div>
                 </div>
 
-                <!-- Live Auto-Calculated Risk Nominal Card -->
-                <div class="risk-calc-card">
-                    <div class="risk-calc-row">
-                        <span class="calc-label">Maksimal Risiko per Posisi:</span>
-                        <span class="calc-value gold" id="risk-preview-nominal">Rp 1.000.000</span>
-                    </div>
-                    <p class="calc-desc">
-                        💡 Toleransi risiko ini adalah batas kerugian maksimal per swing setup (modal × toleransi %).
-                    </p>
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label" for="risk-select-category">Kategori Watchlist Default</label>
-                    <div class="custom-select-wrap">
-                        <select id="risk-select-category" class="form-select">
-                            <option value="Breakout" selected>💥 Breakout</option>
-                        </select>
-                    </div>
+                <!-- Live Inline Risk Nominal Bar -->
+                <div class="risk-compact-bar">
+                    <span class="calc-label">Maks. Risiko / Setup:</span>
+                    <span class="calc-value gold" id="risk-preview-nominal">Rp 1.000.000</span>
                 </div>
             </div>
 

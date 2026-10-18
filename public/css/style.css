@@ -3640,6 +3640,23 @@ select option:checked,
     backdrop-filter: blur(8px);
 }
 
+.settings-card.compact-card {
+    padding: 10px 14px;
+}
+
+.settings-card-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.settings-title-group {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
 .settings-card-hdr {
     display: flex;
     align-items: flex-start;
@@ -3665,105 +3682,184 @@ select option:checked,
     margin: 2px 0 0 0;
 }
 
-.source-toggle-group {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.source-radio-card {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    padding: 10px 12px;
-    background: rgba(255, 255, 255, 0.03);
+/* Segmented Pills for 1D Feed */
+.source-segmented-pills {
+    display: inline-flex;
+    background: rgba(255, 255, 255, 0.04);
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 10px;
-    cursor: pointer;
-    transition: all 0.15s ease;
+    padding: 3px;
+    gap: 4px;
 }
 
-.source-radio-card:hover {
-    background: rgba(255, 255, 255, 0.07);
-    border-color: rgba(255, 255, 255, 0.18);
-}
-
-.source-radio-card:has(input:checked) {
-    background: rgba(16, 185, 129, 0.1);
-    border-color: rgba(16, 185, 129, 0.4);
-    box-shadow: 0 0 12px rgba(16, 185, 129, 0.15);
-}
-
-.source-radio-card input[type="radio"] {
-    margin-top: 3px;
-    accent-color: var(--accent-emerald);
-    cursor: pointer;
-}
-
-.source-radio-content {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-}
-
-.source-radio-title {
+.source-pill {
+    position: relative;
     display: flex;
     align-items: center;
-    gap: 6px;
-    font-size: 12px;
+    cursor: pointer;
+    margin: 0;
+}
+
+.source-pill input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+}
+
+.source-pill .pill-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 5px 12px;
+    border-radius: 7px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-muted);
+    background: transparent;
+    border: 1px solid transparent;
+    transition: all 0.18s ease;
+    white-space: nowrap;
+    user-select: none;
+}
+
+.source-pill:hover .pill-badge {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.source-pill input[type="radio"]:checked + .pill-badge.neon {
+    background: rgba(16, 185, 129, 0.22);
+    color: #34d399;
+    border: 1px solid rgba(16, 185, 129, 0.45);
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
+}
+
+.source-pill input[type="radio"]:checked + .pill-badge.yahoo {
+    background: rgba(168, 85, 247, 0.22);
+    color: #c084fc;
+    border: 1px solid rgba(168, 85, 247, 0.45);
+    box-shadow: 0 0 10px rgba(168, 85, 247, 0.2);
+}
+
+/* Compact Risk Elements */
+.form-hint-inline {
+    font-size: 11.5px;
+    font-family: var(--font-mono);
+    color: var(--accent-emerald);
+    font-weight: 700;
+}
+
+.risk-compact-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 9px 13px;
+    background: rgba(245, 158, 11, 0.08);
+    border: 1px solid rgba(245, 158, 11, 0.22);
+    border-radius: 10px;
+    font-size: 11.5px;
+    font-weight: 600;
+}
+
+.risk-compact-bar .calc-label {
+    color: #d1d5db;
+}
+
+.risk-compact-bar .calc-value {
+    font-family: var(--font-mono);
+    font-weight: 700;
+    font-size: 13px;
+    color: #fbbf24;
+}
+
+/* Action Tile (Kitab Panduan) */
+.settings-action-tile {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 12px 14px;
+    background: rgba(18, 24, 38, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    cursor: pointer;
+    text-align: left;
+    color: inherit;
+    transition: all 0.15s ease;
+    backdrop-filter: blur(8px);
+    box-sizing: border-box;
+}
+
+.settings-action-tile:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(99, 102, 241, 0.4);
+    transform: translateY(-1px);
+}
+
+.settings-action-tile:active {
+    transform: scale(0.99);
+}
+
+.action-tile-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.action-tile-icon {
+    font-size: 20px;
+    flex-shrink: 0;
+}
+
+.action-tile-title {
+    font-size: 12.5px;
     font-weight: 700;
     color: #fff;
 }
 
-.source-radio-badge {
-    font-size: 9px;
-    font-weight: 800;
-    padding: 1px 6px;
-    border-radius: 6px;
-}
-
-.source-radio-badge.neon {
-    background: rgba(16, 185, 129, 0.2);
-    color: #34d399;
-    border: 1px solid rgba(16, 185, 129, 0.4);
-}
-
-.source-radio-badge.yahoo {
-    background: rgba(168, 85, 247, 0.2);
-    color: #c084fc;
-    border: 1px solid rgba(168, 85, 247, 0.4);
-}
-
-.source-radio-sub {
-    font-size: 10px;
+.action-tile-sub {
+    font-size: 10.5px;
     color: var(--text-muted);
-    margin: 0;
-    line-height: 1.35;
+    margin-top: 1px;
 }
 
-.settings-info-grid {
+.action-tile-arrow {
+    font-size: 18px;
+    color: var(--text-muted);
+    font-weight: 700;
+    padding-left: 8px;
+}
+
+/* Minimalist Footer */
+.settings-footer-card {
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    padding-top: 4px;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 14px 8px 6px;
+    text-align: center;
+    margin-top: 4px;
 }
 
-.info-row {
-    display: flex;
-    justify-content: space-between;
+.footer-info-brand {
     font-size: 11px;
-    padding: 4px 0;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    font-weight: 700;
+    color: #94a3b8;
+    letter-spacing: 0.5px;
 }
 
-.info-label {
-    color: var(--text-muted);
-}
-
-.info-val {
-    color: #cbd5e1;
-    font-weight: 600;
-    font-family: var(--font-mono);
+.footer-info-meta {
+    font-size: 9.5px;
+    color: #64748b;
+    line-height: 1.4;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: center;
 }
 
 /* ======================================================== */
