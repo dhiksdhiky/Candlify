@@ -1694,7 +1694,55 @@ html, body {
 }
 
 .activity-chips-container {
-    max-height: 65px;
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 6px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 2px 2px 4px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    max-height: none;
+}
+
+.activity-chips-container::-webkit-scrollbar {
+    display: none;
+}
+
+.activity-chips-container .flow-chip {
+    flex-shrink: 0;
+    padding: 3px 9px;
+    border-radius: 14px;
+    font-size: 10px;
+    font-weight: 800;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: var(--text-secondary);
+    transition: all 0.15s ease;
+}
+
+.activity-chips-container .flow-chip:hover {
+    border-color: rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.activity-chips-container .flow-chip.active {
+    background: rgba(16, 185, 129, 0.22) !important;
+    border-color: #10b981 !important;
+    color: #fff !important;
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.35);
+}
+
+.activity-chip-days {
+    font-size: 8.5px;
+    font-weight: 700;
+    opacity: 0.75;
+    margin-left: 1px;
 }
 
 .activity-broker-select-wrap {

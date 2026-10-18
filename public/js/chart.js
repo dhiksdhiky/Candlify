@@ -2624,6 +2624,16 @@ class CandlifyChart {
                 this.navigateActivityMonth(1);
             });
         }
+
+        // Tab 4 Activity Chips mousewheel horizontal scroll
+        if (this.dom.activityBrokerChips) {
+            this.dom.activityBrokerChips.addEventListener('wheel', (e) => {
+                if (e.deltaY !== 0) {
+                    e.preventDefault();
+                    this.dom.activityBrokerChips.scrollLeft += e.deltaY;
+                }
+            }, { passive: false });
+        }
     }
 
     switchBroksumTab(tabId) {
@@ -3024,11 +3034,13 @@ class CandlifyChart {
 
                 // Update Active Broker Badge
                 if (this.dom.activityActiveBrokerBadge) {
-                    this.dom.activityActiveBrokerBadge.innerHTML = `Broker: <strong>${currentSelected}</strong>`;
+                    const stats = (json.broker_stats && json.broker_stats[currentSelected]) || {};
+                    const daysText = stats.accum_days ? ` • ${stats.accum_days} hari akum` : '';
+                    this.dom.activityActiveBrokerBadge.innerHTML = `Broker: <strong>${currentSelected}</strong>${daysText}`;
                 }
 
-                // Render broker chips (hanya broker dengan transaksi nyata)
-                this.renderActivityBrokerChips(json.available_brokers || [], currentSelected);
+                // Render broker chips (hanya broker dengan transaksi nyata, urut akumulasi)
+                this.renderActivityBrokerChips(json.available_brokers || [], currentSelected, json.broker_stats || {});
                 
                 // Populate/Update hidden broker selector for compatibility
                 if (this.dom.activityBrokerSelect && Array.isArray(json.available_brokers) && json.available_brokers.length > 0) {
@@ -3076,7 +3088,7 @@ class CandlifyChart {
         }
     }
 
-    renderActivityBrokerChips(availableBrokers, activeBroker) {
+    renderActivityBrokerChips(availableBrokers, activeBroker, brokerStats = {}) {
         if (!this.dom.activityBrokerChips) return;
         const colors = ['#34d399', '#60a5fa', '#f87171', '#fbbf24', '#a855f7', '#38bdf8', '#f472b6', '#fb923c', '#4ade80', '#e879f9'];
 
@@ -3086,12 +3098,16 @@ class CandlifyChart {
         }
 
         this.dom.activityBrokerChips.innerHTML = availableBrokers.map((brk, idx) => {
-            const color = colors[idx % colors.length];
+            const stats = brokerStats[brk] || {};
+            const isBuyer = stats.is_buyer !== false;
+            const accumDays = stats.accum_days || 0;
+            const dotColor = isBuyer ? '#34d399' : '#f87171';
             const isActive = brk === activeBroker;
             return `
-                <div class="flow-chip ${isActive ? 'active' : ''}" data-broker="${brk}" style="${isActive ? `border-color: ${color}; background: ${color}28; color: #fff;` : ''}">
-                    <span class="flow-chip-dot" style="background: ${color};"></span>
+                <div class="flow-chip ${isActive ? 'active' : ''}" data-broker="${brk}" title="${brk} • ${accumDays} hari akumulasi">
+                    <span class="flow-chip-dot" style="background: ${dotColor};"></span>
                     <span>${brk}</span>
+                    ${accumDays > 0 ? `<span class="activity-chip-days">${accumDays}d</span>` : ''}
                 </div>
             `;
         }).join('');
@@ -3107,6 +3123,12 @@ class CandlifyChart {
                 }
             });
         });
+
+        // Auto-scroll active chip into view (smooth centering)
+        const activeChip = this.dom.activityBrokerChips.querySelector('.flow-chip.active');
+        if (activeChip && typeof activeChip.scrollIntoView === 'function') {
+            activeChip.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+        }
     }
 
     navigateActivityMonth(delta) {

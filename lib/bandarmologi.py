@@ -572,13 +572,30 @@ def get_broker_daily_activity(symbol: str, broker_code: str, month_str: Optional
     
     # Ambil HANYA broker yang memiliki transaksi nyata di bulan target_month ini
     df_m = df[df['month'] == target_month]
+    broker_stats = {}
     if not df_m.empty:
         active_mask = (df_m['buy_vol'] > 0) | (df_m['sell_vol'] > 0) | (df_m['net_vol'] != 0) | (df_m['net_val'] != 0)
         df_active_month = df_m[active_mask]
         if not df_active_month.empty:
-            turnover = df_active_month['buy_val'].fillna(0) + df_active_month['sell_val'].fillna(0)
-            broker_activity_rank = turnover.groupby(df_active_month['broker_code']).sum().sort_values(ascending=False)
-            top_brks = broker_activity_rank.head(25).index.tolist()
+            accum_days_series = (df_active_month['net_val'] > 0).groupby(df_active_month['broker_code']).sum()
+            net_val_series = df_active_month['net_val'].groupby(df_active_month['broker_code']).sum()
+            turnover_series = (df_active_month['buy_val'].fillna(0) + df_active_month['sell_val'].fillna(0)).groupby(df_active_month['broker_code']).sum()
+
+            stats_df = pd.DataFrame({
+                'accum_days': accum_days_series,
+                'total_net_val': net_val_series,
+                'total_turnover': turnover_series
+            })
+            # Urutkan: broker paling sering akumulasi (accum_days terbanyak, lalu total_net_val terbesar di paling kiri)
+            sorted_stats = stats_df.sort_values(by=['accum_days', 'total_net_val'], ascending=[False, False])
+            top_brks = sorted_stats.index.tolist()
+
+            for brk_code, row in sorted_stats.iterrows():
+                broker_stats[brk_code] = {
+                    "accum_days": int(row['accum_days']),
+                    "net_val": float(row['total_net_val']),
+                    "is_buyer": bool(row['total_net_val'] >= 0)
+                }
         else:
             top_brks = df.groupby('broker_code')['buy_vol'].sum().sort_values(ascending=False).head(25).index.tolist()
     else:
@@ -656,6 +673,7 @@ def get_broker_daily_activity(symbol: str, broker_code: str, month_str: Optional
         "month": target_month,
         "available_months": available_months,
         "available_brokers": top_brks,
+        "broker_stats": broker_stats,
         "trading_days": len(days_data),
         "accum_days": buy_days,
         "monthly_net_val": tot_val,
