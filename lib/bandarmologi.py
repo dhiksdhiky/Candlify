@@ -568,13 +568,27 @@ def get_broker_daily_activity(symbol: str, broker_code: str, month_str: Optional
     # Available months & brokers
     df['month'] = df['date'].dt.strftime("%Y-%m")
     available_months = sorted(df['month'].unique().tolist(), reverse=True)
-    
-    # Broker list diurutkan dari yang paling aktif (total net volume atau buy volume)
-    top_brks = df.groupby('broker_code')['buy_vol'].sum().sort_values(ascending=False).head(30).index.tolist()
-    if clean_brk not in top_brks and clean_brk in df['broker_code'].values:
-        top_brks.insert(0, clean_brk)
-
     target_month = month_str if (month_str and month_str in available_months) else (available_months[0] if available_months else now_wib().strftime("%Y-%m"))
+    
+    # Ambil HANYA broker yang memiliki transaksi nyata di bulan target_month ini
+    df_m = df[df['month'] == target_month]
+    if not df_m.empty:
+        active_mask = (df_m['buy_vol'] > 0) | (df_m['sell_vol'] > 0) | (df_m['net_vol'] != 0) | (df_m['net_val'] != 0)
+        df_active_month = df_m[active_mask]
+        if not df_active_month.empty:
+            turnover = df_active_month['buy_val'].fillna(0) + df_active_month['sell_val'].fillna(0)
+            broker_activity_rank = turnover.groupby(df_active_month['broker_code']).sum().sort_values(ascending=False)
+            top_brks = broker_activity_rank.head(25).index.tolist()
+        else:
+            top_brks = df.groupby('broker_code')['buy_vol'].sum().sort_values(ascending=False).head(25).index.tolist()
+    else:
+        top_brks = df.groupby('broker_code')['buy_vol'].sum().sort_values(ascending=False).head(25).index.tolist()
+
+    if clean_brk not in top_brks:
+        if not df_m.empty and 'df_active_month' in locals() and clean_brk in df_active_month['broker_code'].values:
+            top_brks.insert(0, clean_brk)
+        elif top_brks:
+            clean_brk = top_brks[0]
     
     df_filtered = df[(df['broker_code'] == clean_brk) & (df['month'] == target_month)].sort_values('date', ascending=True)
 

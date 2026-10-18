@@ -369,6 +369,7 @@ def test_order_flow_ui_elements():
     assert "ticker-board-badge" in res_html.text
     assert "broker-flow-canvas" in res_html.text
     assert "activity-calendar-grid" in res_html.text
+    assert "activity-broker-chips" in res_html.text
 
     res_js = client.get("/js/chart.js")
     assert res_js.status_code == 200
@@ -377,6 +378,7 @@ def test_order_flow_ui_elements():
     assert "loadBrokerFlow" in res_js.text
     assert "loadBrokerActivity" in res_js.text
     assert "renderActivityCalendar" in res_js.text
+    assert "renderActivityBrokerChips" in res_js.text
 
 
 

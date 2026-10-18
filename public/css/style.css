@@ -1660,6 +1660,43 @@ html, body {
     padding: 6px 10px;
 }
 
+.activity-filter-title {
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--text-secondary);
+}
+
+.activity-chips-section {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 6px 10px;
+}
+
+.activity-chips-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.activity-active-badge {
+    font-size: 9.5px;
+    color: var(--text-muted);
+}
+
+.activity-active-badge strong {
+    color: #38bdf8;
+    font-weight: 800;
+    font-size: 10.5px;
+}
+
+.activity-chips-container {
+    max-height: 65px;
+}
+
 .activity-broker-select-wrap {
     display: flex;
     align-items: center;

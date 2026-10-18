@@ -817,6 +817,8 @@ class CandlifyChart {
 
             // Tab 4: Broker Daily Activity
             activityBrokerSelect: document.getElementById('activity-broker-select'),
+            activityBrokerChips: document.getElementById('activity-broker-chips'),
+            activityActiveBrokerBadge: document.getElementById('activity-active-broker-badge'),
             activityPrevMonthBtn: document.getElementById('btn-activity-prev-month'),
             activityNextMonthBtn: document.getElementById('btn-activity-next-month'),
             activityMonthLabel: document.getElementById('activity-month-label'),
@@ -3017,17 +3019,22 @@ class CandlifyChart {
 
             if (resp.ok && json.success) {
                 this.activeActivityMonth = json.month;
+                const currentSelected = json.broker || brk;
+                this.activeActivityBroker = currentSelected;
+
+                // Update Active Broker Badge
+                if (this.dom.activityActiveBrokerBadge) {
+                    this.dom.activityActiveBrokerBadge.innerHTML = `Broker: <strong>${currentSelected}</strong>`;
+                }
+
+                // Render broker chips (hanya broker dengan transaksi nyata)
+                this.renderActivityBrokerChips(json.available_brokers || [], currentSelected);
                 
-                // Populate/Update broker selector dengan seluruh broker aktif emiten ini
+                // Populate/Update hidden broker selector for compatibility
                 if (this.dom.activityBrokerSelect && Array.isArray(json.available_brokers) && json.available_brokers.length > 0) {
-                    const currentSelected = brk;
-                    // Hanya render ulang opsi jika emiten berganti atau daftar belum lengkap
-                    if (this._lastActivitySymbol !== symbol || this.dom.activityBrokerSelect.options.length <= 1) {
-                        this._lastActivitySymbol = symbol;
-                        this.dom.activityBrokerSelect.innerHTML = json.available_brokers.map(b => `
-                            <option value="${b}" ${b === currentSelected ? 'selected' : ''}>${b}</option>
-                        `).join('');
-                    }
+                    this.dom.activityBrokerSelect.innerHTML = json.available_brokers.map(b => `
+                        <option value="${b}" ${b === currentSelected ? 'selected' : ''}>${b}</option>
+                    `).join('');
                     this.dom.activityBrokerSelect.value = currentSelected;
                 }
 
@@ -3067,6 +3074,39 @@ class CandlifyChart {
         } catch (err) {
             console.error('loadBrokerActivity error:', err);
         }
+    }
+
+    renderActivityBrokerChips(availableBrokers, activeBroker) {
+        if (!this.dom.activityBrokerChips) return;
+        const colors = ['#34d399', '#60a5fa', '#f87171', '#fbbf24', '#a855f7', '#38bdf8', '#f472b6', '#fb923c', '#4ade80', '#e879f9'];
+
+        if (!availableBrokers || availableBrokers.length === 0) {
+            this.dom.activityBrokerChips.innerHTML = `<span style="font-size: 10px; color: var(--text-muted); padding: 4px;">Tidak ada transaksi broker di bulan ini</span>`;
+            return;
+        }
+
+        this.dom.activityBrokerChips.innerHTML = availableBrokers.map((brk, idx) => {
+            const color = colors[idx % colors.length];
+            const isActive = brk === activeBroker;
+            return `
+                <div class="flow-chip ${isActive ? 'active' : ''}" data-broker="${brk}" style="${isActive ? `border-color: ${color}; background: ${color}28; color: #fff;` : ''}">
+                    <span class="flow-chip-dot" style="background: ${color};"></span>
+                    <span>${brk}</span>
+                </div>
+            `;
+        }).join('');
+
+        // Attach click handlers to activity chips
+        this.dom.activityBrokerChips.querySelectorAll('.flow-chip').forEach(chip => {
+            chip.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const brk = chip.dataset.broker;
+                if (brk && brk !== this.activeActivityBroker) {
+                    this.activeActivityBroker = brk;
+                    this.loadBrokerActivity(this.currentSymbol, brk, this.activeActivityMonth);
+                }
+            });
+        });
     }
 
     navigateActivityMonth(delta) {

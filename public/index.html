@@ -695,19 +695,27 @@
 
                 <!-- Tab Pane 4: Broker Daily Activity Calendar (Gambar 2 Stockbit) -->
                 <div id="tab-pane-activity" class="broksum-tab-pane hidden">
-                    <!-- Broker & Month Selectors -->
+                    <!-- Month Navigation Header -->
                     <div class="activity-filter-bar">
-                        <div class="activity-broker-select-wrap">
-                            <label for="activity-broker-select">Broker:</label>
-                            <select id="activity-broker-select" class="form-select activity-select">
-                                <!-- Populated dynamically e.g. XL, CC, YP -->
-                            </select>
-                        </div>
+                        <span class="activity-filter-title">Aktivitas Bulanan</span>
                         <div class="activity-month-nav">
                             <button id="btn-activity-prev-month" class="activity-nav-btn" title="Bulan Sebelumnya">◀</button>
-                            <span id="activity-month-label" class="activity-month-title">October 2026</span>
+                            <span id="activity-month-label" class="activity-month-title">Oktober 2026</span>
                             <button id="btn-activity-next-month" class="activity-nav-btn" title="Bulan Selanjutnya">▶</button>
                         </div>
+                    </div>
+
+                    <!-- Broker Selector Chips (Persis seperti di Broker Flow) -->
+                    <div class="flow-chips-section activity-chips-section">
+                        <div class="activity-chips-header">
+                            <span class="flow-chips-title">Pilih Broker (Hanya dengan transaksi):</span>
+                            <span id="activity-active-broker-badge" class="activity-active-badge">Broker: <strong>--</strong></span>
+                        </div>
+                        <div id="activity-broker-chips" class="flow-chips-container activity-chips-container">
+                            <!-- Populated dynamically via JS -->
+                        </div>
+                        <!-- Hidden select element for backwards compatibility -->
+                        <select id="activity-broker-select" class="form-select activity-select" style="display: none;"></select>
                     </div>
 
                     <!-- Activity Summary Card -->
