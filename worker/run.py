@@ -42,6 +42,7 @@ def main():
     pipeline_only = "--pipeline-only" in args
     harvester_only = "--harvester-only" in args
     scanner_only = "--scanner-only" in args
+    no_sync_stocks = "--no-sync-stocks" in args
 
     mode_str = "🧪 TEST MODE (SQLite)" if TEST_MODE else "🚀 PRODUCTION (PostgreSQL)"
     logger.info("╔═══════════════════════════════════════════╗")
@@ -71,6 +72,19 @@ def main():
         logger.info(f"║  🏁 SELESAI — Durasi: {str(duration).split('.')[0]:>17s}  ║")
         logger.info("╚═══════════════════════════════════════════╝")
         return
+
+    # ── Step 1b: Sync Daftar Saham & Papan Pencatatan BEI ────
+    if not harvester_only and not no_sync_stocks:
+        try:
+            logger.info("═══════════════════════════════════════════")
+            logger.info("  📋 SINKRONISASI DAFTAR SAHAM & PAPAN BEI")
+            logger.info("═══════════════════════════════════════════")
+            from sync_daftar_saham import run_sync
+            sync_res = run_sync()
+            src_str = "Portal Resmi BEI" if sync_res.get("source") == "idx_direct" else "Daftar Saham Lokal (Fallback)"
+            logger.info(f"✅ Sync Emiten BEI Selesai ({src_str}): {sync_res.get('total_emiten', 0)} emiten terdaftar.")
+        except Exception as e:
+            logger.warning(f"⚠️ Sync daftar saham dilewati (fallback ke master database yang ada): {e}")
 
     # ── Step 2: Pipeline OHLCV ──────────────────────────────
     pipeline_success = True

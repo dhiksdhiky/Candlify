@@ -167,3 +167,15 @@ def test_screener_preset_pre_breakout_integration():
     # filter_by_preset pre_breakout
     result = filter_by_preset(mock_stocks, "pre_breakout")
     assert isinstance(result, list)
+
+
+def test_sync_daftar_saham_csv_fallback():
+    import os
+    from worker.sync_daftar_saham import load_records_from_csv
+    csv_path = os.path.join("worker", "daftar_saham.csv")
+    records = load_records_from_csv(csv_path)
+    assert len(records) >= 900
+    first = records[0]
+    assert first.code == "AADI"
+    assert first.listing_board in ["Utama", "Pengembangan", "Pemantauan Khusus", "Akselerasi", "Ekonomi Baru"]
+

@@ -96,42 +96,99 @@ def sync_to_database(records: List[StockRecord]) -> int:
     """)
 
     sorted_records = sorted(records, key=lambda x: x.code)
-    updated_count = 0
+    params_list = []
+    for i, r in enumerate(sorted_records, 1):
+        tgl_db = None
+        if r.listing_date:
+            try:
+                tgl_db = datetime.strptime(r.listing_date, "%Y-%m-%d").date()
+            except Exception:
+                tgl_db = None
+
+        params_list.append({
+            "kode": r.code,
+            "no": i,
+            "nama": r.name,
+            "tgl": tgl_db,
+            "saham": r.shares,
+            "papan": r.listing_board,
+        })
 
     with engine.begin() as conn:
-        for i, r in enumerate(sorted_records, 1):
-            tgl_db = None
-            if r.listing_date:
-                try:
-                    tgl_db = datetime.strptime(r.listing_date, "%Y-%m-%d").date()
-                except Exception:
-                    tgl_db = None
+        conn.execute(upsert_stmt, params_list)
 
-            params = {
-                "kode": r.code,
-                "no": i,
-                "nama": r.name,
-                "tgl": tgl_db,
-                "saham": r.shares,
-                "papan": r.listing_board,
-            }
-            conn.execute(upsert_stmt, params)
-            updated_count += 1
-
+    updated_count = len(params_list)
     logger.info("✅ Database daftar_saham tersinkronisasi: %d emiten terupdate.", updated_count)
     return updated_count
+
+
+def load_records_from_csv(csv_path: str) -> List[StockRecord]:
+    """Fallback: Muat data emiten dari file worker/daftar_saham.csv lokal jika portal BEI terhalang."""
+    if not os.path.exists(csv_path):
+        return []
+    import csv
+    indo_to_month = {
+        "Jan": "01", "Feb": "02", "Mar": "03", "Apr": "04",
+        "Mei": "05", "Jun": "06", "Jul": "07", "Agu": "08",
+        "Sep": "09", "Okt": "10", "Nov": "11", "Des": "12"
+    }
+    records: List[StockRecord] = []
+    with open(csv_path, "r", encoding="utf-8") as f:
+        reader = csv.DictReader(f, delimiter=";")
+        for i, row in enumerate(reader, 1):
+            code = (row.get("Kode") or "").strip().upper()
+            if not code:
+                continue
+            name = (row.get("Nama Perusahaan") or "").strip()
+            raw_tgl = (row.get("Tanggal Pencatatan") or "").strip()
+            tgl_iso = ""
+            if raw_tgl:
+                parts = raw_tgl.split()
+                if len(parts) == 3:
+                    d, m, y = parts
+                    m_num = indo_to_month.get(m, "01")
+                    tgl_iso = f"{y}-{m_num}-{d.zfill(2)}"
+            raw_saham = (row.get("Saham") or "0").replace(".", "").replace(",", "").strip()
+            try:
+                shares = int(raw_saham)
+            except ValueError:
+                shares = 0
+            board = (row.get("Papan Pencatatan") or "").strip() or "Pengembangan"
+            records.append(StockRecord(
+                code=code,
+                name=name,
+                listing_date=tgl_iso,
+                shares=shares,
+                listing_board=board,
+                no=i
+            ))
+    return records
 
 
 def run_sync() -> Dict[str, Any]:
     """Eksekusi proses sinkronisasi daftar saham secara menyeluruh."""
     logger.info("🚀 Memulai sinkronisasi daftar saham & papan pencatatan IDX...")
-    records = fetch_idx_stocks()
-    if not records:
-        raise RuntimeError("Gagal mengambil data dari IDX: list kosong.")
-
-    # 1. Update file CSV lokal
     csv_path = os.path.join(os.path.dirname(__file__), "daftar_saham.csv")
-    update_csv_file(records, csv_path)
+    records: List[StockRecord] = []
+    source = "idx_direct"
+
+    try:
+        records = fetch_idx_stocks()
+        if records:
+            # 1. Update file CSV lokal
+            update_csv_file(records, csv_path)
+            logger.info("✅ Berhasil mengunduh %d emiten langsung dari portal BEI.", len(records))
+    except Exception as e:
+        logger.warning("⚠️ Sinkronisasi langsung ke portal BEI terkendala: %s. Beralih ke fallback file CSV lokal.", e)
+        records = []
+
+    if not records:
+        logger.info("📄 Menggunakan fallback master emiten dari %s...", csv_path)
+        records = load_records_from_csv(csv_path)
+        source = "local_csv_fallback"
+
+    if not records:
+        raise RuntimeError("Gagal memuat daftar emiten: data dari BEI dan CSV kosong.")
 
     # 2. Update Database Neon / SQLite
     db_updated = sync_to_database(records)
@@ -143,10 +200,11 @@ def run_sync() -> Dict[str, Any]:
 
     logger.info("📊 Sebaran Papan Pencatatan:")
     for b_name, count in sorted(board_dist.items(), key=lambda x: x[1], reverse=True):
-        logger.info("   • %-20s: %3d emiten", b_name, count)
+        logger.info("   • %-25s: %3d emiten", b_name, count)
 
     return {
         "success": True,
+        "source": source,
         "total_emiten": len(records),
         "db_updated": db_updated,
         "board_distribution": board_dist

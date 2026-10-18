@@ -99,7 +99,7 @@ def get_master_calendar(start_date: date, end_date: date) -> pd.DatetimeIndex:
     agar terhindar dari tanggal glitch/anomali tunggal yang dapat memicu candle hantu.
     """
     logger.info("📅 Mengunduh Kalender Bursa Konsensus (^JKSE + Top Big Caps)...")
-    benchmark_tickers = ['^JKSE', 'BBCA.JK', 'BBRI.JK', 'BMRI.JK', 'TLKM.JK', 'ASII.JK']
+    logger.info(f"   🔍 Benchmark Evaluasi: {', '.join(benchmark_tickers)}")
     consensus_dates = []
     success_sources = []
 
@@ -144,9 +144,10 @@ def get_master_calendar(start_date: date, end_date: date) -> pd.DatetimeIndex:
         raise ValueError("Data kalender bursa kosong dari semua benchmark yfinance.")
 
     sorted_dates = pd.DatetimeIndex(sorted(set(consensus_dates)))
+    latest_trade_dt = sorted_dates[-1].date()
     logger.info(
         f"📅 Kalender bursa konsensus dimuat: {len(sorted_dates)} hari trading "
-        f"(Sumber: {', '.join(success_sources)}). Tanggal terbaru: {sorted_dates[-1].date()}"
+        f"(Sumber: {', '.join(success_sources)}). Tanggal terbaru terverifikasi: {latest_trade_dt}"
     )
     return sorted_dates
 
@@ -319,7 +320,9 @@ def run_pipeline():
     # ── Selesai (Otoritas hapus diserahkan 100% ke Archiver - F6) ────
 
     logger.info("═══════════════════════════════════════════")
-    logger.info(f"  📈 PIPELINE SELESAI | ✅ {success_count} | ⚠️ {skip_count} skip | ❌ {error_count} error")
+    logger.info(f"  📈 PIPELINE SELESAI | ✅ {success_count} emiten | ⚠️ {skip_count} skip | ❌ {error_count} error")
+    if len(master_cal) > 0:
+        logger.info(f"  📅 Data OHLCV Tersinkronisasi s.d. Tanggal Bursa: {master_cal[-1].date()}")
     logger.info("═══════════════════════════════════════════")
     return True
 

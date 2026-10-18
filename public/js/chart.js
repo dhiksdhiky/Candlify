@@ -5373,7 +5373,9 @@ class CandlifyChart {
                 const stats = d.archive?.stats || { total_harga: 0, total_broksum: 0, min_date: 'N/A', max_date: 'N/A' };
 
                 if (this.dom.dbLastSyncBadge) {
-                    this.dom.dbLastSyncBadge.textContent = `Last Synced: ${master.last_update || '-'}`;
+                    const latestMarketDate = (stats.max_date && stats.max_date !== 'N/A') ? stats.max_date : (master.last_update || '-');
+                    this.dom.dbLastSyncBadge.textContent = `Last Synced: ${latestMarketDate}`;
+                    this.dom.dbLastSyncBadge.title = `Data Pasar: ${latestMarketDate} | Master Emiten: ${master.last_update || '-'}`;
                 }
                 if (this.dom.dbEngineStatus) {
                     this.dom.dbEngineStatus.textContent = 'Neon DB Aktif';
