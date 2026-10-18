@@ -1,6 +1,6 @@
 # 📱 PANDUAN PENGGUNAAN CANDLIFY PWA & KAMUS FITUR
 
-> **Buku Manual Resmi Candlify v2.2 — Antarmuka Pengguna & Navigasi Kuantitatif**  
+> **Buku Manual Resmi Candlify v2.5 — Antarmuka Pengguna & Navigasi Kuantitatif**  
 > *Panduan komprehensif seluruh modul analitik, navigasi 5 tab, keterangan setiap tombol & tools chart, badge Order Flow, kalkulator position sizing money management, serta log pembaruan terkini.*
 
 ---
@@ -205,6 +205,18 @@ Candlify V2.3 secara otomatis mengidentifikasi klasifikasi papan dan status risi
 ---
 
 ## 8. 🚀 Catatan Rilis & Log Pembaruan (Changelog)
+
+### Versi 2.5 — Institutional Pre-Breakout V2, Data Integrity & Reliability Upgrade (Oktober 2026)
+* 🎯 **Institutional Pre-Breakout V2 Persistence**: Kelima metrik institusional dari scanner (`dominance`, `aar`, `clv_3d`, `up_down_vol_ratio`, `is_pocket_pivot`) kini tersimpan permanen di tabel `candlify_signals` dan ditampilkan langsung pada badge (`⚡Pivot`, `% Dom`, serta tooltip rincian di Screener).
+* 💱 **Akurasi Valuasi VWAP Foreign Flow & Turnover**:
+  * Perhitungan nilai rupiah transaksi asing (`foreign_val`) kini menggunakan harga rata-rata tertimbang harian (**VWAP = Value / Volume**) alih-alih sekadar harga penutupan (`close`).
+  * Perbaikan bug inflasi $100\times$ pada estimasi *turnover* tabel harga historis dengan memprioritaskan `harga_saham.value` resmi BEI.
+  * Perbaikan indikator tanda minus (`-`) pada angka *Net Outflow* asing di kartu *Order Flow* dan *Screener*.
+* 🛡️ **Stabilitas Pipeline & Keamanan Data Master**:
+  * Perbaikan orkestrasi fallback Layer 1 (Official IDX) ke Layer 2 (Yahoo Finance) di `worker/run.py` dan `worker/pipeline.py` agar bebas duplikasi eksekusi.
+  * Perlindungan kolom `Tanggal Pencatatan` (IPO Date) pada `worker/daftar_saham.csv` dan penggunaan *atomic upsert* (`ON CONFLICT DO UPDATE`) saat upload Excel emiten agar `tradeable_shares` & `notasi_khusus` tidak terhapus.
+* 🧠 **Konteks HMB di Kalkulator Trading Plan**: Saat menyusun rencana beli pada saham yang sedang aktif di chart, kalkulator *Position Sizing* kini menampilkan informasi referensi **HMB (Harga Modal Bandar)** secara langsung.
+* 🗄️ **Kalender Database & PWA Offline Docs**: Kotak kalender di tab Database kini menampilkan indikator sinkronisasi `IDX Official`, serta Service Worker (`candlify-v2-2.5.0`) mencache parser Markdown agar buku panduan tetap bisa dibaca saat *offline*.
 
 ### Versi 2.4 — Official Market Intelligence & Whale Footprint (Oktober 2026)
 * 🌐 **Foreign Flow Multi-Horizon (1D, 5D, 20D)**: Visualisasi akumulasi/distribusi dana asing resmi BEI dengan rincian lot dan nilai rupiah pada bottom sheet Order Flow serta indikator compact (`🌐 +24M`) di chart header.

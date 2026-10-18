@@ -3,7 +3,7 @@
  * Strategy: Network-First with Cache Fallback (Sesuai Panduan pwa_config.md)
  */
 
-const CACHE_NAME = 'candlify-v2-1.0.1';
+const CACHE_NAME = 'candlify-v2-2.5.0';
 
 const urlsToCache = [
   './',
@@ -13,6 +13,7 @@ const urlsToCache = [
   './css/style.css',
   './js/chart.js',
   './js/klinecharts.min.js',
+  './js/marked.min.js',
   './icons/icon-192.png',
   './icons/icon-512.png'
 ];

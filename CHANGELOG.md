@@ -1,0 +1,52 @@
+# 📜 CHANGELOG — Candlify V2
+
+Semua perubahan penting, perbaikan bug, dan peningkatan fitur pada proyek **Candlify V2** didokumentasikan di dalam berkas ini.
+
+---
+
+## [2.5.0] — 2026-10-19
+### 🛠️ Bug Fixes (P0, P1, P2)
+- **Worker Pipeline Orchestrator (`worker/run.py`, `worker/pipeline.py`, `worker/sync_idx_daily.py`)**:
+  - Memperbaiki `NameError: name 'pipeline_success' is not defined` pada `worker/run.py` saat pembuatan laporan status akhir Telegram.
+  - Memperbaiki eksekusi ganda (*double execution*) Layer 2 Fallback dengan menonaktifkan internal fallback di dalam `run_sync_daily(use_fallback=False)` ketika dipanggil dari `worker/run.py`.
+  - Memperbaiki `NameError: name 'benchmark_tickers' is not defined` dan `NameError: name 'master_cal' is not defined` pada fungsi `get_master_calendar()` dan `run_pipeline()` di `worker/pipeline.py`.
+- **Integritas Data Master Emiten (`worker/sync_idx_daily.py`, `worker/sync_seed.py`, `lib/database_monitor.py`)**:
+  - Memperbaiki `update_local_csv()` di `worker/sync_idx_daily.py` agar membaca dan mempertahankan kolom `Tanggal Pencatatan` (IPO date) yang sudah ada di `worker/daftar_saham.csv`.
+  - Mengubah `process_saham_excel()` di `lib/database_monitor.py` dari operasi destruktif `DELETE FROM daftar_saham` menjadi *atomic upsert* (`INSERT ... ON CONFLICT (kode) DO UPDATE`) sehingga data `tradeable_shares` dan `notasi_khusus` tidak hilang saat upload Excel.
+  - Memperbaiki `worker/sync_seed.py` agar menyalin seluruh skema kolom `daftar_saham` (`nama_perusahaan`, `papan_pencatatan`, `tradeable_shares`, `notasi_khusus`) ke database SQLite lokal.
+- **Akurasi Perhitungan Bandarmologi & Tampilan UI (`lib/bandarmologi.py`, `lib/screener.py`, `public/js/chart.js`)**:
+  - Memperbaiki bug pengali $100\times$ pada estimasi *turnover* di `get_historical_price_table()` dengan memprioritaskan `harga_saham.value` resmi BEI, diikuti `broker_summary`, lalu fallback `close * volume`.
+  - Memperbaiki hilangnya tanda minus (`-`) pada nilai *Foreign Outflow* negatif di panel *Order Flow* (`renderBroksumData`) dan daftar *Screener* (`filterAndRenderScreener`).
+  - Mengganti kalkulasi nilai rupiah transaksi asing (`foreign_val`) dari `net_shares * close` menjadi berbasis **VWAP harian** (`value / volume`, dengan fallback ke `close`).
+
+### 🚀 Enhancements & Optimizations
+- **Institutional Pre-Breakout V2 Persistence (`worker/schema.sql`, `worker/db_config.py`, `worker/scanner_bali.py`, `lib/screener.py`, `public/js/chart.js`)**:
+  - Menambahkan kolom `dominance`, `aar`, `clv_3d`, `up_down_vol_ratio`, dan `is_pocket_pivot` ke tabel `candlify_signals` lengkap dengan migrasi otomatis.
+  - Menampilkan indikator `⚡Pivot`, `% Dom`, dan tooltip detail metrik institusional pada kartu saham di tab Screener.
+- **Manajemen Memori & Query (`lib/bandarmologi.py`)**:
+  - Mengganti penghapusan total `.clear()` pada cache in-memory dengan algoritma *FIFO Eviction* (20% entri tertua) untuk mencegah *cache stampede*.
+  - Membatasi query `get_raw_broker_df()` ke jendela 240 hari kalender terakhir guna menjaga kecepatan respons dan efisiensi RAM.
+- **UI & PWA Polish (`public/js/chart.js`, `public/sw.js`, `lib/database_monitor.py`)**:
+  - Menambahkan metrik `idx_official_synced` ke `get_calendar_history()` dan menampilkannya pada kotak kalender di tab Database.
+  - Menampilkan referensi **HMB (Harga Modal Bandar)** secara kontekstual di dalam kalkulator *Trading Plan Position Sizing*.
+  - Memperbarui Service Worker ke `candlify-v2-2.5.0` dan menyertakan `./js/marked.min.js` untuk dukungan pembacaan panduan secara offline.
+
+---
+
+## [2.4.0] — 2026-10-18
+- **Foreign Flow Multi-Horizon (1D, 5D, 20D)** pada bottom sheet Order Flow dan badge header chart.
+- **Trade Size & Whale Footprint Engine** (`whale_ratio >= 1.5x`) dan deteksi crossing **Pasar Nego**.
+- **Screener Presets Baru**: `🌐 Foreign Inflow` dan `🐳 Whale Footprint`.
+- **Subtle Notasi Khusus BEI** (`[X]`, `[E]`, dll.) dan layout **Side-by-Side Symmetrical** pada tabel Broker Summary.
+
+---
+
+## [2.3.0] — 2026-10-17
+- **All-in-One IDX Trading Engine** (`worker/sync_idx_daily.py`) untuk menarik data OHLCV, Foreign Flow, Frekuensi, Pasar Nego, Papan Pencatatan, dan Notasi Khusus langsung dari endpoint resmi BEI.
+- **Backfiller Multi-Minggu Cepat** (`worker/backfill_idx_2w.py`).
+
+---
+
+## [2.2.0] — 2026-10-15
+- **Pusat Dokumentasi Dinamis** terintegrasi di tab Settings (`docs/01` s/d `03`).
+- **Simplifikasi Tab Settings**, perbaikan modal Watchlist tanpa flicker, dan **Compact Order Flow Badge**.

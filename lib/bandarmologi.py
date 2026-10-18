@@ -48,10 +48,18 @@ _INTELLIGENCE_CACHE: Dict[str, Tuple[float, Dict[str, Any]]] = {}
 _INTELLIGENCE_LOCK = threading.Lock()
 
 
+def _evict_oldest_entries(cache_dict: Dict[str, Tuple[float, Any]], max_entries: int = _CACHE_MAX_ENTRIES) -> None:
+    """Evict 20% entri tertua jika cache penuh untuk mencegah cache stampede."""
+    if len(cache_dict) >= max_entries:
+        oldest_keys = sorted(cache_dict.keys(), key=lambda k: cache_dict[k][0])[: max(1, max_entries // 5)]
+        for k in oldest_keys:
+            cache_dict.pop(k, None)
+
+
 def get_stock_market_intelligence(symbol: str) -> Dict[str, Any]:
     """
     Menghitung Market Intelligence resmi dari BEI (Official IDX Data):
-    1. Foreign Flow (Asing): 1D, 5D, 20D (Lot & Estimasi Rupiah, Buy vs Sell)
+    1. Foreign Flow (Asing): 1D, 5D, 20D (Lot & Estimasi Rupiah berbasis VWAP harian, Buy vs Sell)
     2. Trade Size (Whale vs Ritel): Lot/Trade hari ini vs Rerata 20 hari
     3. Pasar Nego (Crossing Saham): Volume, Value & Deteksi Crossing (> Rp 10 Miliar / > 1% Shares)
     4. Emiten Info: Notasi Khusus BEI & Tradeable Shares
@@ -126,20 +134,28 @@ def get_stock_market_intelligence(symbol: str) -> Dict[str, Any]:
             }
             return empty_intel
 
-        # Perhitungan Foreign Flow
+        # Perhitungan Foreign Flow berbasis VWAP harian (Value / Volume) dengan fallback Close
+        def _calc_vwap(row: Any) -> float:
+            vol_r = float(row.get("volume") or 0)
+            val_r = float(row.get("value") or 0)
+            if vol_r > 0 and val_r > 0:
+                return val_r / vol_r
+            return float(row.get("close") or 0)
+
+        df_h["vwap"] = df_h.apply(_calc_vwap, axis=1)
         today = df_h.iloc[0]
-        close_p = float(today["close"] or 0)
+        today_vwap = float(today["vwap"] or today["close"] or 0)
         today_buy_s = int(today.get("foreign_buy") or 0)
         today_sell_s = int(today.get("foreign_sell") or 0)
         today_net_s = int(today.get("foreign_net") or 0)
-        today_net_val = float(today_net_s * close_p)
+        today_net_val = float(today_net_s * today_vwap)
 
         df_5d = df_h.head(5)
         net_5d_s = int(df_5d["foreign_net"].sum())
-        val_5d = float((df_5d["foreign_net"] * df_5d["close"].astype(float)).sum())
+        val_5d = float((df_5d["foreign_net"] * df_5d["vwap"].astype(float)).sum())
 
         net_20d_s = int(df_h["foreign_net"].sum())
-        val_20d = float((df_h["foreign_net"] * df_h["close"].astype(float)).sum())
+        val_20d = float((df_h["foreign_net"] * df_h["vwap"].astype(float)).sum())
 
         foreign_intel = {
             "today_net_shares": today_net_s,
@@ -226,8 +242,7 @@ def get_stock_market_intelligence(symbol: str) -> Dict[str, Any]:
         }
 
         with _INTELLIGENCE_LOCK:
-            if len(_INTELLIGENCE_CACHE) >= _CACHE_MAX_ENTRIES:
-                _INTELLIGENCE_CACHE.clear()
+            _evict_oldest_entries(_INTELLIGENCE_CACHE)
             _INTELLIGENCE_CACHE[clean_sym] = (now, result)
 
         return result
@@ -254,14 +269,23 @@ def get_raw_broker_df(clean_sym: str) -> Optional[pd.DataFrame]:
         return None
 
     try:
+        cutoff_date = (now_wib().date() - timedelta(days=240)).strftime("%Y-%m-%d")
         sql = text("""
             SELECT date, broker_code, net_vol, net_val, buy_vol, buy_val, sell_vol, sell_val
             FROM broker_summary
-            WHERE ticker = :ticker
+            WHERE ticker = :ticker AND date >= :cutoff_date
             ORDER BY date ASC
         """)
         with engine.connect() as conn:
-            df = pd.read_sql(sql, conn, params={"ticker": clean_sym})
+            df = pd.read_sql(sql, conn, params={"ticker": clean_sym, "cutoff_date": cutoff_date})
+            if df.empty:
+                sql_fallback = text("""
+                    SELECT date, broker_code, net_vol, net_val, buy_vol, buy_val, sell_vol, sell_val
+                    FROM broker_summary
+                    WHERE ticker = :ticker
+                    ORDER BY date ASC
+                """)
+                df = pd.read_sql(sql_fallback, conn, params={"ticker": clean_sym})
 
         if not df.empty:
             df['date'] = pd.to_datetime(df['date'])
@@ -270,8 +294,7 @@ def get_raw_broker_df(clean_sym: str) -> Optional[pd.DataFrame]:
                     df[col] = 0
 
         with _RAW_DF_LOCK:
-            if len(_RAW_DF_CACHE) >= _CACHE_MAX_ENTRIES:
-                _RAW_DF_CACHE.clear()
+            _evict_oldest_entries(_RAW_DF_CACHE)
             _RAW_DF_CACHE[clean_sym] = (now, df)
         return df
     except Exception as e:
@@ -449,8 +472,7 @@ def get_bandarmologi(symbol: str, days_lookback: int = 180) -> Dict[str, Any]:
 
         # Simpan Cache
         with _BANDAR_CACHE_LOCK:
-            if len(_BANDAR_CACHE) >= _CACHE_MAX_ENTRIES:
-                _BANDAR_CACHE.clear()
+            _evict_oldest_entries(_BANDAR_CACHE)
             _BANDAR_CACHE[cache_key] = (now, result)
 
         return result
@@ -598,7 +620,7 @@ def get_broksum_range(symbol: str, from_date: Optional[str] = None, to_date: Opt
                 with engine.connect() as conn:
                     q_rf = text("""
                         SELECT SUM(foreign_net) as net_shares,
-                               SUM(foreign_net * close) as net_val,
+                               SUM(foreign_net * CASE WHEN volume > 0 AND COALESCE(value, 0) > 0 THEN (value / volume) ELSE close END) as net_val,
                                SUM(foreign_buy) as buy_shares,
                                SUM(foreign_sell) as sell_shares,
                                SUM(non_regular_volume) as nego_vol,
@@ -670,9 +692,9 @@ def get_historical_price_table(symbol: str, timeframe: str = "daily", limit: int
 
     try:
         with engine.connect() as conn:
-            # 1. Ambil riwayat harga harian
+            # 1. Ambil riwayat harga harian beserta nilai transaksi resmi BEI (value)
             q_price = text("""
-                SELECT tanggal as date, open, high, low, close, volume
+                SELECT tanggal as date, open, high, low, close, volume, COALESCE(value, 0) as official_value
                 FROM harga_saham
                 WHERE ticker = :ticker
                 ORDER BY tanggal DESC
@@ -680,9 +702,9 @@ def get_historical_price_table(symbol: str, timeframe: str = "daily", limit: int
             """)
             df_price = pd.read_sql(q_price, conn, params={"ticker": clean_sym})
 
-            # 2. Ambil turnover harian dari broker_summary
+            # 2. Ambil turnover harian dari broker_summary sebagai fallback jika official_value = 0
             q_turnover = text("""
-                SELECT date, SUM(buy_val) as turnover
+                SELECT date, SUM(buy_val) as brok_turnover
                 FROM broker_summary
                 WHERE ticker = :ticker
                 GROUP BY date
@@ -698,10 +720,19 @@ def get_historical_price_table(symbol: str, timeframe: str = "daily", limit: int
             merged = pd.merge(df_price, df_turnover, on='date', how='left')
         else:
             merged = df_price.copy()
-            merged['turnover'] = 0.0
+            merged['brok_turnover'] = 0.0
 
-        # Fallback turnover jika dari broker_summary kosong: close * volume * 100
-        merged['turnover'] = merged['turnover'].fillna(merged['close'] * merged['volume'] * 100.0)
+        # Prioritas Turnover: 1. Official IDX Value (>0) -> 2. Broksum buy_val (>0) -> 3. close * volume (shares)
+        def _resolve_turnover(row: Any) -> float:
+            off_v = float(row.get('official_value') or 0.0)
+            if off_v > 0:
+                return off_v
+            brok_v = float(row.get('brok_turnover') or 0.0)
+            if brok_v > 0:
+                return brok_v
+            return float(row.get('close') or 0.0) * float(row.get('volume') or 0.0)
+
+        merged['turnover'] = merged.apply(_resolve_turnover, axis=1)
         merged = merged.sort_values('date', ascending=True)
 
         tf = (timeframe or "daily").lower().strip()

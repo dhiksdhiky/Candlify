@@ -135,7 +135,7 @@ CREATE INDEX IF NOT EXISTS idx_harga_saham_ticker_date ON harga_saham (ticker, t
 CREATE INDEX IF NOT EXISTS idx_watchlists_symbol ON candlify_watchlists (symbol);
 CREATE INDEX IF NOT EXISTS idx_trading_plans_status ON candlify_trading_plans (status);
 
--- 10. Pre-Breakout Signals (Pre-Breakout Base Engine)
+-- 10. Pre-Breakout Signals (Pre-Breakout Base Engine v2)
 CREATE TABLE IF NOT EXISTS candlify_signals (
     id SERIAL PRIMARY KEY,
     date DATE NOT NULL,
@@ -147,6 +147,11 @@ CREATE TABLE IF NOT EXISTS candlify_signals (
     price_to_ma20 FLOAT NOT NULL,
     hmb FLOAT,
     top_accumulator VARCHAR(5),
+    dominance FLOAT DEFAULT 0,
+    aar FLOAT DEFAULT 1.0,
+    clv_3d FLOAT DEFAULT 0,
+    up_down_vol_ratio FLOAT DEFAULT 1.0,
+    is_pocket_pivot BOOLEAN DEFAULT FALSE,
     score INT NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE (date, ticker)

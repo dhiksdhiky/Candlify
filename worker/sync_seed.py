@@ -54,9 +54,9 @@ def sync():
 
     # ── Tarik Data ──────────────────────────────────────────
     try:
-        # 1. Daftar Saham (semua)
+        # 1. Daftar Saham (semua kolom termasuk papan_pencatatan, tradeable_shares, notasi_khusus)
         logger.info("📥 Menarik daftar_saham...")
-        df_saham = pd.read_sql("SELECT kode, nama_perusahaan AS nama FROM daftar_saham", pg_url)
+        df_saham = pd.read_sql("SELECT * FROM daftar_saham", pg_url)
         logger.info(f"   → {len(df_saham)} saham")
 
         # 2. Harga Saham (sampel atau full)

@@ -53,6 +53,7 @@ def get_calendar_history(month_str: str) -> Dict[str, Any]:
                     h.tanggal as date,
                     COUNT(DISTINCT h.ticker) as harga_total,
                     SUM(CASE WHEN h.volume > 0 THEN 1 ELSE 0 END) as target_harvester,
+                    SUM(CASE WHEN COALESCE(h.frequency, 0) > 0 THEN 1 ELSE 0 END) as idx_official_total,
                     (SELECT COUNT(DISTINCT b.ticker) FROM broker_summary b WHERE b.date = h.tanggal) as broker_total
                 FROM harga_saham h
                 WHERE h.tanggal >= :first_day AND h.tanggal < :next_month_first_day
@@ -69,6 +70,7 @@ def get_calendar_history(month_str: str) -> Dict[str, Any]:
                     "date": str(r.date),
                     "ohlcv_scraped": int(r.harga_total) if r.harga_total else 0,
                     "target_harvester": int(r.target_harvester) if r.target_harvester else 0,
+                    "idx_official_synced": int(r.idx_official_total) if hasattr(r, 'idx_official_total') and r.idx_official_total else 0,
                     "broksum_synced": int(r.broker_total) if r.broker_total else 0
                 })
         except Exception as e:
@@ -383,15 +385,19 @@ def process_saham_excel(excel_bytes: bytes, filename: str) -> Dict[str, Any]:
                 f"dibandingkan master data aktif ({curr_count} emiten). Minimal 500 emiten valid."
             )
 
-        # Wipe tabel daftar_saham
-        conn.execute(text("DELETE FROM daftar_saham"))
-
-        # Bulk insert
-        insert_sql = text("""
+        # Upsert emiten baru dan pertahankan kolom tradeable_shares & notasi_khusus yang sudah ada
+        upsert_sql = text("""
             INSERT INTO daftar_saham (no, kode, nama_perusahaan, tanggal_pencatatan, saham, papan_pencatatan, tanggal_update)
             VALUES (:no, :kode, :nama_perusahaan, :tanggal_pencatatan, :saham, :papan_pencatatan, :tanggal_update)
+            ON CONFLICT (kode) DO UPDATE SET
+                no = EXCLUDED.no,
+                nama_perusahaan = EXCLUDED.nama_perusahaan,
+                tanggal_pencatatan = COALESCE(EXCLUDED.tanggal_pencatatan, daftar_saham.tanggal_pencatatan),
+                saham = EXCLUDED.saham,
+                papan_pencatatan = EXCLUDED.papan_pencatatan,
+                tanggal_update = EXCLUDED.tanggal_update
         """)
-        conn.execute(insert_sql, insert_rows)
+        conn.execute(upsert_sql, insert_rows)
 
     return {
         "status": "success",

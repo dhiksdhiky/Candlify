@@ -2435,15 +2435,16 @@ class CandlifyChart {
             const isRange = foreign.range_net_val !== undefined;
             const netVal1d = isRange ? foreign.range_net_val : (foreign.today_net_val || 0);
             const netLots1d = isRange ? (foreign.range_net_lots || 0) : (foreign.today_net_lots || 0);
-            const sign1d = netVal1d > 0 ? '+' : '';
+            const sign1d = netVal1d > 0 ? '+' : (netVal1d < 0 ? '-' : '');
+            const lotSign1d = netLots1d > 0 ? '+' : '';
             const cls1d = netVal1d > 0 ? 'up' : (netVal1d < 0 ? 'down' : '');
 
             this.dom.intelForeign1d.textContent = `${sign1d}${fmtVal(netVal1d)}`;
             this.dom.intelForeign1d.className = `intel-val ${cls1d}`;
-            this.dom.intelForeign1d.title = `${sign1d}${netLots1d.toLocaleString('id-ID')} Lot`;
+            this.dom.intelForeign1d.title = `${lotSign1d}${netLots1d.toLocaleString('id-ID')} Lot`;
 
             const netVal5d = foreign.flow_5d_val || 0;
-            const sign5d = netVal5d > 0 ? '+' : '';
+            const sign5d = netVal5d > 0 ? '+' : (netVal5d < 0 ? '-' : '');
             const cls5d = netVal5d > 0 ? 'up' : (netVal5d < 0 ? 'down' : '');
             if (this.dom.intelForeign5d) {
                 this.dom.intelForeign5d.textContent = `${sign5d}${fmtVal(netVal5d)}`;
@@ -2451,7 +2452,7 @@ class CandlifyChart {
             }
 
             const netVal20d = foreign.flow_20d_val || 0;
-            const sign20d = netVal20d > 0 ? '+' : '';
+            const sign20d = netVal20d > 0 ? '+' : (netVal20d < 0 ? '-' : '');
             const cls20d = netVal20d > 0 ? 'up' : (netVal20d < 0 ? 'down' : '');
             if (this.dom.intelForeign20d) {
                 this.dom.intelForeign20d.textContent = `${sign20d}${fmtVal(netVal20d)}`;
@@ -4284,7 +4285,7 @@ class CandlifyChart {
         const getDynamicMetric = (s) => {
             if (this.currentSort.startsWith('foreign') || s.is_foreign_inflow) {
                 const val = s.foreign_val ?? 0;
-                const sign = val >= 0 ? '+' : '';
+                const sign = val > 0 ? '+' : (val < 0 ? '-' : '');
                 const cls = val >= 0 ? 'up' : 'down';
                 const lotStr = s.foreign_net_lots ? ` (${s.foreign_net_lots > 0 ? '+' : ''}${s.foreign_net_lots.toLocaleString('id-ID')} Lot)` : '';
                 return `<span class="metric-dynamic ${cls}">🌐 Asing ${sign}${fmtVal(val)}${lotStr}</span> • `;
@@ -4297,7 +4298,8 @@ class CandlifyChart {
             if (this.currentSort.startsWith('score') || s.is_pre_breakout) {
                 const val = s.score != null ? s.score : '--';
                 const acc = s.top_accumulator ? ` • Acc ${escapeHtml(s.top_accumulator)}` : '';
-                return `<span class="metric-dynamic up">🎯 Skor ${val}${acc}</span> • `;
+                const domStr = s.dominance ? ` (${Number(s.dominance).toFixed(0)}% Dom)` : '';
+                return `<span class="metric-dynamic up">🎯 Skor ${val}${acc}${domStr}</span> • `;
             }
             if (this.currentSort.startsWith('perf_3m')) {
                 const val = s.perf_3m ?? 0;
@@ -4332,8 +4334,11 @@ class CandlifyChart {
             const surgeBadge = s.volume_surge && s.volume_surge >= 1.5 
                 ? `<span class="stock-badge-surge">⚡ ${s.volume_surge}x Vol</span>` 
                 : '';
+            const pbTooltip = s.is_pre_breakout
+                ? `Dom: ${Number(s.dominance || 0).toFixed(1)}% | AAR: ${Number(s.aar || 0).toFixed(1)}% | CLV: ${Number(s.clv_3d || 0).toFixed(2)} | U/D Vol: ${Number(s.up_down_vol_ratio || 0).toFixed(2)}x`
+                : '';
             const preBreakoutBadge = s.is_pre_breakout 
-                ? `<span class="stock-badge-prebreakout">🎯 Base ${escapeHtml(s.range_7)}%</span>` 
+                ? `<span class="stock-badge-prebreakout" title="${escapeHtml(pbTooltip)}">🎯 Base ${escapeHtml(s.range_7)}%${s.is_pocket_pivot ? ' ⚡Pivot' : ''}</span>` 
                 : '';
             const boardName = s.board || s.papan_pencatatan || '';
             const isFca = (boardName.includes('Pemantauan') || s.is_fca);
@@ -5847,10 +5852,14 @@ class CandlifyChart {
                     boxClass = 'cal-box-red';
                 }
 
+                const idxSpan = hist.idx_official_synced > 0
+                    ? `<span>IDX: <strong>${hist.idx_official_synced}</strong></span>`
+                    : '';
                 contentHtml = `
                     <div class="cal-stats">
                         <span>Harga: <strong>${hist.ohlcv_scraped}</strong></span>
                         <span>Broksum: <strong>${hist.broksum_synced}</strong></span>
+                        ${idxSpan}
                     </div>
                 `;
             }
@@ -6771,7 +6780,11 @@ class CandlifyChart {
         this._recommendedLot = recLots;
 
         if (this.dom.planCalcSettingHint) {
-            this.dom.planCalcSettingHint.innerHTML = `Risk 1%: Rp ${Number(maxRiskRp).toLocaleString('id-ID')} • Saran: <button type="button" id="btn-apply-rec-lot" style="background:rgba(59,130,246,0.2); border:1px solid rgba(59,130,246,0.4); color:#93c5fd; border-radius:4px; padding:1px 6px; font-size:9.5px; font-weight:700; cursor:pointer;" title="Klik untuk menerapkan saran ${recLots} lot">${recLots} Lot</button>`;
+            const symInput = (this.dom.planInputSymbol?.value || '').replace('IDX:', '').replace('.JK', '').toUpperCase().trim();
+            const activeSym = (this.currentSymbol || '').replace('IDX:', '').replace('.JK', '').toUpperCase().trim();
+            const hmbVal = (symInput && symInput === activeSym) ? Number(this.bandarData?.summary?.latest_hmb || 0) : 0;
+            const hmbHint = hmbVal > 0 ? ` • HMB: <strong>Rp ${Math.round(hmbVal).toLocaleString('id-ID')}</strong>` : '';
+            this.dom.planCalcSettingHint.innerHTML = `Risk ${riskPct.toFixed(1)}%: Rp ${Number(maxRiskRp).toLocaleString('id-ID')}${hmbHint} • Saran: <button type="button" id="btn-apply-rec-lot" style="background:rgba(59,130,246,0.2); border:1px solid rgba(59,130,246,0.4); color:#93c5fd; border-radius:4px; padding:1px 6px; font-size:9.5px; font-weight:700; cursor:pointer;" title="Klik untuk menerapkan saran ${recLots} lot">${recLots} Lot</button>`;
         }
 
         let lots = parseInt(this.dom.planInputLot?.value, 10);

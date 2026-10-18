@@ -400,6 +400,12 @@ def save_signals_to_db(signals: List[Dict[str, Any]], target_date: date) -> int:
     Menyimpan atau memperbarui sinyal pre-breakout ke tabel candlify_signals.
     Menghapus sinyal lama untuk tanggal target terlebih dahulu agar hasil re-scan selalu fresh dan sinkron.
     """
+    try:
+        from db_config import migrate_schema
+        migrate_schema()
+    except Exception:
+        pass
+
     inserted = 0
     with engine.begin() as conn:
         # 1. Bersihkan sinyal basi untuk tanggal target
@@ -412,22 +418,26 @@ def save_signals_to_db(signals: List[Dict[str, Any]], target_date: date) -> int:
             logger.info(f"🧹 Sinyal lama untuk {target_date} dibersihkan (0 kandidat lolos).")
             return 0
 
-        # 2. Insert batch sinyal baru
+        # 2. Insert batch sinyal baru beserta metrik institusional v2
         dialect = get_dialect()
         if dialect == "sqlite":
             stmt = text("""
                 INSERT OR REPLACE INTO candlify_signals (
-                    date, ticker, price, range_7, volume_dry_ratio, bbw, price_to_ma20, hmb, top_accumulator, score
+                    date, ticker, price, range_7, volume_dry_ratio, bbw, price_to_ma20,
+                    hmb, top_accumulator, dominance, aar, clv_3d, up_down_vol_ratio, is_pocket_pivot, score
                 ) VALUES (
-                    :date, :ticker, :price, :range_7, :volume_dry_ratio, :bbw, :price_to_ma20, :hmb, :top_accumulator, :score
+                    :date, :ticker, :price, :range_7, :volume_dry_ratio, :bbw, :price_to_ma20,
+                    :hmb, :top_accumulator, :dominance, :aar, :clv_3d, :up_down_vol_ratio, :is_pocket_pivot, :score
                 )
             """)
         else:
             stmt = text("""
                 INSERT INTO candlify_signals (
-                    date, ticker, price, range_7, volume_dry_ratio, bbw, price_to_ma20, hmb, top_accumulator, score
+                    date, ticker, price, range_7, volume_dry_ratio, bbw, price_to_ma20,
+                    hmb, top_accumulator, dominance, aar, clv_3d, up_down_vol_ratio, is_pocket_pivot, score
                 ) VALUES (
-                    :date, :ticker, :price, :range_7, :volume_dry_ratio, :bbw, :price_to_ma20, :hmb, :top_accumulator, :score
+                    :date, :ticker, :price, :range_7, :volume_dry_ratio, :bbw, :price_to_ma20,
+                    :hmb, :top_accumulator, :dominance, :aar, :clv_3d, :up_down_vol_ratio, :is_pocket_pivot, :score
                 )
                 ON CONFLICT (date, ticker) DO UPDATE SET
                     price = EXCLUDED.price,
@@ -437,6 +447,11 @@ def save_signals_to_db(signals: List[Dict[str, Any]], target_date: date) -> int:
                     price_to_ma20 = EXCLUDED.price_to_ma20,
                     hmb = EXCLUDED.hmb,
                     top_accumulator = EXCLUDED.top_accumulator,
+                    dominance = EXCLUDED.dominance,
+                    aar = EXCLUDED.aar,
+                    clv_3d = EXCLUDED.clv_3d,
+                    up_down_vol_ratio = EXCLUDED.up_down_vol_ratio,
+                    is_pocket_pivot = EXCLUDED.is_pocket_pivot,
                     score = EXCLUDED.score
             """)
 
@@ -451,6 +466,11 @@ def save_signals_to_db(signals: List[Dict[str, Any]], target_date: date) -> int:
                 'price_to_ma20': float(s['price_to_ma20']),
                 'hmb': float(s['hmb']) if s['hmb'] is not None else None,
                 'top_accumulator': str(s['top_accumulator']) if s['top_accumulator'] is not None else None,
+                'dominance': float(s.get('dominance') or 0.0),
+                'aar': float(s.get('aar') or 1.0),
+                'clv_3d': float(s.get('clv_3d') or s.get('clv') or 0.0),
+                'up_down_vol_ratio': float(s.get('up_down_vol_ratio') or 1.0),
+                'is_pocket_pivot': (1 if s.get('is_pocket_pivot') else 0) if dialect == "sqlite" else bool(s.get('is_pocket_pivot', False)),
                 'score': int(s['score'])
             }
             conn.execute(stmt, clean_s)

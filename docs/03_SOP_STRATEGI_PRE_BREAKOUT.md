@@ -75,6 +75,14 @@ Engine Screener Candlify menyaring ribuan saham di BEI setiap hari dengan menguj
 * **Karakteristik**: Broker summary harian menunjukkan **Net Akumulasi Top-1 Buyer $> 30\%$** dari total nilai pembeli bersih.
 * **Makna**: Di balik volume yang sepi, broker summary menunjukkan transaksi satu arah oleh broker institusi/bandar (contoh: `CC`, `AK`, `BK`, `KZ`, `YJ`, `MG`), sementara penjual tersebar di banyak broker ritel (`YP`, `PD`, `XC`, `XL`).
 
+### Parameter Tambahan Institutional Pre-Breakout V2
+Mulai **Candlify v2.5**, mesin `scanner_bali.py` menghitung dan menyimpan 5 metrik mikrostruktur institusional ke dalam database (`candlify_signals`) yang bisa dilihat langsung pada badge dan tooltip Screener:
+1. **Top-3 Dominance (`dominance`)**: Persentase penguasaan barang bersih oleh 3 broker pembeli teratas selama 10 hari bursa terakhir di dalam base.
+2. **Active Accumulation Ratio (`aar`)**: Persentase jumlah hari bursa di mana akumulasi bersih bernilai positif selama fase pembentukan base (minimal $\ge 45\%$).
+3. **Close Location Value 3D (`clv_3d`)**: Posisi penutupan candle rata-rata 3 hari terakhir dalam rentang `Low`–`High` ($\ge 0.55$ menandakan serapan beli kuat menjelang penutupan).
+4. **Up/Down Volume Ratio (`up_down_vol_ratio`)**: Rasio rata-rata volume pada hari candle hijau dibandingkan hari candle merah dalam 10 hari terakhir.
+5. **Pocket Pivot (`is_pocket_pivot` / `⚡Pivot`)**: Sinyal akselerasi dini di dalam kotak base ketika candle ditutup menguat ($\text{CLV} \ge 0.60$) dengan volume hari itu melampaui volume tertinggi candle merah dalam 10 hari terakhir.
+
 ---
 
 ## 3. Bukti Validitas Backtest (Triple-Barrier Method)

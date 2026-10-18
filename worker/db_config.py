@@ -308,6 +308,11 @@ def setup_tables():
                         price_to_ma20 REAL NOT NULL,
                         hmb REAL,
                         top_accumulator TEXT,
+                        dominance REAL DEFAULT 0,
+                        aar REAL DEFAULT 1.0,
+                        clv_3d REAL DEFAULT 0,
+                        up_down_vol_ratio REAL DEFAULT 1.0,
+                        is_pocket_pivot INTEGER DEFAULT 0,
                         score INTEGER DEFAULT 0,
                         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                         UNIQUE (date, ticker)
@@ -438,6 +443,11 @@ def setup_tables():
                         price_to_ma20 FLOAT NOT NULL,
                         hmb FLOAT,
                         top_accumulator VARCHAR(5),
+                        dominance FLOAT DEFAULT 0,
+                        aar FLOAT DEFAULT 1.0,
+                        clv_3d FLOAT DEFAULT 0,
+                        up_down_vol_ratio FLOAT DEFAULT 1.0,
+                        is_pocket_pivot BOOLEAN DEFAULT FALSE,
                         score INT DEFAULT 0,
                         created_at TIMESTAMPTZ DEFAULT NOW(),
                         UNIQUE (date, ticker)
@@ -501,6 +511,21 @@ def migrate_schema():
                 for col_name, col_type in new_h_cols:
                     if col_name not in existing_h_cols:
                         conn.execute(text(f"ALTER TABLE harga_saham ADD COLUMN {col_name} {col_type}"))
+
+                # 3. candlify_signals
+                cur_sig = conn.execute(text("PRAGMA table_info(candlify_signals)")).fetchall()
+                if cur_sig:
+                    existing_sig_cols = {row[1] for row in cur_sig}
+                    new_sig_cols = [
+                        ("dominance", "REAL DEFAULT 0"),
+                        ("aar", "REAL DEFAULT 1.0"),
+                        ("clv_3d", "REAL DEFAULT 0"),
+                        ("up_down_vol_ratio", "REAL DEFAULT 1.0"),
+                        ("is_pocket_pivot", "INTEGER DEFAULT 0"),
+                    ]
+                    for col_name, col_type in new_sig_cols:
+                        if col_name not in existing_sig_cols:
+                            conn.execute(text(f"ALTER TABLE candlify_signals ADD COLUMN {col_name} {col_type}"))
             else:
                 # PostgreSQL (Neon DB)
                 conn.execute(text("ALTER TABLE daftar_saham ADD COLUMN IF NOT EXISTS tradeable_shares BIGINT;"))
@@ -517,6 +542,12 @@ def migrate_schema():
                 conn.execute(text("ALTER TABLE harga_saham ADD COLUMN IF NOT EXISTS bid_volume BIGINT;"))
                 conn.execute(text("ALTER TABLE harga_saham ADD COLUMN IF NOT EXISTS non_regular_volume BIGINT DEFAULT 0;"))
                 conn.execute(text("ALTER TABLE harga_saham ADD COLUMN IF NOT EXISTS non_regular_value NUMERIC(24,2) DEFAULT 0;"))
+
+                conn.execute(text("ALTER TABLE candlify_signals ADD COLUMN IF NOT EXISTS dominance FLOAT DEFAULT 0;"))
+                conn.execute(text("ALTER TABLE candlify_signals ADD COLUMN IF NOT EXISTS aar FLOAT DEFAULT 1.0;"))
+                conn.execute(text("ALTER TABLE candlify_signals ADD COLUMN IF NOT EXISTS clv_3d FLOAT DEFAULT 0;"))
+                conn.execute(text("ALTER TABLE candlify_signals ADD COLUMN IF NOT EXISTS up_down_vol_ratio FLOAT DEFAULT 1.0;"))
+                conn.execute(text("ALTER TABLE candlify_signals ADD COLUMN IF NOT EXISTS is_pocket_pivot BOOLEAN DEFAULT FALSE;"))
 
     logger.info("✅ Migrasi skema selesai.")
 

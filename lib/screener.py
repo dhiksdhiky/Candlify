@@ -263,8 +263,9 @@ def get_pre_breakout_signals(target_date: Optional[str] = None, min_score: int =
                 target_date_str = target_date
 
             stmt = text("""
-                SELECT s.date, s.ticker, s.price, s.range_7, s.volume_dry_ratio, s.bbw, s.price_to_ma20, s.hmb, s.top_accumulator, s.score, s.created_at,
-                       COALESCE(d.papan_pencatatan, 'Utama') AS papan_pencatatan
+                SELECT s.*,
+                       COALESCE(d.papan_pencatatan, 'Utama') AS papan_pencatatan,
+                       COALESCE(d.notasi_khusus, '') AS notasi_khusus
                 FROM candlify_signals s
                 LEFT JOIN daftar_saham d ON s.ticker = d.kode
                 WHERE s.date = :t_date AND s.score >= :min_score
@@ -286,10 +287,16 @@ def get_pre_breakout_signals(target_date: Optional[str] = None, min_score: int =
                     "price_to_ma20": float(r["price_to_ma20"]),
                     "hmb": float(r["hmb"]) if r["hmb"] is not None else None,
                     "top_accumulator": r["top_accumulator"],
+                    "dominance": float(r.get("dominance") or 0.0),
+                    "aar": float(r.get("aar") or 1.0),
+                    "clv_3d": float(r.get("clv_3d") or 0.0),
+                    "up_down_vol_ratio": float(r.get("up_down_vol_ratio") or 1.0),
+                    "is_pocket_pivot": bool(r.get("is_pocket_pivot", False)),
                     "score": int(r["score"]),
                     "board": board_val,
                     "is_fca": ("Pemantauan" in board_val),
-                    "created_at": r["created_at"].isoformat() if r["created_at"] else None
+                    "notasi_khusus": str(r.get("notasi_khusus") or "").strip(),
+                    "created_at": r["created_at"].isoformat() if hasattr(r.get("created_at"), "isoformat") and r["created_at"] else (str(r["created_at"]) if r.get("created_at") else None)
                 })
 
             result = {
@@ -339,7 +346,7 @@ def get_idx_market_intelligence_universe() -> Dict[str, Dict[str, Any]]:
                 SELECT MAX(tanggal) as max_d FROM harga_saham
             ),
             recent_20d AS (
-                SELECT ticker, tanggal, close, volume, frequency, foreign_net, non_regular_value,
+                SELECT ticker, tanggal, close, volume, value, frequency, foreign_net, non_regular_value,
                        CASE WHEN frequency > 0 THEN (volume / 100.0) / frequency ELSE 0 END as lpt
                 FROM harga_saham
                 WHERE tanggal >= (SELECT max_d - INTERVAL '35 days' FROM latest_date)
@@ -352,8 +359,8 @@ def get_idx_market_intelligence_universe() -> Dict[str, Dict[str, Any]]:
                 GROUP BY ticker
             ),
             today_stats AS (
-                SELECT r.ticker, r.close, r.volume, r.frequency, r.foreign_net, r.non_regular_value, r.lpt,
-                       (r.foreign_net * r.close) as foreign_val,
+                SELECT r.ticker, r.close, r.volume, r.value, r.frequency, r.foreign_net, r.non_regular_value, r.lpt,
+                       (r.foreign_net * CASE WHEN r.volume > 0 AND COALESCE(r.value, 0) > 0 THEN (r.value / r.volume) ELSE r.close END) as foreign_val,
                        s.avg_lpt_20d,
                        s.foreign_net_20d,
                        d.notasi_khusus, d.papan_pencatatan
@@ -481,9 +488,16 @@ def filter_by_preset(stocks: List[Dict[str, Any]], preset: str) -> List[Dict[str
                 s_copy["volume_dry_ratio"] = sig["volume_dry_ratio"]
                 s_copy["top_accumulator"] = sig["top_accumulator"]
                 s_copy["hmb"] = sig["hmb"]
+                s_copy["dominance"] = sig.get("dominance", 0.0)
+                s_copy["aar"] = sig.get("aar", 1.0)
+                s_copy["clv_3d"] = sig.get("clv_3d", 0.0)
+                s_copy["up_down_vol_ratio"] = sig.get("up_down_vol_ratio", 1.0)
+                s_copy["is_pocket_pivot"] = sig.get("is_pocket_pivot", False)
                 s_copy["price_to_ma20"] = sig["price_to_ma20"]
                 s_copy["board"] = sig.get("board", "Utama")
                 s_copy["is_fca"] = sig.get("is_fca", False)
+                if sig.get("notasi_khusus") and not s_copy.get("notasi_khusus"):
+                    s_copy["notasi_khusus"] = sig["notasi_khusus"]
                 s_copy["is_pre_breakout"] = True
                 matched.append(s_copy)
                 seen.add(sym)
@@ -504,9 +518,15 @@ def filter_by_preset(stocks: List[Dict[str, Any]], preset: str) -> List[Dict[str
                     "volume_dry_ratio": sig["volume_dry_ratio"],
                     "top_accumulator": sig["top_accumulator"],
                     "hmb": sig["hmb"],
+                    "dominance": sig.get("dominance", 0.0),
+                    "aar": sig.get("aar", 1.0),
+                    "clv_3d": sig.get("clv_3d", 0.0),
+                    "up_down_vol_ratio": sig.get("up_down_vol_ratio", 1.0),
+                    "is_pocket_pivot": sig.get("is_pocket_pivot", False),
                     "price_to_ma20": sig["price_to_ma20"],
                     "board": sig.get("board", "Utama"),
                     "is_fca": sig.get("is_fca", False),
+                    "notasi_khusus": sig.get("notasi_khusus", ""),
                     "is_pre_breakout": True
                 })
 

@@ -274,12 +274,26 @@ def parse_trading_summary_data(
 
 
 def update_local_csv(daftar_rows: List[Dict[str, Any]], csv_path: str) -> None:
-    """Menulis ulang worker/daftar_saham.csv lokal dengan data terbaru."""
+    """Menulis ulang worker/daftar_saham.csv lokal dengan data terbaru sambil mempertahankan Tanggal Pencatatan historis."""
+    existing_dates: Dict[str, str] = {}
+    if os.path.exists(csv_path):
+        try:
+            with open(csv_path, "r", encoding="utf-8-sig") as rf:
+                reader = csv.DictReader(rf, delimiter=";")
+                for row in reader:
+                    k = (row.get("Kode") or "").strip().upper()
+                    tgl = (row.get("Tanggal Pencatatan") or "").strip()
+                    if k and tgl:
+                        existing_dates[k] = tgl
+        except Exception as e:
+            logger.warning("⚠️ Gagal membaca Tanggal Pencatatan lama dari CSV: %s", e)
+
     sorted_rows = sorted(daftar_rows, key=lambda x: x["kode"])
     lines = ["No;Kode;Nama Perusahaan;Tanggal Pencatatan;Saham;Papan Pencatatan\n"]
     for i, r in enumerate(sorted_rows, 1):
         saham_str = format_shares_dot(r["saham"])
-        line = f"{i};{r['kode']};{r['nama_perusahaan']};;{saham_str};{r['papan_pencatatan']}\n"
+        tgl_pencatatan = r.get("tanggal_pencatatan") or existing_dates.get(r["kode"], "")
+        line = f"{i};{r['kode']};{r['nama_perusahaan']};{tgl_pencatatan};{saham_str};{r['papan_pencatatan']}\n"
         lines.append(line)
 
     with open(csv_path, "w", encoding="utf-8") as f:
@@ -464,12 +478,14 @@ def execute_layer_2_fallback() -> Dict[str, Any]:
 
     try:
         from pipeline import run_pipeline
-        pipe_success = run_pipeline()
+        pipe_success = bool(run_pipeline())
         fallback_res["prices_synced"] = 1 if pipe_success else 0
         fallback_res["success"] = pipe_success
+        fallback_res["status"] = "success" if pipe_success else "failed"
     except Exception as err:
         logger.error("❌ Fallback pipeline Yahoo Finance gagal: %s", err)
         fallback_res["success"] = False
+        fallback_res["status"] = "failed"
 
     return fallback_res
 

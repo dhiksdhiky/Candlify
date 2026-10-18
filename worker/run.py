@@ -75,15 +75,18 @@ def main():
 
     # ── Step 1b & 2: Primary All-in-One IDX Sync (Master Emiten + Harga & Flow) ────
     sync_daily_success = False
+    pipeline_success = True if harvester_only else False
+
     if not harvester_only and not ("--legacy-pipeline" in args):
         try:
             logger.info("═══════════════════════════════════════════")
             logger.info("  🚀 PRIMARY EOD SYNC: IDX TRADING SUMMARY")
             logger.info("═══════════════════════════════════════════")
             from sync_idx_daily import run_sync_daily
-            sync_res = run_sync_daily(use_fallback=True)
+            sync_res = run_sync_daily(use_fallback=False)
             if sync_res.get("status") == "success":
                 sync_daily_success = True
+                pipeline_success = True
                 logger.info(f"✅ Sync IDX All-in-One Sukses: {sync_res.get('stocks_synced', 0)} emiten, {sync_res.get('prices_synced', 0)} baris harga.")
         except Exception as e:
             logger.warning(f"⚠️ Primary IDX Sync gagal ({e}), mengaktifkan fallback berjenjang...")
@@ -107,9 +110,10 @@ def main():
             logger.info("  📈 FALLBACK: PIPELINE OHLCV (YAHOO FINANCE)")
             logger.info("═══════════════════════════════════════════")
             from pipeline import run_pipeline
-            run_pipeline()
+            pipeline_success = bool(run_pipeline())
         except Exception as e:
             logger.error(f"❌ Pipeline fallback crash: {e}")
+            pipeline_success = False
 
     # ── Step 3: Harvester BrokSum ───────────────────────────
     harvester_success = True

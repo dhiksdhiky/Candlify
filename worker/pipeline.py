@@ -98,6 +98,7 @@ def get_master_calendar(start_date: date, end_date: date) -> pd.DatetimeIndex:
     dibandingkan emiten likuid. Menggunakan aturan voting mayoritas (consensus threshold >= 3 emiten)
     agar terhindar dari tanggal glitch/anomali tunggal yang dapat memicu candle hantu.
     """
+    benchmark_tickers = ["^JKSE", "BBCA.JK", "BBRI.JK", "BMRI.JK", "TLKM.JK", "ASII.JK"]
     logger.info("📅 Mengunduh Kalender Bursa Konsensus (^JKSE + Top Big Caps)...")
     logger.info(f"   🔍 Benchmark Evaluasi: {', '.join(benchmark_tickers)}")
     consensus_dates = []
@@ -321,8 +322,8 @@ def run_pipeline():
 
     logger.info("═══════════════════════════════════════════")
     logger.info(f"  📈 PIPELINE SELESAI | ✅ {success_count} emiten | ⚠️ {skip_count} skip | ❌ {error_count} error")
-    if len(master_cal) > 0:
-        logger.info(f"  📅 Data OHLCV Tersinkronisasi s.d. Tanggal Bursa: {master_cal[-1].date()}")
+    if len(master_calendar) > 0:
+        logger.info(f"  📅 Data OHLCV Tersinkronisasi s.d. Tanggal Bursa: {master_calendar[-1].date()}")
     logger.info("═══════════════════════════════════════════")
     return True
 
