@@ -481,7 +481,7 @@ class CandlifyChart {
         // Watchlist & Risk Management State
         this.watchlistItems = [];
         this.watchlistCategories = ['Breakout'];
-        this.activeWatchlistCategory = 'Breakout';
+        this.activeWatchlistCategory = 'all';
         this.selectedWlCategories = new Set();
         this.allWatchlistSymbols = new Set();
         this._needChartRefresh = false;
@@ -549,6 +549,7 @@ class CandlifyChart {
             btnOpenAddWatchlist: document.getElementById('btn-open-add-watchlist'),
             btnEmptyAddWatchlist: document.getElementById('btn-empty-add-watchlist'),
             watchlistCategories: document.getElementById('watchlist-categories'),
+            btnWlCatAll: document.getElementById('btn-wl-cat-all'),
             watchlistList: document.getElementById('watchlist-list'),
             watchlistEmpty: document.getElementById('watchlist-empty'),
             btnStarWatchlist: document.getElementById('btn-star-watchlist'),
@@ -3608,9 +3609,23 @@ class CandlifyChart {
                 
                 const allChips = this.dom.watchlistCategories.querySelectorAll('.watchlist-cat-chip');
                 allChips.forEach(c => c.classList.remove('active'));
+                if (this.dom.btnWlCatAll) this.dom.btnWlCatAll.classList.remove('active');
                 chip.classList.add('active');
 
                 this.fetchWatchlist(cat);
+            });
+        }
+
+        // 6b. Watchlist 'Semua' Pinned Button
+        if (this.dom.btnWlCatAll) {
+            this.dom.btnWlCatAll.addEventListener('click', () => {
+                this.activeWatchlistCategory = 'all';
+                if (this.dom.watchlistCategories) {
+                    const allChips = this.dom.watchlistCategories.querySelectorAll('.watchlist-cat-chip');
+                    allChips.forEach(c => c.classList.remove('active'));
+                }
+                this.dom.btnWlCatAll.classList.add('active');
+                this.fetchWatchlist('all');
             });
         }
 
@@ -5097,17 +5112,24 @@ class CandlifyChart {
             html += `<button class="watchlist-cat-chip ${isActive ? 'active' : ''}" data-category="${escapeHtml(c)}">${label}</button>`;
         });
         
-        // Tambahkan chip 'Semua'
-        const isAllActive = this.activeWatchlistCategory === 'all';
-        html += `<button class="watchlist-cat-chip ${isAllActive ? 'active' : ''}" data-category="all">Semua</button>`;
-        
         this.dom.watchlistCategories.innerHTML = html;
+
+        // Update active state pada tombol 'Semua' di pinned actions
+        if (this.dom.btnWlCatAll) {
+            const isAllActive = this.activeWatchlistCategory === 'all';
+            if (isAllActive) {
+                this.dom.btnWlCatAll.classList.add('active');
+            } else {
+                this.dom.btnWlCatAll.classList.remove('active');
+            }
+        }
 
         // Pasang event listener ke setiap chip
         this.dom.watchlistCategories.querySelectorAll('.watchlist-cat-chip').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const cat = e.currentTarget.dataset.category;
                 this.dom.watchlistCategories.querySelectorAll('.watchlist-cat-chip').forEach(b => b.classList.remove('active'));
+                if (this.dom.btnWlCatAll) this.dom.btnWlCatAll.classList.remove('active');
                 e.currentTarget.classList.add('active');
                 this.activeWatchlistCategory = cat;
                 this.fetchWatchlist(cat);
@@ -5333,7 +5355,7 @@ class CandlifyChart {
 
             this.watchlistCategories = json.categories;
             if (this.activeWatchlistCategory === name) {
-                this.activeWatchlistCategory = 'Breakout';
+                this.activeWatchlistCategory = 'all';
             }
             this.renderWatchlistCategoryChips();
             this.populateCategoryDropdowns();

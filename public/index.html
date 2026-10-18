@@ -201,12 +201,14 @@
                 <!-- Category Filter Chips (Breakout, etc.) & Category Management (CRUD) -->
                 <div class="watchlist-category-bar">
                     <div class="watchlist-categories" id="watchlist-categories">
-                        <button class="watchlist-cat-chip active" data-category="Breakout">💥 Breakout</button>
-                        <button class="watchlist-cat-chip" data-category="all">Semua</button>
+                        <button class="watchlist-cat-chip" data-category="Breakout">💥 Breakout</button>
                     </div>
-                    <button id="btn-manage-categories" class="watchlist-cat-manage-btn" title="Kelola Kategori Watchlist (Tambah/Ubah/Hapus)">
-                        <span>⚙️ Kelola List</span>
-                    </button>
+                    <div class="watchlist-pinned-actions">
+                        <button id="btn-wl-cat-all" class="watchlist-cat-chip active" data-category="all" title="Tampilkan Semua Saham">Semua</button>
+                        <button id="btn-manage-categories" class="watchlist-cat-manage-btn" title="Kelola Kategori Watchlist (Tambah/Ubah/Hapus)" aria-label="Kelola Kategori Watchlist">
+                            <span>⚙️</span>
+                        </button>
+                    </div>
                 </div>
             </header>
 

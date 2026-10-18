@@ -2788,21 +2788,34 @@ html, body {
     gap: 6px;
     overflow-x: auto;
     scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
     flex: 1;
+    min-width: 0;
 }
 
 .watchlist-categories::-webkit-scrollbar {
     display: none;
 }
 
+.watchlist-pinned-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+    padding-left: 6px;
+    border-left: 1px solid rgba(255, 255, 255, 0.08);
+}
+
 .watchlist-cat-manage-btn {
     flex-shrink: 0;
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    padding: 3px 9px;
+    justify-content: center;
+    width: 28px;
+    height: 24px;
+    padding: 0;
     border-radius: 12px;
-    font-size: 11px;
+    font-size: 13px;
     font-weight: 700;
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.12);
@@ -2816,6 +2829,7 @@ html, body {
     background: rgba(255, 255, 255, 0.12);
     border-color: rgba(255, 255, 255, 0.25);
     color: #fff;
+    transform: rotate(30deg);
 }
 
 .watchlist-cat-chip {
