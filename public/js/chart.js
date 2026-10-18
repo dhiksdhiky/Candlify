@@ -2841,33 +2841,30 @@ class CandlifyChart {
         const brk = brokerCode.toUpperCase();
         this.activeActivityBroker = brk;
 
-        // Populate broker selector
-        if (this.dom.activityBrokerSelect) {
-            const topBrokers = new Set(['XL', 'CC', 'AK', 'BK', 'ZP', 'YP', 'PD', 'NI', 'SQ', 'DX', 'GR', 'LG', 'MG', 'IF', 'CP', 'BB', 'CS']);
-            if (this.bandarData?.summary?.top_buyers) {
-                this.bandarData.summary.top_buyers.forEach(b => topBrokers.add(b.broker));
-            }
-            if (this.bandarData?.summary?.top_sellers) {
-                this.bandarData.summary.top_sellers.forEach(s => topBrokers.add(s.broker));
-            }
-            const currentSelected = this.dom.activityBrokerSelect.value || brk;
-            this.dom.activityBrokerSelect.innerHTML = Array.from(topBrokers).sort().map(b => `
-                <option value="${b}" ${b === currentSelected ? 'selected' : ''}>${b}</option>
-            `).join('');
-            this.dom.activityBrokerSelect.value = brk;
-        }
-
         try {
             const symEnc = encodeURIComponent(symbol);
             const brkEnc = encodeURIComponent(brk);
             const monthParam = monthStr ? `&month=${encodeURIComponent(monthStr)}` : '';
-            const resp = await fetch(`/api/bandarmologi/broker-activity?symbol=${symEnc}&broker_code=${brkEnc}${monthParam}`);
+            const resp = await fetch(`/api/bandarmologi/broker-activity?symbol=${symEnc}&broker=${brkEnc}&broker_code=${brkEnc}${monthParam}`);
             const json = await resp.json();
 
             if (resp.ok && json.success) {
                 this.activeActivityMonth = json.month;
                 
-                // Format Month Title: "2026-09" -> "September 2026"
+                // Populate/Update broker selector dengan seluruh broker aktif emiten ini
+                if (this.dom.activityBrokerSelect && Array.isArray(json.available_brokers) && json.available_brokers.length > 0) {
+                    const currentSelected = brk;
+                    // Hanya render ulang opsi jika emiten berganti atau daftar belum lengkap
+                    if (this._lastActivitySymbol !== symbol || this.dom.activityBrokerSelect.options.length <= 1) {
+                        this._lastActivitySymbol = symbol;
+                        this.dom.activityBrokerSelect.innerHTML = json.available_brokers.map(b => `
+                            <option value="${b}" ${b === currentSelected ? 'selected' : ''}>${b}</option>
+                        `).join('');
+                    }
+                    this.dom.activityBrokerSelect.value = currentSelected;
+                }
+
+                // Format Month Title: "2026-10" -> "Oktober 2026"
                 if (this.dom.activityMonthLabel) {
                     const [y, m] = json.month.split('-');
                     const dateObj = new Date(parseInt(y, 10), parseInt(m, 10) - 1, 1);
@@ -2880,7 +2877,10 @@ class CandlifyChart {
                 const isAcc = netVal >= 0;
                 const sign = isAcc ? '+' : '';
                 const valText = `${sign}Rp ${(Math.abs(netVal) / 1e9).toFixed(2)} B`;
-                const volText = `${sign}${(netVol / 1000).toFixed(0)}K Lot`;
+                
+                const absNetVol = Math.abs(netVol);
+                const volSign = netVol > 0 ? '+' : (netVol < 0 ? '-' : '');
+                const volText = absNetVol >= 1000 ? `${volSign}${(absNetVol / 1000).toFixed(1)}K Lot` : `${volSign}${absNetVol.toLocaleString('id-ID')} Lot`;
 
                 if (this.dom.actSumVal) {
                     this.dom.actSumVal.textContent = valText;
@@ -2931,12 +2931,26 @@ class CandlifyChart {
             activityMap.set(act.date, act);
         });
 
-        // Generate Mon-Fri grid cells
+        // 5-Column Grid (MON, TUE, WED, THU, FRI)
         const cells = [];
+
+        // Hitung sel kosong untuk hari sebelum tanggal 1
+        const firstDayDate = new Date(year, month - 1, 1);
+        const firstDayOfWeek = firstDayDate.getDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
+        let emptyPaddingCount = 0;
+        if (firstDayOfWeek >= 1 && firstDayOfWeek <= 5) {
+            emptyPaddingCount = firstDayOfWeek - 1;
+        }
+
+        for (let i = 0; i < emptyPaddingCount; i++) {
+            cells.push('<div class="activity-day-cell empty"></div>');
+        }
+
+        // Loop hari kerja dalam sebulan
         for (let d = 1; d <= daysInMonth; d++) {
             const dateObj = new Date(year, month - 1, d);
-            const dayOfWeek = dateObj.getDay(); // 0 = Sun, 1 = Mon... 6 = Sat
-            if (dayOfWeek === 0 || dayOfWeek === 6) continue; // Skip weekends
+            const dow = dateObj.getDay();
+            if (dow === 0 || dow === 6) continue; // Skip hari libur Sabtu & Minggu
 
             const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
             const act = activityMap.get(dateStr);
@@ -2944,14 +2958,17 @@ class CandlifyChart {
             if (act) {
                 const isBuy = act.net_vol > 0;
                 const isSell = act.net_vol < 0;
-                const badgeClass = isBuy ? 'buy' : 'sell';
-                const badgeText = isBuy ? 'BUY' : 'SELL';
-                const lotClass = isBuy ? 'buy' : 'sell';
-                const lotFormatted = `${isBuy ? '+' : ''}${(act.net_vol / 1000).toFixed(0)}K`;
+                const badgeClass = isBuy ? 'buy' : (isSell ? 'sell' : 'neutral');
+                const badgeText = isBuy ? 'BUY' : (isSell ? 'SELL' : 'NET');
+                const lotClass = isBuy ? 'buy' : (isSell ? 'sell' : '');
+                
+                const absLot = Math.abs(act.net_vol);
+                const sign = act.net_vol > 0 ? '+' : (act.net_vol < 0 ? '-' : '');
+                const lotFormatted = absLot >= 1000 ? `${sign}${(absLot / 1000).toFixed(1)}K` : `${sign}${absLot.toLocaleString('id-ID')}`;
                 const avgPrice = act.avg_price ? `Rp ${Math.round(act.avg_price).toLocaleString('id-ID')}` : '-';
 
                 cells.push(`
-                    <div class="activity-day-cell ${isBuy ? 'buy-day' : 'sell-day'}" title="${dateStr}: Net ${act.net_vol.toLocaleString('id-ID')} lot @ ${avgPrice}">
+                    <div class="activity-day-cell ${isBuy ? 'buy-day' : (isSell ? 'sell-day' : '')}" title="${dateStr}: Net ${act.net_vol.toLocaleString('id-ID')} lot @ ${avgPrice}">
                         <div class="act-day-hdr">
                             <span class="act-day-num">${d}</span>
                             <span class="act-day-badge ${badgeClass}">${badgeText}</span>
@@ -2964,7 +2981,7 @@ class CandlifyChart {
                 `);
             } else {
                 cells.push(`
-                    <div class="activity-day-cell inactive-day">
+                    <div class="activity-day-cell inactive-day" title="${dateStr}: Tidak ada transaksi broker ${data.broker || ''}">
                         <div class="act-day-hdr">
                             <span class="act-day-num">${d}</span>
                         </div>
@@ -2973,6 +2990,15 @@ class CandlifyChart {
                         </div>
                     </div>
                 `);
+            }
+        }
+
+        // Lengkapi sel sisa di baris terakhir agar genap 5 kolom
+        const remainder = cells.length % 5;
+        if (remainder !== 0) {
+            const trailingCount = 5 - remainder;
+            for (let i = 0; i < trailingCount; i++) {
+                cells.push('<div class="activity-day-cell empty"></div>');
             }
         }
 

@@ -313,15 +313,17 @@ def api_stock_historical_data(
 def api_broker_activity(
     response: Response,
     symbol: str = Query(..., description="Kode saham (e.g. BBRI, PGJO)"),
-    broker: str = Query("XL", description="Kode broker sekuritas (e.g. XL, CC, YP)"),
+    broker: Optional[str] = Query(None, description="Kode broker sekuritas (e.g. XL, CC, YP)"),
+    broker_code: Optional[str] = Query(None, description="Alias untuk broker"),
     month: Optional[str] = Query(None, description="Bulan (YYYY-MM), e.g. 2026-10")
 ):
     """
     Endpoint Kalender Aktivitas Harian Broker Spesifik (Gambar 2 Stockbit):
     Menampilkan jejak beli/jual, lot, avg price, dan status per tanggal bursa.
     """
+    target_broker = (broker_code or broker or "XL").strip().upper()
     try:
-        result = get_broker_daily_activity(symbol=symbol, broker_code=broker, month_str=month)
+        result = get_broker_daily_activity(symbol=symbol, broker_code=target_broker, month_str=month)
     except ValueError as val_err:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(val_err))
     except Exception as err:
