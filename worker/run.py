@@ -73,28 +73,43 @@ def main():
         logger.info("╚═══════════════════════════════════════════╝")
         return
 
-    # ── Step 1b: Sync Daftar Saham & Papan Pencatatan BEI ────
-    if not harvester_only and not no_sync_stocks:
+    # ── Step 1b & 2: Primary All-in-One IDX Sync (Master Emiten + Harga & Flow) ────
+    sync_daily_success = False
+    if not harvester_only and not ("--legacy-pipeline" in args):
         try:
             logger.info("═══════════════════════════════════════════")
-            logger.info("  📋 SINKRONISASI DAFTAR SAHAM & PAPAN BEI")
+            logger.info("  🚀 PRIMARY EOD SYNC: IDX TRADING SUMMARY")
             logger.info("═══════════════════════════════════════════")
-            from sync_daftar_saham import run_sync
-            sync_res = run_sync()
-            src_str = "Portal Resmi BEI" if sync_res.get("source") == "idx_direct" else "Daftar Saham Lokal (Fallback)"
-            logger.info(f"✅ Sync Emiten BEI Selesai ({src_str}): {sync_res.get('total_emiten', 0)} emiten terdaftar.")
+            from sync_idx_daily import run_sync_daily
+            sync_res = run_sync_daily(use_fallback=True)
+            if sync_res.get("status") == "success":
+                sync_daily_success = True
+                logger.info(f"✅ Sync IDX All-in-One Sukses: {sync_res.get('stocks_synced', 0)} emiten, {sync_res.get('prices_synced', 0)} baris harga.")
         except Exception as e:
-            logger.warning(f"⚠️ Sync daftar saham dilewati (fallback ke master database yang ada): {e}")
+            logger.warning(f"⚠️ Primary IDX Sync gagal ({e}), mengaktifkan fallback berjenjang...")
 
-    # ── Step 2: Pipeline OHLCV ──────────────────────────────
-    pipeline_success = True
-    if not harvester_only:
+    # Fallback berjenjang jika primary IDX sync belum berhasil atau --legacy-pipeline
+    if not harvester_only and not sync_daily_success:
+        if not no_sync_stocks:
+            try:
+                logger.info("═══════════════════════════════════════════")
+                logger.info("  📋 FALLBACK: SINKRONISASI DAFTAR SAHAM")
+                logger.info("═══════════════════════════════════════════")
+                from sync_daftar_saham import run_sync
+                sync_res = run_sync()
+                src_str = "Portal Resmi BEI" if sync_res.get("source") == "idx_direct" else "Daftar Saham Lokal (Fallback)"
+                logger.info(f"✅ Sync Emiten BEI Selesai ({src_str}): {sync_res.get('total_emiten', 0)} emiten terdaftar.")
+            except Exception as e:
+                logger.warning(f"⚠️ Sync daftar saham dilewati (fallback ke master database yang ada): {e}")
+
         try:
+            logger.info("═══════════════════════════════════════════")
+            logger.info("  📈 FALLBACK: PIPELINE OHLCV (YAHOO FINANCE)")
+            logger.info("═══════════════════════════════════════════")
             from pipeline import run_pipeline
-            pipeline_success = run_pipeline()
+            run_pipeline()
         except Exception as e:
-            logger.error(f"❌ Pipeline crash: {e}")
-            pipeline_success = False
+            logger.error(f"❌ Pipeline fallback crash: {e}")
 
     # ── Step 3: Harvester BrokSum ───────────────────────────
     harvester_success = True

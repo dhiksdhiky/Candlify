@@ -201,7 +201,9 @@ def setup_tables():
                         nama_perusahaan TEXT NOT NULL,
                         tanggal_pencatatan DATE,
                         saham INTEGER,
+                        tradeable_shares INTEGER,
                         papan_pencatatan TEXT,
+                        notasi_khusus TEXT,
                         tanggal_update DATE
                     )
                 """))
@@ -212,6 +214,17 @@ def setup_tables():
                         tanggal DATE NOT NULL,
                         open REAL, high REAL, low REAL, close REAL,
                         volume INTEGER,
+                        value REAL DEFAULT 0,
+                        frequency INTEGER DEFAULT 0,
+                        foreign_buy INTEGER DEFAULT 0,
+                        foreign_sell INTEGER DEFAULT 0,
+                        foreign_net INTEGER DEFAULT 0,
+                        offer REAL,
+                        offer_volume INTEGER,
+                        bid REAL,
+                        bid_volume INTEGER,
+                        non_regular_volume INTEGER DEFAULT 0,
+                        non_regular_value REAL DEFAULT 0,
                         UNIQUE (ticker, tanggal)
                     )
                 """))
@@ -317,7 +330,9 @@ def setup_tables():
                         nama_perusahaan VARCHAR(255) NOT NULL,
                         tanggal_pencatatan DATE,
                         saham BIGINT,
+                        tradeable_shares BIGINT,
                         papan_pencatatan VARCHAR(50),
+                        notasi_khusus VARCHAR(50),
                         tanggal_update DATE
                     )
                 """))
@@ -329,6 +344,17 @@ def setup_tables():
                         open NUMERIC(20,4), high NUMERIC(20,4),
                         low NUMERIC(20,4), close NUMERIC(20,4),
                         volume BIGINT,
+                        value NUMERIC(24,2) DEFAULT 0,
+                        frequency BIGINT DEFAULT 0,
+                        foreign_buy BIGINT DEFAULT 0,
+                        foreign_sell BIGINT DEFAULT 0,
+                        foreign_net BIGINT DEFAULT 0,
+                        offer NUMERIC(20,4),
+                        offer_volume BIGINT,
+                        bid NUMERIC(20,4),
+                        bid_volume BIGINT,
+                        non_regular_volume BIGINT DEFAULT 0,
+                        non_regular_value NUMERIC(24,2) DEFAULT 0,
                         UNIQUE (ticker, tanggal)
                     )
                 """))
@@ -437,3 +463,60 @@ def setup_tables():
                 """))
 
     logger.info("✅ Semua tabel siap.")
+    migrate_schema()
+
+
+def migrate_schema():
+    """Migrasi skema database secara aman (tambah kolom baru jika belum ada)."""
+    dialect = get_dialect()
+    logger.info(f"🔄 Menjalankan migrasi skema database ({dialect})...")
+
+    with engine.connect() as conn:
+        with conn.begin():
+            if dialect == "sqlite":
+                # 1. daftar_saham
+                cur_ds = conn.execute(text("PRAGMA table_info(daftar_saham)")).fetchall()
+                existing_ds_cols = {row[1] for row in cur_ds}
+                if "tradeable_shares" not in existing_ds_cols:
+                    conn.execute(text("ALTER TABLE daftar_saham ADD COLUMN tradeable_shares INTEGER"))
+                if "notasi_khusus" not in existing_ds_cols:
+                    conn.execute(text("ALTER TABLE daftar_saham ADD COLUMN notasi_khusus TEXT"))
+
+                # 2. harga_saham
+                cur_h = conn.execute(text("PRAGMA table_info(harga_saham)")).fetchall()
+                existing_h_cols = {row[1] for row in cur_h}
+                new_h_cols = [
+                    ("value", "REAL DEFAULT 0"),
+                    ("frequency", "INTEGER DEFAULT 0"),
+                    ("foreign_buy", "INTEGER DEFAULT 0"),
+                    ("foreign_sell", "INTEGER DEFAULT 0"),
+                    ("foreign_net", "INTEGER DEFAULT 0"),
+                    ("offer", "REAL"),
+                    ("offer_volume", "INTEGER"),
+                    ("bid", "REAL"),
+                    ("bid_volume", "INTEGER"),
+                    ("non_regular_volume", "INTEGER DEFAULT 0"),
+                    ("non_regular_value", "REAL DEFAULT 0"),
+                ]
+                for col_name, col_type in new_h_cols:
+                    if col_name not in existing_h_cols:
+                        conn.execute(text(f"ALTER TABLE harga_saham ADD COLUMN {col_name} {col_type}"))
+            else:
+                # PostgreSQL (Neon DB)
+                conn.execute(text("ALTER TABLE daftar_saham ADD COLUMN IF NOT EXISTS tradeable_shares BIGINT;"))
+                conn.execute(text("ALTER TABLE daftar_saham ADD COLUMN IF NOT EXISTS notasi_khusus VARCHAR(50);"))
+
+                conn.execute(text("ALTER TABLE harga_saham ADD COLUMN IF NOT EXISTS value NUMERIC(24,2) DEFAULT 0;"))
+                conn.execute(text("ALTER TABLE harga_saham ADD COLUMN IF NOT EXISTS frequency BIGINT DEFAULT 0;"))
+                conn.execute(text("ALTER TABLE harga_saham ADD COLUMN IF NOT EXISTS foreign_buy BIGINT DEFAULT 0;"))
+                conn.execute(text("ALTER TABLE harga_saham ADD COLUMN IF NOT EXISTS foreign_sell BIGINT DEFAULT 0;"))
+                conn.execute(text("ALTER TABLE harga_saham ADD COLUMN IF NOT EXISTS foreign_net BIGINT DEFAULT 0;"))
+                conn.execute(text("ALTER TABLE harga_saham ADD COLUMN IF NOT EXISTS offer NUMERIC(20,4);"))
+                conn.execute(text("ALTER TABLE harga_saham ADD COLUMN IF NOT EXISTS offer_volume BIGINT;"))
+                conn.execute(text("ALTER TABLE harga_saham ADD COLUMN IF NOT EXISTS bid NUMERIC(20,4);"))
+                conn.execute(text("ALTER TABLE harga_saham ADD COLUMN IF NOT EXISTS bid_volume BIGINT;"))
+                conn.execute(text("ALTER TABLE harga_saham ADD COLUMN IF NOT EXISTS non_regular_volume BIGINT DEFAULT 0;"))
+                conn.execute(text("ALTER TABLE harga_saham ADD COLUMN IF NOT EXISTS non_regular_value NUMERIC(24,2) DEFAULT 0;"))
+
+    logger.info("✅ Migrasi skema selesai.")
+

@@ -48,8 +48,9 @@ _CACHE_LOCK = threading.Lock()
 _CACHE_TTL = 60.0  # 60 detik
 
 
-# Cache in-memory untuk pemetaan papan pencatatan BEI
+# Cache in-memory untuk pemetaan papan pencatatan & notasi BEI
 _BOARD_MAP: Dict[str, str] = {}
+_NOTASI_MAP: Dict[str, str] = {}
 _BOARD_MAP_TIMESTAMP: float = 0.0
 _BOARD_MAP_LOCK = threading.Lock()
 _BOARD_MAP_TTL = 3600.0  # 1 jam
@@ -60,16 +61,30 @@ def get_stock_board_map() -> Dict[str, str]:
     Ambil mapping kode saham -> papan pencatatan (Utama, Pengembangan, Pemantauan Khusus, Akselerasi).
     Prioritas: Database daftar_saham -> Fallback: worker/daftar_saham.csv.
     """
-    global _BOARD_MAP, _BOARD_MAP_TIMESTAMP
+    _refresh_board_and_notasi_cache()
+    return _BOARD_MAP
+
+
+def get_stock_notasi_map() -> Dict[str, str]:
+    """
+    Ambil mapping kode saham -> notasi khusus BEI (FCA / X, E, M, XD, dll).
+    """
+    _refresh_board_and_notasi_cache()
+    return _NOTASI_MAP
+
+
+def _refresh_board_and_notasi_cache() -> None:
+    global _BOARD_MAP, _NOTASI_MAP, _BOARD_MAP_TIMESTAMP
     now = time.time()
     if _BOARD_MAP and (now - _BOARD_MAP_TIMESTAMP < _BOARD_MAP_TTL):
-        return _BOARD_MAP
+        return
 
     with _BOARD_MAP_LOCK:
         if _BOARD_MAP and (time.time() - _BOARD_MAP_TIMESTAMP < _BOARD_MAP_TTL):
-            return _BOARD_MAP
+            return
 
         b_map: Dict[str, str] = {}
+        n_map: Dict[str, str] = {}
         # 1. Coba dari database Neon DB
         try:
             from lib.db import get_db_engine
@@ -77,12 +92,15 @@ def get_stock_board_map() -> Dict[str, str]:
             eng = get_db_engine()
             if eng:
                 with eng.connect() as conn:
-                    rows = conn.execute(text("SELECT kode, papan_pencatatan FROM daftar_saham")).fetchall()
+                    rows = conn.execute(text("SELECT kode, papan_pencatatan, notasi_khusus FROM daftar_saham")).fetchall()
                     for r in rows:
                         if r[0]:
-                            b_map[str(r[0]).strip().upper()] = str(r[1] or "Pengembangan").strip()
+                            code = str(r[0]).strip().upper()
+                            b_map[code] = str(r[1] or "Pengembangan").strip()
+                            if len(r) > 2 and r[2]:
+                                n_map[code] = str(r[2]).strip()
         except Exception as e:
-            logger.warning(f"Gagal mengambil board map dari DB, mencoba CSV: {e}")
+            logger.warning(f"Gagal mengambil board/notasi map dari DB, mencoba CSV: {e}")
 
         # 2. Fallback dari CSV jika DB kosong/error
         if not b_map:
@@ -101,10 +119,9 @@ def get_stock_board_map() -> Dict[str, str]:
 
         if b_map:
             _BOARD_MAP = b_map
+            _NOTASI_MAP = n_map
             _BOARD_MAP_TIMESTAMP = time.time()
-            logger.info(f"Loaded board map for {len(_BOARD_MAP)} stocks")
-
-        return _BOARD_MAP
+            logger.info(f"Loaded board/notasi map for {len(_BOARD_MAP)} stocks")
 
 
 def fetch_all_stocks_from_scanner() -> List[Dict[str, Any]]:

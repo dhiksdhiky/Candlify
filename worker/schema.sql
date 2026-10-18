@@ -10,11 +10,13 @@ CREATE TABLE IF NOT EXISTS daftar_saham (
     nama_perusahaan VARCHAR(255) NOT NULL,
     tanggal_pencatatan DATE,
     saham BIGINT,
+    tradeable_shares BIGINT,
     papan_pencatatan VARCHAR(50),
+    notasi_khusus VARCHAR(50),
     tanggal_update DATE
 );
 
--- 2. Daily Price Historical (OHLCV)
+-- 2. Daily Price Historical (OHLCV) & Official Flow
 CREATE TABLE IF NOT EXISTS harga_saham (
     id SERIAL PRIMARY KEY,
     ticker VARCHAR(10) NOT NULL,
@@ -24,6 +26,17 @@ CREATE TABLE IF NOT EXISTS harga_saham (
     low NUMERIC(20,4),
     close NUMERIC(20,4),
     volume BIGINT,
+    value NUMERIC(24,2) DEFAULT 0,
+    frequency BIGINT DEFAULT 0,
+    foreign_buy BIGINT DEFAULT 0,
+    foreign_sell BIGINT DEFAULT 0,
+    foreign_net BIGINT DEFAULT 0,
+    offer NUMERIC(20,4),
+    offer_volume BIGINT,
+    bid NUMERIC(20,4),
+    bid_volume BIGINT,
+    non_regular_volume BIGINT DEFAULT 0,
+    non_regular_value NUMERIC(24,2) DEFAULT 0,
     UNIQUE (ticker, tanggal)
 );
 

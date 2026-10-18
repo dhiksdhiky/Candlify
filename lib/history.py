@@ -188,9 +188,14 @@ def fetch_from_neon_db(symbol: str) -> Optional[Dict[str, Any]]:
         
     clean_sym = clean_symbol(symbol)
     query = """
-        SELECT tanggal, open, high, low, close, volume 
+        SELECT tanggal, open, high, low, close, volume,
+               COALESCE(value, 0) as value,
+               COALESCE(frequency, 0) as frequency,
+               COALESCE(foreign_buy, 0) as foreign_buy,
+               COALESCE(foreign_sell, 0) as foreign_sell,
+               COALESCE(foreign_net, 0) as foreign_net
         FROM (
-            SELECT tanggal, open, high, low, close, volume 
+            SELECT tanggal, open, high, low, close, volume, value, frequency, foreign_buy, foreign_sell, foreign_net 
             FROM harga_saham 
             WHERE ticker = :ticker 
             ORDER BY tanggal DESC 
@@ -220,19 +225,45 @@ def fetch_from_neon_db(symbol: str) -> Optional[Dict[str, Any]]:
                 low_p = row[3] if row[3] is not None else min(open_p, close_p)
                 vol = row[5] or 0
                 
-                candles.append({
+                candle_dict = {
                     "timestamp": ts,
                     "open": float(open_p),
                     "high": float(high_p),
                     "low": float(low_p),
                     "close": float(close_p),
                     "volume": float(vol)
-                })
+                }
+
+                # Tambahkan metric resmi BEI jika tersedia
+                if len(row) > 6 and row[6] is not None:
+                    candle_dict["value"] = float(row[6])
+                if len(row) > 7 and row[7] is not None:
+                    candle_dict["frequency"] = int(row[7])
+                if len(row) > 10 and row[10] is not None:
+                    candle_dict["foreign_net"] = int(row[10])
+
+                candles.append(candle_dict)
                     
             if candles:
                 prev_c = candles[-2]["close"] if len(candles) > 1 else candles[-1]["close"]
                 last_c = candles[-1]["close"]
                 change_pct = round(((last_c - prev_c) / prev_c) * 100, 2) if prev_c > 0 else 0.0
+
+                meta_dict = {
+                    "regularMarketPrice": last_c,
+                    "regularMarketChangePercent": change_pct,
+                    "currency": "IDR",
+                    "exchange": "IDX",
+                    "timezone": "Asia/Jakarta"
+                }
+
+                last_candle = candles[-1]
+                if "foreign_net" in last_candle:
+                    meta_dict["foreignNet"] = last_candle["foreign_net"]
+                if "value" in last_candle:
+                    meta_dict["turnoverValue"] = last_candle["value"]
+                if "frequency" in last_candle:
+                    meta_dict["frequency"] = last_candle["frequency"]
 
                 return {
                     "success": True,
@@ -241,13 +272,7 @@ def fetch_from_neon_db(symbol: str) -> Optional[Dict[str, Any]]:
                     "source": "neon_db",
                     "count": len(candles),
                     "data": candles,
-                    "meta": {
-                        "regularMarketPrice": last_c,
-                        "regularMarketChangePercent": change_pct,
-                        "currency": "IDR",
-                        "exchange": "IDX",
-                        "timezone": "Asia/Jakarta"
-                    }
+                    "meta": meta_dict
                 }
     except Exception as e:
         logger.warning(f"⚠️ Neon DB fetch error: {e}")
