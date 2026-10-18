@@ -3732,36 +3732,15 @@ class CandlifyChart {
             });
         }
 
-        // 4. Kitab Pre-Breakout Markdown Reader Modal
-        const btnOpenDoc = document.getElementById('btn-open-doc-modal');
+        // 4. Kitab Pre-Breakout & Dynamic Docs Markdown Reader Modal
         const btnCloseDoc = document.getElementById('btn-close-doc-modal');
         const docModal = document.getElementById('doc-reader-modal');
-        const docContent = document.getElementById('doc-reader-content');
+        const initialBtnOpenDoc = document.getElementById('btn-open-doc-modal');
 
-        if (btnOpenDoc && docModal && docContent) {
-            btnOpenDoc.addEventListener('click', async () => {
-                docModal.classList.remove('hidden');
-                docContent.innerHTML = `
-                    <div style="text-align: center; padding: 40px; color: var(--text-muted);">
-                        <div style="font-size: 24px; margin-bottom: 10px;">⏳</div>
-                        Memuat isi Kitab Panduan...
-                    </div>
-                `;
-                try {
-                    const res = await fetch('/api/docs/bandarmology');
-                    const data = await res.json();
-                    if (data.success && data.markdown) {
-                        if (window.marked && typeof window.marked.parse === 'function') {
-                            docContent.innerHTML = window.marked.parse(data.markdown);
-                        } else {
-                            docContent.innerHTML = `<pre style="white-space: pre-wrap; color:#e2e8f0;">${escapeHtml(data.markdown)}</pre>`;
-                        }
-                    } else {
-                        docContent.innerHTML = '<div style="color:#f87171; padding:20px;">Gagal memuat dokumen panduan.</div>';
-                    }
-                } catch (e) {
-                    docContent.innerHTML = `<div style="color:#f87171; padding:20px;">Gagal mengambil dokumen: ${e.message}</div>`;
-                }
+        if (initialBtnOpenDoc) {
+            initialBtnOpenDoc.addEventListener('click', (e) => {
+                const slug = e.currentTarget.dataset.slug || '01_panduan_candlify_pwa';
+                this.openDocModal(slug);
             });
         }
 
@@ -3775,6 +3754,9 @@ class CandlifyChart {
                 }
             });
         }
+
+        // Fetch dan render daftar panduan dinamis dari folder docs/
+        this.fetchAndRenderSettingsDocs();
 
         // 5. Database Overview Navigation Links
         if (this.dom.btnDbGoScreener) {
@@ -5891,6 +5873,88 @@ class CandlifyChart {
             }
         } catch (err) {
             this.showToast(`Error: ${err.message}`, 'error');
+        }
+    }
+
+    // ── Dynamic Documentation Methods ──
+
+    async fetchAndRenderSettingsDocs() {
+        const container = document.getElementById('settings-docs-list');
+        if (!container) return;
+
+        try {
+            const res = await fetch('/api/docs');
+            const data = await res.json();
+            if (data.success && Array.isArray(data.docs) && data.docs.length > 0) {
+                const html = data.docs.map((doc, idx) => `
+                    <button class="settings-action-tile btn-doc-item" type="button" ${idx === 0 ? 'id="btn-open-doc-modal"' : ''} data-slug="${escapeHtml(doc.slug)}" data-title="${escapeHtml(doc.title)}" data-subtitle="${escapeHtml(doc.subtitle || '')}" data-icon="${escapeHtml(doc.icon || '📖')}" title="Buka ${escapeHtml(doc.title)}">
+                        <div class="action-tile-left">
+                            <span class="action-tile-icon">${escapeHtml(doc.icon || '📖')}</span>
+                            <div class="action-tile-text">
+                                <div class="action-tile-title">${escapeHtml(doc.title)}</div>
+                                <div class="action-tile-sub">${escapeHtml(doc.subtitle || '')}</div>
+                            </div>
+                        </div>
+                        <span class="action-tile-arrow">›</span>
+                    </button>
+                `).join('');
+                container.innerHTML = html;
+
+                container.querySelectorAll('.btn-doc-item').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const target = e.currentTarget;
+                        const slug = target.dataset.slug;
+                        const title = target.dataset.title;
+                        const subtitle = target.dataset.subtitle;
+                        const icon = target.dataset.icon;
+                        this.openDocModal(slug, title, subtitle, icon);
+                    });
+                });
+            }
+        } catch (err) {
+            console.warn('Gagal memuat daftar dokumen panduan:', err);
+        }
+    }
+
+    async openDocModal(slug = 'bandarmology', title = 'Kitab Pre-Breakout & Bandarmology', subtitle = 'Dokumentasi Resmi Candlify', icon = '📖') {
+        const docModal = document.getElementById('doc-reader-modal');
+        const docContent = document.getElementById('doc-reader-content');
+        const docModalTitle = document.getElementById('doc-modal-title');
+        const docModalSub = document.getElementById('doc-modal-subtitle');
+        const docModalIcon = document.getElementById('doc-modal-icon');
+
+        if (!docModal || !docContent) return;
+
+        docModal.classList.remove('hidden');
+        if (docModalTitle) docModalTitle.textContent = title;
+        if (docModalSub) docModalSub.textContent = subtitle;
+        if (docModalIcon) docModalIcon.textContent = icon;
+
+        docContent.innerHTML = `
+            <div style="text-align: center; padding: 40px; color: var(--text-muted);">
+                <div style="font-size: 24px; margin-bottom: 10px;">⏳</div>
+                Memuat dokumen panduan...
+            </div>
+        `;
+
+        try {
+            const url = (slug === 'bandarmology' || slug === 'bandarmology_pre_breakout') ? '/api/docs/bandarmology' : `/api/docs/${encodeURIComponent(slug)}`;
+            const res = await fetch(url);
+            const data = await res.json();
+            if (data.success && data.markdown) {
+                if (data.title && docModalTitle) docModalTitle.textContent = data.title;
+                if (data.icon && docModalIcon) docModalIcon.textContent = data.icon;
+                if (window.marked && typeof window.marked.parse === 'function') {
+                    docContent.innerHTML = window.marked.parse(data.markdown);
+                } else {
+                    docContent.innerHTML = `<pre style="white-space: pre-wrap; color:#e2e8f0;">${escapeHtml(data.markdown)}</pre>`;
+                }
+                docContent.scrollTop = 0;
+            } else {
+                docContent.innerHTML = '<div style="color:#f87171; padding:20px;">Gagal memuat dokumen panduan.</div>';
+            }
+        } catch (e) {
+            docContent.innerHTML = `<div style="color:#f87171; padding:20px;">Gagal mengambil dokumen: ${e.message}</div>`;
         }
     }
 

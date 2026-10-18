@@ -974,17 +974,25 @@
                     </div>
                 </div>
 
-                <!-- Kitab Pre-Breakout & Bandarmology Action Tile -->
-                <button id="btn-open-doc-modal" class="settings-action-tile" type="button" title="Buka Kitab Panduan Pre-Breakout">
-                    <div class="action-tile-left">
-                        <span class="action-tile-icon">📖</span>
-                        <div class="action-tile-text">
-                            <div class="action-tile-title">Kitab Pre-Breakout &amp; Bandarmology</div>
-                            <div class="action-tile-sub">SOP trading, lelang FCA &amp; 4 pilar teknikal</div>
-                        </div>
+                <!-- Pusat Panduan & Dokumentasi Dinamis -->
+                <div class="settings-doc-section">
+                    <div class="settings-section-hdr">
+                        <span class="settings-section-title">📚 Pusat Panduan &amp; Dokumentasi</span>
                     </div>
-                    <span class="action-tile-arrow">›</span>
-                </button>
+                    <div id="settings-docs-list" class="settings-docs-list">
+                        <!-- Populated dynamically via JS: fallback placeholder button -->
+                        <button id="btn-open-doc-modal" class="settings-action-tile" type="button" data-slug="01_panduan_candlify_pwa" title="Buka Panduan">
+                            <div class="action-tile-left">
+                                <span class="action-tile-icon">📱</span>
+                                <div class="action-tile-text">
+                                    <div class="action-tile-title">Panduan Penggunaan Candlify &amp; Fitur</div>
+                                    <div class="action-tile-sub">Kamus tombol chart, watchlist, dan money management</div>
+                                </div>
+                            </div>
+                            <span class="action-tile-arrow">›</span>
+                        </button>
+                    </div>
+                </div>
 
                 <!-- 4. Info Sistem Minimalist Footer -->
                 <div class="settings-footer-card">
@@ -1402,10 +1410,10 @@
             <div class="doc-reader-container" onclick="event.stopPropagation()">
                 <div class="doc-reader-header">
                     <div class="doc-reader-title-row">
-                        <span class="doc-reader-icon">📖</span>
+                        <span class="doc-reader-icon" id="doc-modal-icon">📖</span>
                         <div>
-                            <h3 class="doc-reader-title">Kitab Pre-Breakout & Bandarmology</h3>
-                            <span class="doc-reader-subtitle">Dokumentasi Resmi & SOP Trading Candlify V2</span>
+                            <h3 class="doc-reader-title" id="doc-modal-title">Kitab Pre-Breakout &amp; Bandarmology</h3>
+                            <span class="doc-reader-subtitle" id="doc-modal-subtitle">Dokumentasi Resmi &amp; SOP Trading Candlify V2</span>
                         </div>
                     </div>
                     <button id="btn-close-doc-modal" class="modal-close-btn" title="Tutup Panduan">✕</button>

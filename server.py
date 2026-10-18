@@ -683,9 +683,61 @@ def api_stock_alias(action: Optional[str] = Query("health")):
     """Alias endpoint kompatibilitas stock engine."""
     return get_database_metrics()
 
+@app.get("/api/docs")
+def api_list_docs():
+    """Mengembalikan daftar semua dokumen panduan di folder docs/ secara dinamis."""
+    docs_dir = os.path.join(BASE_DIR, "docs")
+    if not os.path.exists(docs_dir):
+        return {"success": True, "total": 0, "docs": []}
+
+    files = [f for f in sorted(os.listdir(docs_dir)) if f.endswith(".md")]
+    docs_list = []
+    
+    for f in files:
+        file_path = os.path.join(docs_dir, f)
+        title = f.replace(".md", "").replace("_", " ")
+        subtitle = "Dokumentasi & Panduan Resmi Candlify"
+        icon = "📖"
+        
+        try:
+            with open(file_path, "r", encoding="utf-8") as doc_f:
+                lines = doc_f.readlines()
+                for line in lines:
+                    line_str = line.strip()
+                    if line_str.startswith("# "):
+                        raw_title = line_str[2:].strip()
+                        parts = raw_title.split(" ", 1)
+                        if len(parts) > 1 and any(ord(c) > 127 for c in parts[0]):
+                            icon = parts[0]
+                            title = parts[1]
+                        else:
+                            title = raw_title
+                        break
+                        
+                for line in lines:
+                    line_str = line.strip()
+                    if line_str.startswith(">"):
+                        cleaned = line_str.replace(">", "").replace("**", "").replace("*", "").strip()
+                        if cleaned:
+                            subtitle = cleaned.split("—")[0].strip() if "—" in cleaned else cleaned[:100]
+                            break
+        except Exception as err:
+            logger.warning(f"Gagal membaca metadata {f}: {err}")
+
+        slug = f.replace(".md", "").lower()
+        docs_list.append({
+            "filename": f,
+            "slug": slug,
+            "title": title,
+            "subtitle": subtitle,
+            "icon": icon,
+        })
+        
+    return {"success": True, "total": len(docs_list), "docs": docs_list}
+
 @app.get("/api/docs/bandarmology")
 def api_get_bandarmology_doc():
-    """Mengembalikan isi dokumen panduan Pre-Breakout & Bandarmologi dalam format Markdown."""
+    """Mengembalikan isi dokumen panduan Pre-Breakout & Bandarmologi dalam format Markdown (Legacy)."""
     doc_path = os.path.join(BASE_DIR, "docs", "BANDARMOLOGY_PRE_BREAKOUT.md")
     if not os.path.exists(doc_path):
         raise HTTPException(status_code=404, detail="Dokumen panduan tidak ditemukan")
@@ -699,6 +751,56 @@ def api_get_bandarmology_doc():
         }
     except Exception as err:
         raise HTTPException(status_code=500, detail=f"Gagal membaca dokumen: {err}")
+
+@app.get("/api/docs/{slug}")
+def api_get_doc_by_slug(slug: str):
+    """Mengembalikan isi dokumen markdown berdasarkan slug atau filename."""
+    docs_dir = os.path.join(BASE_DIR, "docs")
+    if not os.path.exists(docs_dir):
+        raise HTTPException(status_code=404, detail="Folder docs tidak ditemukan")
+
+    target_file = None
+    slug_lower = slug.lower().strip()
+    for f in os.listdir(docs_dir):
+        if not f.endswith(".md"):
+            continue
+        base_name = f.replace(".md", "").lower()
+        if base_name == slug_lower or f.lower() == slug_lower:
+            target_file = f
+            break
+
+    if not target_file:
+        raise HTTPException(status_code=404, detail=f"Dokumen '{slug}' tidak ditemukan")
+
+    file_path = os.path.join(docs_dir, target_file)
+    try:
+        with open(file_path, "r", encoding="utf-8") as doc_f:
+            content = doc_f.read()
+            
+        title = target_file.replace(".md", "").replace("_", " ")
+        icon = "📖"
+        for line in content.splitlines():
+            line_str = line.strip()
+            if line_str.startswith("# "):
+                raw_title = line_str[2:].strip()
+                parts = raw_title.split(" ", 1)
+                if len(parts) > 1 and any(ord(c) > 127 for c in parts[0]):
+                    icon = parts[0]
+                    title = parts[1]
+                else:
+                    title = raw_title
+                break
+
+        return {
+            "success": True,
+            "filename": target_file,
+            "slug": slug_lower,
+            "title": title,
+            "icon": icon,
+            "markdown": content
+        }
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Gagal membaca file dokumen: {err}")
 
 @app.get("/api/health")
 def health():

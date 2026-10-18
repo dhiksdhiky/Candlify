@@ -297,6 +297,33 @@ def test_api_docs_bandarmology():
     assert "Pre-Breakout" in data["markdown"] or "Bandarmology" in data["markdown"]
 
 
+def test_api_docs_dynamic_list_and_detail():
+    # 1. Test listing all docs
+    res = client.get("/api/docs")
+    assert res.status_code == 200
+    data = res.json()
+    assert data.get("success") is True
+    assert data.get("total") >= 3
+    docs = data.get("docs", [])
+    assert len(docs) >= 3
+    slugs = [d["slug"] for d in docs]
+    assert any("01_panduan_candlify_pwa" in s for s in slugs)
+    assert any("02_teori_bandarmologi" in s for s in slugs)
+    assert any("03_sop_strategi" in s for s in slugs)
+
+    # 2. Test reading a specific doc
+    res_doc = client.get("/api/docs/01_panduan_candlify_pwa")
+    assert res_doc.status_code == 200
+    doc_data = res_doc.json()
+    assert doc_data.get("success") is True
+    assert "Candlify" in doc_data.get("markdown", "")
+    assert "title" in doc_data
+
+    # 3. Test non-existent doc returns 404
+    res_404 = client.get("/api/docs/dokumen_fiktif_tidak_ada")
+    assert res_404.status_code == 404
+
+
 def test_doc_reader_ui_elements():
     res_html = client.get("/")
     assert res_html.status_code == 200
