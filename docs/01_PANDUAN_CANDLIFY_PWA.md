@@ -54,12 +54,14 @@ Saat membuka tab **Chart**, antarmuka terbagi menjadi beberapa area kendali yang
    * Bar horizontal tepat di atas chart yang dapat di-swipe ke kanan dan kiri.
    * Menampilkan daftar saham pilihan (dari watchlist atau hasil screener) lengkap dengan harga terakhir dan persentase perubahan hari ini.
    * Sekali tap pada salah satu saham, chart langsung berganti secara instan tanpa perlu kembali ke menu screener.
-3. **Badge Order Flow Bandar (`📊 🟢 +1.2B • HMB 4.850`)**:
+3. **Badge Order Flow Bandar (`🟢 +1.2B • 🌐 +24M • HMB 4.850`)**:
    * **Warna Hijau (`🟢`)**: Smart Money berada dalam fase **Net Akumulasi**.
    * **Warna Merah (`🔴`)**: Smart Money berada dalam fase **Net Distribusi**.
    * **Nominal Flow (`+1.2B` / `-500M`)**: Nilai bersih transaksi Top-3 broker buyer/seller (Miliar / Juta Rupiah).
+   * **Flow Asing (`🌐 +24M`)**: Nilai net inflow/outflow investor asing hari ini.
    * **HMB (`HMB Rp 4.850`)**: *Harga Modal Bandar* tertimbang rata-rata kumulatif.
-   * *Tips:* Klik badge ini untuk membuka lembar detail Broker Flow & Broksum harian.
+   * *Desain Ramping:* Ikon grafik batang disederhanakan agar seluruh metrik penting muat rapi dalam 1 baris di layar smartphone.
+   * *Tips:* Klik badge ini untuk membuka lembar detail Broker Summary & Market Intelligence.
 4. **Tombol Bintang ⭐ (Watchlist Action)**:
    * Menandai apakah saham saat ini sudah tersimpan di watchlist.
    * Jika ikon bergaris putih (`☆`): Saham belum ada di watchlist. Sekali klik akan membuka modal penyimpanan.
@@ -79,16 +81,54 @@ Saat membuka tab **Chart**, antarmuka terbagi menjadi beberapa area kendali yang
 
 ## 4. Membaca Order Flow & Broker Summary
 
-Ketika badge Order Flow di atas chart diklik, muncul panel interaktif di bagian bawah:
+Ketika badge Order Flow di atas chart diklik, muncul lembar panel interaktif (**Order Flow & Intelligence Bottom Sheet**). Seluruh tampilan dirancang dengan arsitektur **Kanan-Kiri Kompak (Side-by-Side)** yang simetris, baik di desktop maupun layar HP smartphone:
 
-### A. Tab Ringkasan Broksum (Broker Summary)
-* **Top 1 Buyer & Seller**: Broker dengan akumulasi atau distribusi terbesar hari ini.
-* **Top 3 & Top 5 Concentration**: Persentase dominasi volume broker teratas terhadap total transaksi bursa. Jika Top-3 menguasai > 60%, pergerakan harga berada dalam kendali kuat satu konsorsium.
+```
+┌────────────────────────────────────────────────────────┐
+│  Net Flow Bandar  │  Harga Modal (HMB)  │  Rasio Buy/Sell│
+├────────────────────────────────────────────────────────┤
+│  [======== Buy 51% ========][======== Sell 49% =======]│
+├────────────────────────────┬───────────────────────────┤
+│ 🌐 Foreign Flow (Kiri)     │ 🐳 Trade Size & Nego (Kanan│
+│ Net 1D │ Net 5D │ Net 20D  │ Lot/Trd │ Rerata 20H│ Nego│
+├────────────────────────────┼───────────────────────────┤
+│ 🟢 TOP BUYERS (Kiri)       │ 🔴 TOP SELLERS (Kanan)    │
+│ Broker │ Lot │ Val │ Avg   │ Broker │ Lot │ Val │ Avg  │
+└────────────────────────────┴───────────────────────────┘
+```
 
-### B. Tab Daily Activity & Broker Flow
-* **Tombol Broker Interaktif**: Menampilkan daftar broker yang aktif bertransaksi pada saham tersebut (diurutkan dari broker paling akumulatif di sebelah kiri).
-* **Klik Tombol Broker**: Memfilter pergerakan harga dan riwayat beli/jual spesifik hanya untuk broker yang dipilih.
-* **Grafik Aliran Kumulatif (Broker Flow Line)**: Memperlihatkan grafik apakah broker tertentu konsisten menambah barang (grafik menanjak) atau diam-diam membuang barang saat harga naik (grafik menukik/divergence).
+### A. Ringkasan Arus Modal Utama (Top Bar & Ratio)
+* **Net Flow Bandar**: Nominal akumulasi/distribusi bersih Top 3 broker penentu arah harga.
+* **Harga Modal (HMB)**: Estimasi rata-rata harga beli bandar sebagai level jangkar support dinamis.
+* **Rasio Buy / Sell**: Perbandingan visual kekuatan beli versus jual dalam persentase.
+
+### B. Intelijen Pasar Kanan-Kiri (Market Intelligence Strip)
+Tepat di bawah rasio buy/sell, terdapat dua kartu berdampingan (kanan-kiri) yang memberikan konfirmasi lapis kedua:
+1. **🌐 Foreign Flow (Asing) — Kolom Kiri**:
+   * **Net 1D**: Transaksi bersih investor asing hari ini (Inflow/Outflow).
+   * **Net 5D & Net 20D**: Akumulasi bergulir 5 hari bursa (~1 minggu) dan 20 hari bursa (~1 bulan) untuk melihat apakah asing sedang konsisten masuk (*inflow*) atau keluar bertahap (*outflow*).
+   * **Buy vs Sell Lot**: Detail volume pembelian vs penjualan lot asing secara riil.
+2. **🐳 Trade Size & Pasar Nego — Kolom Kanan**:
+   * **Lot per Trade (`Lot/Trd`)**: Rata-rata lot per satu kali transaksi (`Volume / Frekuensi / 100`).
+   * **Rerata 20H**: Baseline rata-rata lot per transaksi selama 20 hari bursa terakhir.
+   * **Badge Whale / Ritel**: 
+     * `🐳 Whale (>= 1.5x)`: Transaksi didominasi pemain bermodal jumbo / institusi.
+     * `🦐 Ritel (<= 0.75x)`: Transaksi didominasi investor ritel kecil.
+     * `Normal`: Pola transaksi reguler berimbang.
+   * **Pasar Nego (`Nego`)**: Menampilkan nilai transaksi non-reguler. Jika terjadi crossing signifikan ($\ge \text{Rp } 10\text{ Miliar}$ atau $\ge 1\%$ saham beredar), sistem akan menampilkan tanda peringatan `⚠️ Crossing`.
+
+### C. Tabel Top Buyers vs Top Sellers (Kanan-Kiri)
+* **🟢 TOP BUYERS (Kolom Kiri)**: Daftar 5 hingga 10 broker dengan net buy terbesar (Kode Broker, Volume Lot, Nilai Rupiah, dan Harga Rata-rata).
+* **🔴 TOP SELLERS (Kolom Kanan)**: Daftar 5 hingga 10 broker dengan net sell terbesar.
+* *Keunggulan Desain:* Kolom buyer dan seller selalu berdampingan (tidak menumpuk atas-bawah), sehingga trader dapat langsung membandingkan broker lawan tanding secara seketika tanpa harus scroll.
+
+### D. Multi-Horizon Presets (`1D`, `1W`, `2W`, `1M`, `3M`, `6M`)
+* Menghitung ulang seluruh metrik bandarmologi dan foreign flow untuk rentang tanggal yang dipilih secara instan tanpa perlu menekan tombol submit tambahan.
+
+### E. Tab Daily Activity & Broker Flow
+* **Tombol Broker Interaktif**: Menampilkan daftar broker aktif yang diurutkan dari broker paling akumulatif di sebelah kiri.
+* **Klik Tombol Broker**: Memfilter pergerakan harga dan riwayat beli/jual spesifik hanya untuk broker terpilih.
+* **Grafik Aliran Kumulatif (Broker Flow Line)**: Memperlihatkan grafik apakah broker tertentu konsisten menambah posisi (grafik menanjak) atau diam-diam membuang barang saat harga naik (divergence).
 
 ---
 
@@ -175,6 +215,7 @@ Candlify V2.3 secara otomatis mengidentifikasi klasifikasi papan dan status risi
   * **🐳 Whale Footprint**: Menyaring emiten dengan lonjakan trade size (lot per trade) &ge; 1.5x di atas rata-rata historis.
 * 🏷️ **Subtle Notasi Khusus BEI**: Tampilan notasi khusus (`[X]`, `[E]`, `[N]`, dll.) disematkan secara elegan dan non-intrusif di samping ticker tanpa modal peringatan pop-up yang mengganggu.
 * 📱 **Header Order Flow Badge yang Ramping**: Penghapusan ikon bar chart (`📊`) pada badge atas chart sehingga status flow bandar, flow asing, dan HMB selalu muat satu baris rapi di layar smartphone PWA.
+* ⚖️ **Broksum Side-by-Side Symmetrical (Kanan-Kiri)**: Desain 2 kolom permanen untuk seluruh panel Broker Summary (Top Buyers di kiri & Top Sellers di kanan, Foreign Flow di kiri & Whale Trade Size di kanan). Menghilangkan penumpukan atas-bawah pada layar smartphone sehingga perbandingan kekuatan pasar langsung terlihat seketika tanpa perlu scroll.
 
 ### Versi 2.3 — All-in-One IDX Engine & Foreign Flow (Oktober 2026)
 * 🌐 **All-in-One IDX Trading Engine**: Integrasi langsung API Trading Summary resmi Bursa Efek Indonesia (BEI) via TLS impersonation safari17_0 dengan eksekusi super-cepat (1,3 detik untuk seluruh 963 emiten).

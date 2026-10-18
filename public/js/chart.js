@@ -2461,13 +2461,13 @@ class CandlifyChart {
             if (this.dom.intelForeignStatus) {
                 const isNetBuy = netVal1d > 0;
                 this.dom.intelForeignStatus.className = `intel-card-badge ${isNetBuy ? 'accum' : (netVal1d < 0 ? 'distrib' : '')}`;
-                this.dom.intelForeignStatus.textContent = isNetBuy ? '🟢 Net Inflow' : (netVal1d < 0 ? '🔴 Net Outflow' : 'Netral');
+                this.dom.intelForeignStatus.textContent = isNetBuy ? '🟢 Inflow' : (netVal1d < 0 ? '🔴 Outflow' : 'Netral');
             }
 
             if (this.dom.intelForeignSubtext) {
                 const buyLot = isRange ? Math.round((foreign.range_buy_shares || 0) / 100) : (foreign.today_buy_lots || 0);
                 const sellLot = isRange ? Math.round((foreign.range_sell_shares || 0) / 100) : (foreign.today_sell_lots || 0);
-                this.dom.intelForeignSubtext.textContent = `Buy: ${fmtLot(buyLot)} Lot • Sell: ${fmtLot(sellLot)} Lot`;
+                this.dom.intelForeignSubtext.textContent = `B: ${fmtLot(buyLot)}L • S: ${fmtLot(sellLot)}L`;
             }
         }
 
@@ -2475,9 +2475,9 @@ class CandlifyChart {
         const nego = summary.pasar_nego || summary.market_intelligence?.pasar_nego || {};
 
         if (this.dom.intelWhaleToday) {
-            this.dom.intelWhaleToday.textContent = `${tradeSize.today_lot_per_trade || 0} Lot`;
+            this.dom.intelWhaleToday.textContent = `${tradeSize.today_lot_per_trade || 0}`;
             if (this.dom.intelWhaleAvg) {
-                this.dom.intelWhaleAvg.textContent = `${tradeSize.avg_lot_per_trade_20d || 0} Lot`;
+                this.dom.intelWhaleAvg.textContent = `${tradeSize.avg_lot_per_trade_20d || 0}`;
             }
             if (this.dom.intelWhaleStatus) {
                 const ratio = tradeSize.whale_ratio || 1.0;
@@ -2489,7 +2489,7 @@ class CandlifyChart {
                     this.dom.intelWhaleStatus.textContent = `🦐 Ritel (${ratio.toFixed(1)}x)`;
                 } else {
                     this.dom.intelWhaleStatus.className = 'intel-card-badge';
-                    this.dom.intelWhaleStatus.textContent = `Normal (1.0x)`;
+                    this.dom.intelWhaleStatus.textContent = `Normal (${ratio.toFixed(1)}x)`;
                 }
             }
         }
@@ -2499,10 +2499,10 @@ class CandlifyChart {
             this.dom.intelNegoVal.textContent = nVal > 0 ? fmtVal(nVal) : 'Rp 0';
             if (this.dom.intelNegoSubtext) {
                 if (nego.has_crossing) {
-                    this.dom.intelNegoSubtext.innerHTML = `⚠️ <strong style="color: #fbbf24;">Crossing:</strong> ${escapeHtml(nego.crossing_reason || 'Transaksi Nego Signifikan')}`;
+                    this.dom.intelNegoSubtext.innerHTML = `⚠️ <strong style="color: #fbbf24;">Crossing:</strong> ${escapeHtml(nego.crossing_reason || 'Signifikan')}`;
                 } else {
                     const nLot = nego.volume_lots || 0;
-                    this.dom.intelNegoSubtext.textContent = nVal > 0 ? `Pasar Nego: ${fmtLot(nLot)} Lot (Normal)` : 'Pasar Nego: Tidak ada transaksi';
+                    this.dom.intelNegoSubtext.textContent = nVal > 0 ? `Nego: ${fmtLot(nLot)} Lot` : 'Pasar Nego: Normal';
                 }
             }
         }
