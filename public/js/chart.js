@@ -2216,7 +2216,7 @@ class CandlifyChart {
         const statusText = isAccum ? 'Akum' : 'Dist';
 
         this.dom.bandarBadge.className = `bandar-badge ${isAccum ? 'accum' : 'distrib'}`;
-        this.dom.bandarBadge.innerHTML = `📊 Order Flow (${statusIcon} ${sign}${flowMiliar}B) • HMB Rp ${summary.latest_hmb.toLocaleString('id-ID')}`;
+        this.dom.bandarBadge.innerHTML = `📊 ${statusIcon} ${sign}${flowMiliar}B • HMB ${summary.latest_hmb.toLocaleString('id-ID')}`;
         this.dom.bandarBadge.title = `Order Flow & Broksum ${summary.latest_date || ''}: Top 3 Net Flow ${sign}${flowMiliar}B | HMB Rp ${summary.latest_hmb.toLocaleString('id-ID')} (Klik untuk detail Broksum, Riwayat & Flow)`;
     }
 
@@ -4921,15 +4921,8 @@ class CandlifyChart {
             this.selectedWlCategories.add(editItem.category);
         }
 
-        // Jika saham baru dan belum ada kategori sama sekali, default ke default_category
-        if (this.selectedWlCategories.size === 0 && editItem?.isNew) {
-            const defCat = this.riskSettings?.default_category || 'Breakout';
-            if (this.watchlistCategories.includes(defCat)) {
-                this.selectedWlCategories.add(defCat);
-            } else if (this.watchlistCategories.length > 0) {
-                this.selectedWlCategories.add(this.watchlistCategories[0]);
-            }
-        }
+        // Tandai apakah saham sudah tersimpan di watchlist sebelumnya
+        this.isExistingWatchlistStock = (this.selectedWlCategories.size > 0);
 
         if (this.dom.wlInputTargetEntry) this.dom.wlInputTargetEntry.value = targetEntry || '';
         if (this.dom.wlInputNotes) this.dom.wlInputNotes.value = notes || '';
@@ -4952,6 +4945,9 @@ class CandlifyChart {
                     const data = await res.json();
                     if (data.success && Array.isArray(data.categories)) {
                         this.selectedWlCategories = new Set(data.categories);
+                        if (data.categories.length > 0) {
+                            this.isExistingWatchlistStock = true;
+                        }
                         if (data.target_entry !== null && data.target_entry !== undefined && !this.dom.wlInputTargetEntry.value) {
                             this.dom.wlInputTargetEntry.value = data.target_entry;
                         }
@@ -5011,8 +5007,13 @@ class CandlifyChart {
         if (this.dom.wlSelectedCatCount) {
             const count = this.selectedWlCategories.size;
             if (count === 0) {
-                this.dom.wlSelectedCatCount.textContent = '0 dipilih (akan dihapus)';
-                this.dom.wlSelectedCatCount.style.color = '#f87171';
+                if (this.isExistingWatchlistStock) {
+                    this.dom.wlSelectedCatCount.textContent = '0 dipilih (akan dihapus)';
+                    this.dom.wlSelectedCatCount.style.color = '#f87171';
+                } else {
+                    this.dom.wlSelectedCatCount.textContent = 'Pilih watchlist tujuan';
+                    this.dom.wlSelectedCatCount.style.color = 'var(--text-muted)';
+                }
             } else {
                 this.dom.wlSelectedCatCount.textContent = `${count} dipilih`;
                 this.dom.wlSelectedCatCount.style.color = 'var(--text-muted)';
@@ -5024,15 +5025,24 @@ class CandlifyChart {
         if (!this.dom.btnSubmitWl) return;
         const count = this.selectedWlCategories.size;
         if (count === 0) {
-            this.dom.btnSubmitWl.textContent = '🗑️ Hapus dari Semua Watchlist';
-            this.dom.btnSubmitWl.className = 'filter-btn-danger';
+            if (this.isExistingWatchlistStock) {
+                this.dom.btnSubmitWl.textContent = '🗑️ Hapus dari Semua Watchlist';
+                this.dom.btnSubmitWl.className = 'filter-btn-danger';
+                this.dom.btnSubmitWl.disabled = false;
+            } else {
+                this.dom.btnSubmitWl.textContent = 'Pilih Minimal 1 Watchlist';
+                this.dom.btnSubmitWl.className = 'filter-btn-secondary';
+                this.dom.btnSubmitWl.disabled = true;
+            }
         } else if (count === 1) {
             const catName = Array.from(this.selectedWlCategories)[0];
             this.dom.btnSubmitWl.textContent = `Simpan ke ${catName}`;
             this.dom.btnSubmitWl.className = 'filter-btn-primary';
+            this.dom.btnSubmitWl.disabled = false;
         } else {
             this.dom.btnSubmitWl.textContent = `Simpan ke ${count} Watchlist`;
             this.dom.btnSubmitWl.className = 'filter-btn-primary';
+            this.dom.btnSubmitWl.disabled = false;
         }
     }
 
@@ -5053,6 +5063,10 @@ class CandlifyChart {
         }
 
         const categories = Array.from(this.selectedWlCategories);
+        if (categories.length === 0 && !this.isExistingWatchlistStock) {
+            this.showToast('Pilih minimal satu kategori watchlist!', 'warning');
+            return;
+        }
 
         try {
             const res = await fetch('/api/watchlist/sync-stock', {
