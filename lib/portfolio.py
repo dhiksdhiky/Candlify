@@ -54,6 +54,26 @@ def _format_age(created_at: datetime) -> str:
         return f"{max(1, days // 30)}bln lalu"
 
 
+def _get_age_days(created_at: Any) -> int:
+    """Hitung umur pantauan watchlist dalam satuan hari bulat (0 = hari ini)."""
+    if not created_at:
+        return 0
+    try:
+        if isinstance(created_at, str):
+            s = created_at.strip()
+            if s.endswith("Z"):
+                s = s[:-1] + "+00:00"
+            created_dt = datetime.fromisoformat(s)
+        else:
+            created_dt = created_at
+        if created_dt.tzinfo is None:
+            created_dt = created_dt.replace(tzinfo=timezone.utc)
+        delta = datetime.now(timezone.utc) - created_dt
+        return max(0, delta.days)
+    except Exception:
+        return 0
+
+
 def get_all_watchlists(category: Optional[str] = None) -> List[Dict[str, Any]]:
     """
     Ambil seluruh daftar saham watchlist dari Neon DB.
@@ -90,6 +110,8 @@ def get_all_watchlists(category: Optional[str] = None) -> List[Dict[str, Any]]:
     for r in rows:
         sym = r["symbol"]
         live = stock_map.get(sym, {})
+        created_raw = r["created_at"]
+        created_iso = created_raw.isoformat() if hasattr(created_raw, "isoformat") else (str(created_raw) if created_raw else None)
 
         items.append({
             "id": r["id"],
@@ -97,8 +119,9 @@ def get_all_watchlists(category: Optional[str] = None) -> List[Dict[str, Any]]:
             "category": r["category"],
             "target_entry": r["target_entry"],
             "notes": r["notes"] or "",
-            "created_at": r["created_at"].isoformat() if r["created_at"] else None,
-            "age": _format_age(r["created_at"]),
+            "created_at": created_iso,
+            "age": _format_age(created_raw) if hasattr(created_raw, "tzinfo") else "Baru",
+            "age_days": _get_age_days(created_raw),
             # Live Metrics
             "price": live.get("price"),
             "change_pct": live.get("change_pct", 0.0),
@@ -106,6 +129,7 @@ def get_all_watchlists(category: Optional[str] = None) -> List[Dict[str, Any]]:
             "market_cap": live.get("market_cap", 0),
             "name": live.get("name", sym),
             "board": live.get("board", "Utama"),
+            "notasi_khusus": live.get("notasi_khusus", ""),
             "is_fca": live.get("is_fca", False)
         })
 

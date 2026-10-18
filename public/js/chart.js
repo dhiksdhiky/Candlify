@@ -4343,14 +4343,16 @@ class CandlifyChart {
             const boardName = s.board || s.papan_pencatatan || '';
             const isFca = (boardName.includes('Pemantauan') || s.is_fca);
             
-            // Papan bursa (selain FCA/Pemantauan karena sudah diwakili notasi resmi [X])
+            // Papan bursa disingkat (UTM, PGM, AKS, EKB) agar hemat ruang; FCA diwakili notasi resmi [X]
             let boardBadge = '';
             if (boardName.includes('Akselerasi')) {
-                boardBadge = `<span class="stock-badge-board badge-akselerasi" title="Papan Akselerasi">Akselerasi</span>`;
+                boardBadge = `<span class="stock-badge-board badge-akselerasi" title="Papan Akselerasi">AKS</span>`;
             } else if (boardName.includes('Pengembangan')) {
-                boardBadge = `<span class="stock-badge-board badge-pengembangan" title="Papan Pengembangan">Pengembangan</span>`;
+                boardBadge = `<span class="stock-badge-board badge-pengembangan" title="Papan Pengembangan">PGM</span>`;
+            } else if (boardName.includes('Ekonomi Baru')) {
+                boardBadge = `<span class="stock-badge-board badge-utama" title="Papan Ekonomi Baru">EKB</span>`;
             } else if (boardName.includes('Utama')) {
-                boardBadge = `<span class="stock-badge-board badge-utama" title="Papan Utama">Utama</span>`;
+                boardBadge = `<span class="stock-badge-board badge-utama" title="Papan Utama">UTM</span>`;
             }
 
             // Notasi Khusus Resmi BEI (X, E, M, dll.)
@@ -4912,6 +4914,28 @@ class CandlifyChart {
         }
     }
 
+    getWatchlistAgeDays(createdAtStr, fallbackDays = 0) {
+        if (typeof fallbackDays === 'number' && !isNaN(fallbackDays) && !createdAtStr) {
+            return Math.max(0, fallbackDays);
+        }
+        if (!createdAtStr) return 0;
+        try {
+            let s = String(createdAtStr).trim();
+            let created;
+            if (s.endsWith('Z') || /[+-]\d{2}:?\d{2}$/.test(s)) {
+                created = new Date(s);
+            } else {
+                created = new Date(s.replace(' ', 'T') + 'Z');
+            }
+            if (isNaN(created.getTime())) return 0;
+            const diffMs = new Date() - created;
+            if (diffMs < 0) return 0;
+            return Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+        } catch (e) {
+            return 0;
+        }
+    }
+
     renderWatchlist() {
         if (!this.dom.watchlistList) return;
 
@@ -4941,6 +4965,8 @@ class CandlifyChart {
             }[m]));
         };
 
+        const showCategoryBadge = !this.activeWatchlistCategory || this.activeWatchlistCategory.toLowerCase() === 'all';
+
         const html = items.map(item => {
             const sym = item.symbol;
             const price = item.price ? Number(item.price).toLocaleString('id-ID') : '--';
@@ -4949,19 +4975,25 @@ class CandlifyChart {
             const changeSign = isUp ? '+' : '';
             const changeClass = isUp ? 'up' : 'down';
             const name = item.name && item.name !== sym ? item.name : 'Emiten IDX';
-            const ageStr = (item.created_at ? this.getHumanAge(item.created_at) : (item.age || 'Baru'));
-            const isFresh = ageStr.includes('Baru') || ageStr.includes('j lalu') || ageStr === 'Kemarin';
+            const ageHuman = (item.created_at ? this.getHumanAge(item.created_at) : (item.age || 'Baru'));
+            const ageDays = (typeof item.age_days === 'number')
+                ? item.age_days
+                : this.getWatchlistAgeDays(item.created_at, 0);
+            const ageTierClass = ageDays <= 5 ? 'age-fresh' : (ageDays <= 13 ? 'age-warm' : 'age-stale');
+            const ageStatusLabel = ageDays <= 5 ? 'Fresh Setup' : (ageDays <= 13 ? 'Maturing' : 'Stale / Evaluasi');
 
             const bName = item.board || '';
             const isFca = (item.is_fca || bName.includes('FCA') || bName.includes('Pemantauan'));
 
             let boardBadge = '';
             if (bName.includes('Akselerasi')) {
-                boardBadge = `<span class="stock-badge-board badge-akselerasi" title="Papan Akselerasi">Akselerasi</span>`;
+                boardBadge = `<span class="stock-badge-board badge-akselerasi" title="Papan Akselerasi">AKS</span>`;
             } else if (bName.includes('Pengembangan')) {
-                boardBadge = `<span class="stock-badge-board badge-pengembangan" title="Papan Pengembangan">Pengembangan</span>`;
+                boardBadge = `<span class="stock-badge-board badge-pengembangan" title="Papan Pengembangan">PGM</span>`;
+            } else if (bName.includes('Ekonomi Baru')) {
+                boardBadge = `<span class="stock-badge-board badge-utama" title="Papan Ekonomi Baru">EKB</span>`;
             } else if (bName.includes('Utama')) {
-                boardBadge = `<span class="stock-badge-board badge-utama" title="Papan Utama">Utama</span>`;
+                boardBadge = `<span class="stock-badge-board badge-utama" title="Papan Utama">UTM</span>`;
             }
 
             let notasiText = (item.notasi_khusus || '').trim();
@@ -4972,8 +5004,20 @@ class CandlifyChart {
                 ? `<span class="stock-badge-board notasi-pill" title="Notasi Khusus BEI: ${escapeHtml(notasiText)}">[${escapeHtml(notasiText)}]</span>`
                 : '';
 
+            const categoryBadgeHtml = showCategoryBadge
+                ? `<span class="wl-category-badge">${escapeHtml(item.category)}</span>`
+                : '';
+
+            const targetVal = Number(item.target_entry) || 0;
+            const liveVal = Number(item.price) || 0;
+            const diffTargetPct = (targetVal > 0 && liveVal > 0) ? ((liveVal - targetVal) / targetVal) * 100 : null;
+            const isNearTarget = diffTargetPct !== null && Math.abs(diffTargetPct) <= 2.5;
+            const targetInlineHtml = targetVal > 0
+                ? `<span class="wl-target-inline ${isNearTarget ? 'near' : ''}" title="Target Entry: Rp ${targetVal.toLocaleString('id-ID')}${isNearTarget ? ' (Area Beli!)' : ''}">🎯 ${targetVal.toLocaleString('id-ID')}</span> • `
+                : '';
+
             return `
-                <div class="watchlist-card" data-id="${item.id}" data-symbol="${sym}">
+                <div class="watchlist-card ${isNearTarget ? 'wl-near-target' : ''}" data-id="${item.id}" data-symbol="${sym}">
                     <div class="wl-card-left">
                         <img src="https://assets.stockbit.com/logos/companies/${sym}.png" 
                              alt="${sym}" 
@@ -4985,14 +5029,14 @@ class CandlifyChart {
                                 <span class="wl-symbol">${sym}</span>
                                 ${boardBadge}
                                 ${notasiBadge}
-                                <span class="wl-category-badge">${escapeHtml(item.category)}</span>
+                                ${categoryBadgeHtml}
                             </div>
-                            <div class="wl-name">${escapeHtml(name)}</div>
+                            <div class="wl-name">${targetInlineHtml}${escapeHtml(name)}</div>
                         </div>
                     </div>
 
                     <div class="wl-card-center">
-                        <span class="subtle-age-badge ${isFresh ? 'fresh' : ''}" title="Ditambahkan: ${item.created_at || ''}">${ageStr}</span>
+                        <span class="subtle-age-badge ${ageTierClass}" title="Umur pantauan: ${ageDays} hari (${ageHuman}) • Status: ${ageStatusLabel}">${ageDays}</span>
                         <div class="wl-price-col">
                             <span class="wl-price">${price}</span>
                             <span class="wl-change ${changeClass}">${changeSign}${changePct.toFixed(2)}%</span>
@@ -5845,6 +5889,7 @@ class CandlifyChart {
             let boxClass = 'cal-box-empty';
             let contentHtml = `<div class="cal-stats" style="margin-top: 6px; opacity: 0.35;">-</div>`;
 
+            let idxDotHtml = '';
             if (hist) {
                 if (hist.broksum_synced >= hist.target_harvester && hist.broksum_synced > 0) {
                     boxClass = 'cal-box-green';
@@ -5852,14 +5897,14 @@ class CandlifyChart {
                     boxClass = 'cal-box-red';
                 }
 
-                const idxSpan = hist.idx_official_synced > 0
-                    ? `<span>IDX: <strong>${hist.idx_official_synced}</strong></span>`
-                    : '';
+                if (hist.idx_official_synced > 0) {
+                    idxDotHtml = `<span class="cal-idx-dot" title="IDX Official Synced: ${hist.idx_official_synced} emiten">✓</span>`;
+                }
+
                 contentHtml = `
                     <div class="cal-stats">
                         <span>Harga: <strong>${hist.ohlcv_scraped}</strong></span>
                         <span>Broksum: <strong>${hist.broksum_synced}</strong></span>
-                        ${idxSpan}
                     </div>
                 `;
             }
@@ -5868,7 +5913,7 @@ class CandlifyChart {
 
             html += `
                 <div class="cal-box ${boxClass}" style="${isToday}">
-                    <div class="cal-date">${day}</div>
+                    <div class="cal-date">${day}${idxDotHtml}</div>
                     ${contentHtml}
                 </div>
             `;

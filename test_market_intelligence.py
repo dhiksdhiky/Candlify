@@ -220,3 +220,34 @@ def test_service_worker_caches_marked():
     assert "./js/marked.min.js" in sw
     assert "candlify-v2-2.5.0" in sw
 
+
+def test_watchlist_ux_and_calendar_dot():
+    """Verifikasi singkatan papan (UTM/PGM/AKS/EKB), numeric age heatmap badge, target inline, dan titik centang IDX di kalender."""
+    with open("public/js/chart.js", "r", encoding="utf-8") as f:
+        js = f.read()
+    with open("public/css/style.css", "r", encoding="utf-8") as f:
+        css = f.read()
+
+    # Board abbreviations
+    assert '>UTM</span>' in js
+    assert '>PGM</span>' in js
+    assert '>AKS</span>' in js
+    assert '>EKB</span>' in js
+
+    # Numeric age heatmap tiers
+    assert "getWatchlistAgeDays" in js
+    assert "age-fresh" in js and "age-warm" in js and "age-stale" in js
+    assert ".subtle-age-badge.age-fresh" in css
+    assert ".subtle-age-badge.age-warm" in css
+    assert ".subtle-age-badge.age-stale" in css
+
+    # Target entry inline & anti-offside flex
+    assert "wl-target-inline" in js
+    assert "wl-near-target" in js
+    assert "flex: 1 1 0%" in css
+
+    # Calendar IDX green checkmark dot
+    assert "cal-idx-dot" in js
+    assert ".cal-idx-dot" in css
+
+

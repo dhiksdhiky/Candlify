@@ -26,10 +26,13 @@ Semua perubahan penting, perbaikan bug, dan peningkatan fitur pada proyek **Cand
 - **Manajemen Memori & Query (`lib/bandarmologi.py`)**:
   - Mengganti penghapusan total `.clear()` pada cache in-memory dengan algoritma *FIFO Eviction* (20% entri tertua) untuk mencegah *cache stampede*.
   - Membatasi query `get_raw_broker_df()` ke jendela 240 hari kalender terakhir guna menjaga kecepatan respons dan efisiensi RAM.
-- **UI & PWA Polish (`public/js/chart.js`, `public/sw.js`, `lib/database_monitor.py`)**:
-  - Menambahkan metrik `idx_official_synced` ke `get_calendar_history()` dan menampilkannya pada kotak kalender di tab Database.
-  - Menampilkan referensi **HMB (Harga Modal Bandar)** secara kontekstual di dalam kalkulator *Trading Plan Position Sizing*.
-  - Memperbarui Service Worker ke `candlify-v2-2.5.0` dan menyertakan `./js/marked.min.js` untuk dukungan pembacaan panduan secara offline.
+- **UI & PWA Polish (`public/js/chart.js`, `public/css/style.css`, `public/sw.js`, `lib/portfolio.py`, `lib/database_monitor.py`)**:
+  - **Watchlist Numeric Age Heatmap Badge**: Mengubah indikator usia pantauan dari teks panjang menjadi angka hari murni ber-border estetik dengan 3 tingkat warna (`age-fresh` hijau 0–5 hari, `age-warm` kuning 6–13 hari, `age-stale` merah $\ge 14$ hari).
+  - **Singkatan Kode Papan & Auto-Hide Kategori**: Menyingkat badge papan pencatatan menjadi `UTM`, `PGM`, `AKS`, `EKB` pada Screener & Watchlist, serta menyembunyikan badge kategori saat berada di filter kategori spesifik agar tombol aksi kanan (`🎯 ✏️ 🗑️`) tidak pernah offside.
+  - **Target Entry Inline Indicator**: Menampilkan target beli (`🎯`) di baris sub-judul kartu Watchlist dengan highlight hijau saat harga pasar mendekati target ($\pm 2.5\%$).
+  - **Indikator Titik Centang Hijau (`✓`) Kalender Database**: Menambahkan `idx_official_synced` ke `get_calendar_history()` dan menampilkannya sebagai bulatan centang hijau `✓` (`cal-idx-dot`) di samping tanggal kalender.
+  - **Konteks HMB di Kalkulator Trading Plan**: Menampilkan referensi **HMB (Harga Modal Bandar)** secara kontekstual di dalam kalkulator *Position Sizing*.
+  - **PWA Offline Docs**: Memperbarui Service Worker ke `candlify-v2-2.5.0` dan menyertakan `./js/marked.min.js` untuk dukungan pembacaan panduan secara offline.
 
 ---
 

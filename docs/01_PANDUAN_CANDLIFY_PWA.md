@@ -134,19 +134,28 @@ Tepat di bawah rasio buy/sell, terdapat dua kartu berdampingan (kanan-kiri) yang
 
 ## 5. Manajemen Watchlist & Multi-Kategori
 
-Tab Watchlist didesain fleksibel untuk memisahkan saham berdasarkan gaya trading atau status setup:
+Tab Watchlist didesain ultra-kompak dan anti-offside di layar smartphone untuk memisahkan saham berdasarkan gaya trading atau status setup:
 
 1. **Tab Kategori Pinned ("Semua")**:
    * Menampilkan seluruh saham dari semua kategori dalam satu daftar terpadu.
    * Di sebelah tombol *Semua*, terdapat tombol gerigi `⚙️` untuk mengelola, menambah, atau mengubah nama kategori watchlist.
-2. **Kategori Kustom (Swipeable Chips)**:
-   * Geser ke kanan untuk melihat kategori khusus seperti `💥 Breakout`, `Swing`, `Pantau`, atau nama buatan sendiri.
-3. **Penyimpanan Multi-Kategori (Modal Bintang ⭐)**:
+2. **Kategori Kustom (Swipeable Chips) & Auto-Hide Badge**:
+   * Geser ke kanan untuk melihat kategori khusus seperti `💥 Breakout`, `Vol Breakout`, `Akumulasi`, atau nama buatan sendiri.
+   * Badge biru nama kategori hanya muncul saat tab **`Semua`** aktif; ketika tab kategori spesifik dipilih, badge kategori otomatis disembunyikan agar baris kartu lebih lega.
+3. **Indikator Angka Umur Pantauan (*Time-Stop Heatmap*)**:
+   * Umur pantauan ditampilkan berupa **angka jumlah hari murni** di dalam badge estetik ber-border dengan 3 tingkat warna sesuai SOP *Time Barrier*:
+     * 🟢 **Hijau (`0` – `5` hari)**: *Fresh Setup* — saham baru masuk radar pantauan.
+     * 🟡 **Kuning/Amber (`6` – `13` hari)**: *Maturing* — sudah lebih dari seminggu berada di area konsolidasi.
+     * 🔴 **Merah (`14+` hari)**: *Stale / Evaluasi* — sudah $\ge 2$ minggu belum breakout, sinyal evaluasi untuk rotasi modal.
+4. **Indikator Inline Target Entry (`🎯 Area Beli`)**:
+   * Jika saham memiliki *Target Entry*, angkanya tampil langsung di baris sub-judul (`🎯 1.150 • Nama Emiten`).
+   * Saat harga pasar berada di dekat *Target Entry* ($\pm 2.5\%$), teks target dan sisi kiri kartu otomatis menyala hijau zamrud sebagai penanda siap eksekusi.
+5. **Penyimpanan Multi-Kategori (Modal Bintang ⭐)**:
    * Satu saham dapat dimasukkan ke dalam beberapa kategori sekaligus (misal: *BBRI* masuk ke `Swing` sekaligus `Pantau Dividen`).
    * Tampilan modal terbuka bersih tanpa flicker, memberikan kebebasan memilih kategori sebelum menekan tombol simpan.
-4. **Tombol Aksi pada Kartu Watchlist**:
+6. **Tombol Aksi pada Kartu Watchlist**:
    * `🎯 Target/Plan`: Membuka modal kalkulator Trading Plan untuk menghitung lot dan stop loss.
-   * `✏️ Edit`: Mengubah catatan (*notes*) dan kategori watchlist.
+   * `✏️ Edit`: Mengubah catatan (*notes*), target entry, dan kategori watchlist.
    * `🗑️ Hapus`: Menghapus saham dari watchlist terpilih.
 
 ---
@@ -182,15 +191,15 @@ Di tab **Settings**, Mas Dhika dapat menyesuaikan konfigurasi mesin sesuai kenya
 3. **Pusat Panduan & Dokumentasi Dinamis**:
    * Mengakses seluruh buku materi strategi, teori bandarmologi, dan modul SOP langsung di dalam aplikasi.
 
-### C. Papan Pencatatan & Notasi Khusus BEI
-Candlify V2.3 secara otomatis mengidentifikasi klasifikasi papan dan status risiko setiap emiten langsung dari Bursa Efek Indonesia:
+### C. Singkatan Papan Pencatatan & Notasi Khusus BEI
+Candlify secara otomatis mengidentifikasi klasifikasi papan dan status risiko setiap emiten langsung dari Bursa Efek Indonesia dengan kode singkatan 3 huruf yang ringkas di kartu Screener & Watchlist:
 
-1. **Papan Pencatatan:**
-   * **Utama**: Emiten mapan dengan aset besar dan rekam jejak keuangan solid (contoh: BBCA, BMRI).
-   * **Pengembangan**: Emiten dalam fase bertumbuh.
-   * **Akselerasi**: Emiten skala kecil/menengah (UKM).
-   * **Pemantauan Khusus (FCA)**: Saham dalam pengawasan khusus bursa dengan metode perdagangan Full Call Auction.
-   * **Ekonomi Baru (New Economy)**: Emiten dengan model bisnis berbasis teknologi inovatif (contoh: GOTO).
+1. **Kode Singkatan Papan Pencatatan:**
+   * **`UTM` (Papan Utama)**: Emiten mapan dengan aset besar dan rekam jejak keuangan solid (contoh: BBCA, BMRI).
+   * **`PGM` (Papan Pengembangan)**: Emiten dalam fase bertumbuh.
+   * **`AKS` (Papan Akselerasi)**: Emiten skala kecil/menengah (UKM) dengan pertumbuhan cepat.
+   * **`EKB` (Papan Ekonomi Baru / New Economy)**: Emiten berbasis teknologi inovatif dengan hak suara multipel (contoh: GOTO).
+   * **`[X]` (Papan Pemantauan Khusus / FCA)**: Saham dalam pengawasan khusus bursa dengan metode perdagangan *Full Call Auction* (diwakili langsung oleh notasi resmi `[X]`).
 
 2. **Kamus Notasi Khusus & Aksi Korporasi:**
    * **`X`** : Saham tercatat di **Papan Pemantauan Khusus (FCA)**.
@@ -206,7 +215,11 @@ Candlify V2.3 secara otomatis mengidentifikasi klasifikasi papan dan status risi
 
 ## 8. 🚀 Catatan Rilis & Log Pembaruan (Changelog)
 
-### Versi 2.5 — Institutional Pre-Breakout V2, Data Integrity & Reliability Upgrade (Oktober 2026)
+### Versi 2.5 — Institutional Pre-Breakout V2, Watchlist UX Overhaul & Data Integrity (Oktober 2026)
+* ⭐ **Watchlist UX & Time-Stop Heatmap Overhaul**:
+  * **Numeric Age Heatmap Badge**: Mengganti teks umur panjang (`1mgg lalu`) menjadi angka hari murni ber-border estetik dengan gradasi warna otomatis (**Hijau `0–5` Fresh $\to$ Kuning `6–13` Maturing $\to$ Merah `14+` Stale**).
+  * **Singkatan Kode Papan (`UTM`, `PGM`, `AKS`, `EKB`) & Auto-Hide Kategori**: Menyederhanakan badge papan pencatatan menjadi 3 huruf dan menyembunyikan badge kategori yang redundan saat sedang membuka tab kategori spesifik.
+  * **Anti-Offside Flex Layout & Target Entry Highlight**: Mengunci *flexbox truncation* agar tombol aksi (`🎯 ✏️ 🗑️`) tidak pernah keluar jalur di layar smartphone, serta menampilkan indikator inline `🎯 Target Entry` yang menyala hijau saat harga masuk area beli ($\pm 2.5\%$).
 * 🎯 **Institutional Pre-Breakout V2 Persistence**: Kelima metrik institusional dari scanner (`dominance`, `aar`, `clv_3d`, `up_down_vol_ratio`, `is_pocket_pivot`) kini tersimpan permanen di tabel `candlify_signals` dan ditampilkan langsung pada badge (`⚡Pivot`, `% Dom`, serta tooltip rincian di Screener).
 * 💱 **Akurasi Valuasi VWAP Foreign Flow & Turnover**:
   * Perhitungan nilai rupiah transaksi asing (`foreign_val`) kini menggunakan harga rata-rata tertimbang harian (**VWAP = Value / Volume**) alih-alih sekadar harga penutupan (`close`).
@@ -216,7 +229,7 @@ Candlify V2.3 secara otomatis mengidentifikasi klasifikasi papan dan status risi
   * Perbaikan orkestrasi fallback Layer 1 (Official IDX) ke Layer 2 (Yahoo Finance) di `worker/run.py` dan `worker/pipeline.py` agar bebas duplikasi eksekusi.
   * Perlindungan kolom `Tanggal Pencatatan` (IPO Date) pada `worker/daftar_saham.csv` dan penggunaan *atomic upsert* (`ON CONFLICT DO UPDATE`) saat upload Excel emiten agar `tradeable_shares` & `notasi_khusus` tidak terhapus.
 * 🧠 **Konteks HMB di Kalkulator Trading Plan**: Saat menyusun rencana beli pada saham yang sedang aktif di chart, kalkulator *Position Sizing* kini menampilkan informasi referensi **HMB (Harga Modal Bandar)** secara langsung.
-* 🗄️ **Kalender Database & PWA Offline Docs**: Kotak kalender di tab Database kini menampilkan indikator sinkronisasi `IDX Official`, serta Service Worker (`candlify-v2-2.5.0`) mencache parser Markdown agar buku panduan tetap bisa dibaca saat *offline*.
+* 🗄️ **Indikator Titik Centang Hijau (`✓`) Kalender Database & PWA Offline Docs**: Tanggal pada kalender Database kini menampilkan bulatan centang hijau `✓` di samping angka tanggal ketika data `IDX Official` sudah tersinkronisasi, menjaga kotak kalender tetap ramping 2 baris di layar HP. Service Worker (`candlify-v2-2.5.0`) juga mencache parser Markdown agar buku panduan tetap bisa dibaca saat *offline*.
 
 ### Versi 2.4 — Official Market Intelligence & Whale Footprint (Oktober 2026)
 * 🌐 **Foreign Flow Multi-Horizon (1D, 5D, 20D)**: Visualisasi akumulasi/distribusi dana asing resmi BEI dengan rincian lot dan nilai rupiah pada bottom sheet Order Flow serta indikator compact (`🌐 +24M`) di chart header.
