@@ -617,6 +617,32 @@ Volume
 
 ---
 
+### 10.4 Studi Kasus Trap 4: BINA (Apr – Okt 2026) — *Jebakan Akumulasi Semu: Crossing Pasar Nego, Standby Repo & Window Dressing Akhir Bulan*
+
+Pada Oktober 2026, saham **BINA (`PT Bank Ina Perdana Tbk.`)** masuk ke dalam radar **Pre-Breakout Base** dengan metrik: **Skor 72 • Acc RS (49% Dom) • HMB Rp 3.978,5 • Base 3.08% • Dry 0.27x**. Audit forensik pada database Neon membuktikan bahwa akumulasi broker **RS** di BINA bukanlah akumulasi *Smart Money* untuk *mark-up* harga, melainkan kombinasi transaksi **Crossing Pasar Nego** dan **Penjaga Likuiditas Pasif (*Standby Buyer / Repo*)**.
+
+#### 📊 Bukti Forensik Database Neon: Pasar Reguler vs Pasar Nego vs Broksum (`BINA`)
+
+| Tanggal | Vol Pasar Reguler (`harga_saham`) | Vol Pasar Nego (`non_regular_volume`) | Total Broksum (`broker_summary`) | Fakta Transaksi di Balik Layar (Data DB Neon) |
+| :---: | :---: | :---: | :---: | :--- |
+| **30 Sep 2026** | **61.285 Lot** (Rp 26,35 M) | **250.000 Lot (Rp 102,50 M)** | **309.385 Lot** (Rp 128,01 M) | Broker **RB** *crossing* (jual di Pasar Nego) **250.000 Lot (Rp 102,5 M)** langsung ditampung oleh **RS**! Hari itu RS tercatat Net Buy **297.461 Lot (Rp 123,1 M)**. |
+| **01 Okt 2026** | **8.534 Lot** (Rp 3,48 M) | **125.000 Lot (Rp 51,25 M)** | **132.641 Lot** (Rp 54,45 M) | Broker **RB** *crossing* tutup sendiri (Beli 125.508 Lot, Jual 125.000 Lot senilai Rp 51,3 M). |
+| **28 Sep 2026** | **9.851 Lot** (Rp 3,94 M) | **40.000 Lot (Rp 20,00 M)** | **49.087 Lot** (Rp 23,64 M) | Broker **RF** *crossing* tutup sendiri **40.000 Lot (Rp 20 M)**. |
+| **18 Sep 2026** | **5.055 Lot** (~Rp 2,05 M) | *(Crossing Nego)* | **1.804.850 Lot (Rp 739,96 M)** | Broker **RB** *crossing* tutup sendiri **1.800.000 Lot (Rp 738 Miliar)**! |
+| **30 Jun 2026** | **120.892 Lot** | *(Crossing Kuartal II)* | **120.892 Lot** | Broker **RB** jual **88.608 Lot (Rp 35 M)** langsung ditampung **RS** (**+106.080 Lot / Rp 42,6 M**). |
+
+* **Anatomi Ilusi Algoritmik:**
+  1. Selama 133 hari bursa, broker **RS** tercatat membeli bersih **517.989 Lot (Rp 214,1 Miliar)** dengan `sell_vol = 0` hampir setiap hari. Di hari biasa, transaksi reguler BINA sangat sepi (frekuensi hanya 50–90 kali/hari, volume 1.500–3.400 lot/hari) di mana RS hanya menampung pasif 500–1.200 lot/hari.
+  2. Setiap **tanggal bursa terakhir bulan** (**29 Mei, 30 Juni, 31 Juli, 31 Agustus, 30 September**), selalu terjadi lonjakan volume besar (*window dressing* + *crossing*).
+  3. Lonjakan tanggal **30 September** (+6.3% ke Rp 4.350) terbaca sebagai **Prior Ignition Spike**, lalu kembalinya volume Oktober ke kondisi sepi normal terbaca sebagai **Volume Dry-Up (`Dry 0.27x`)** dan **Tight Base (`Base 3.08%`)**.
+* **SOP Mitigasi 4 Menu di Candlify:**
+  1. **Tab `📅 Daily Activity`**: Kalender broker `RS` berwarna **100% Hijau (`BUY`) setiap hari tanpa pernah `SELL`**, dengan lot harian kecil seragam lalu meledak ratusan ribu lot tepat setiap tanggal terakhir bulan $\rightarrow$ ciri mutlak *Standby Buyer / Repo*.
+  2. **Tab `📈 Broker Flow` (`1M`/`3M`)**: Kurva `RS` melonjak vertikal membentuk **bayangan cermin simetris 1-lawan-1** dengan kurva `RB` yang terjun vertikal di hari yang sama $\rightarrow$ ciri mutlak *Crossing / Tukar Baju*.
+  3. **Kartu `🐳 Trade Size & Nego` + `🌐 Foreign`**: Muncul tanda **`⚠️ Crossing`** di Pasar Nego saat tanggal spike, sementara Foreign Flow `Net 5D` dan `Net 20D` merah (*Outflow*).
+  4. **Tab `📜 History Data` (`Daily`)**: Rata-rata *Value* harian reguler sangat tipis (Rp 0,6 M – Rp 1,5 M) dibanding kapitalisasi pasarnya.
+
+---
+
 ## 11. ✨ Studi Kasus Riil Unik (Special Edge Cases: MPXL & STAR)
 
 Dua kasus berikut memperlihatkan fenomena khusus bursa: **Wyckoff Spring (Jarum Jebol Sesaat)** dan **Liquidity Vacuum (Gap-Up Lock ARA)**.

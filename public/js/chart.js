@@ -808,6 +808,17 @@ class CandlifyChart {
             intelNegoVal: document.getElementById('intel-nego-val'),
             intelNegoSubtext: document.getElementById('intel-nego-subtext'),
 
+            // Market Intelligence Clickable Cards & Detail Modal
+            cardIntelForeign: document.getElementById('card-intel-foreign'),
+            cardIntelWhaleNego: document.getElementById('card-intel-whale-nego'),
+            intelDetailModal: document.getElementById('intel-detail-modal'),
+            intelDetailBackdrop: document.getElementById('intel-detail-backdrop'),
+            intelModalTitle: document.getElementById('intel-modal-title'),
+            intelModalSubtitle: document.getElementById('intel-modal-subtitle'),
+            intelModalBody: document.getElementById('intel-modal-body'),
+            closeIntelModal: document.getElementById('close-intel-modal'),
+            btnCloseIntelModal: document.getElementById('btn-close-intel-modal'),
+
             // Order Flow & Intelligence Sub-Tabs
             broksumTabBtns: document.querySelectorAll('.broksum-tab-btn'),
             tabPaneSummary: document.getElementById('tab-pane-summary'),
@@ -2280,6 +2291,29 @@ class CandlifyChart {
         if (this.dom.broksumDateTo) {
             this.dom.broksumDateTo.addEventListener('change', onDateChange);
         }
+
+        // Market Intelligence Card Click Handlers & Modal Listeners
+        if (this.dom.cardIntelForeign) {
+            this.dom.cardIntelForeign.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.openIntelDetailModal('foreign');
+            });
+        }
+        if (this.dom.cardIntelWhaleNego) {
+            this.dom.cardIntelWhaleNego.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.openIntelDetailModal('trade_nego');
+            });
+        }
+        if (this.dom.closeIntelModal) {
+            this.dom.closeIntelModal.addEventListener('click', () => this.closeIntelDetailModal());
+        }
+        if (this.dom.btnCloseIntelModal) {
+            this.dom.btnCloseIntelModal.addEventListener('click', () => this.closeIntelDetailModal());
+        }
+        if (this.dom.intelDetailBackdrop) {
+            this.dom.intelDetailBackdrop.addEventListener('click', () => this.closeIntelDetailModal());
+        }
     }
 
     applyBroksumPreset(preset) {
@@ -2350,8 +2384,10 @@ class CandlifyChart {
     }
 
     renderBroksumData(payload) {
+        this._lastBroksumPayload = payload;
         const summary = payload.summary;
         if (!summary) return;
+        this._lastBroksumData = summary;
 
         const isAccum = summary.latest_status === 'ACCUM';
         const flowMiliar = (summary.latest_net_flow / 1e9).toFixed(1);
@@ -2539,6 +2575,288 @@ class CandlifyChart {
                 `).join('');
             }
         }
+    }
+
+    openIntelDetailModal(type) {
+        if (!this.dom.intelDetailModal || !this.dom.intelDetailBackdrop) return;
+
+        const payload = this._lastBroksumPayload || {};
+        const summary = this._lastBroksumData || payload.summary || this.bandarData?.summary || {};
+        const symbol = payload.symbol || this.currentSymbol || '';
+        const isRange = Boolean(payload.from_date && payload.to_date && payload.from_date !== payload.to_date);
+        const dateLabel = isRange 
+            ? `${payload.from_date} s/d ${payload.to_date}${payload.trading_days ? ` (${payload.trading_days} Hari)` : ''}`
+            : (summary.latest_date || payload.to_date || 'Hari Ini');
+
+        const fmtLot = (vol) => {
+            const v = Math.abs(vol || 0);
+            if (v >= 1e6) return (v / 1e6).toFixed(2) + 'M';
+            if (v >= 1e3) return (v / 1e3).toFixed(1) + 'K';
+            return v.toLocaleString('id-ID');
+        };
+
+        const fmtVal = (val) => {
+            const absVal = Math.abs(val || 0);
+            if (absVal >= 1e9) return (absVal / 1e9).toFixed(2) + ' B';
+            if (absVal >= 1e6) return (absVal / 1e6).toFixed(1) + ' M';
+            return (absVal / 1e3).toFixed(0) + ' K';
+        };
+
+        let title = '';
+        let subtitle = '';
+        let html = '';
+
+        if (type === 'foreign') {
+            title = `🌐 Foreign Flow Deep Dive • ${symbol}`;
+            subtitle = `Analisis Arus Dana Asing • Periode: ${dateLabel}`;
+
+            const foreign = summary.foreign_flow || summary.market_intelligence?.foreign_flow || {};
+            const emiten = summary.emiten_info || summary.market_intelligence?.emiten_info || {};
+            const notasi = summary.notasi_khusus || emiten.notasi_khusus || '';
+            const papan = emiten.papan_pencatatan || 'Reguler';
+
+            const netVal = isRange ? (foreign.range_net_val || 0) : (foreign.today_net_val || foreign.flow_1d_val || 0);
+            const netLots = isRange ? (foreign.range_net_lots || 0) : (foreign.today_net_lots || foreign.flow_1d_lots || 0);
+            const flow5d = foreign.flow_5d_val || 0;
+            const flow20d = foreign.flow_20d_val || 0;
+
+            const buyLots = isRange ? Math.round((foreign.range_buy_shares || 0) / 100) : (foreign.today_buy_lots || Math.round((foreign.today_buy_shares || 0) / 100));
+            const sellLots = isRange ? Math.round((foreign.range_sell_shares || 0) / 100) : (foreign.today_sell_lots || Math.round((foreign.today_sell_shares || 0) / 100));
+            const totLots = buyLots + sellLots;
+            const buyPct = totLots > 0 ? Math.round((buyLots / totLots) * 100) : 50;
+            const sellPct = 100 - buyPct;
+
+            const netCls = netVal > 0 ? 'up' : (netVal < 0 ? 'down' : '');
+            const sign = netVal > 0 ? '+' : (netVal < 0 ? '-' : '');
+            const flow5dCls = flow5d > 0 ? 'up' : (flow5d < 0 ? 'down' : '');
+            const sign5d = flow5d > 0 ? '+' : (flow5d < 0 ? '-' : '');
+            const flow20dCls = flow20d > 0 ? 'up' : (flow20d < 0 ? 'down' : '');
+            const sign20d = flow20d > 0 ? '+' : (flow20d < 0 ? '-' : '');
+
+            // Callout text logic
+            let calloutCls = 'info';
+            let calloutTitle = '⚪ Partisipasi Asing Netral / Berimbang';
+            let calloutDesc = 'Arus akumulasi dan distribusi asing relatif berimbang. Dinamika harga saat ini lebih dominan dipengaruhi oleh pergerakan bandar domestik dan pasar reguler lokal.';
+
+            if (netVal > 500_000_000) {
+                calloutCls = 'success';
+                calloutTitle = '🟢 Konfirmasi Akumulasi Asing (Inflow)';
+                calloutDesc = `Investor asing membukukan akumulasi bersih sebesar <strong>${sign}Rp ${fmtVal(netVal)}</strong> (${sign}${fmtLot(netLots)} Lot). Pada setup Pre-Breakout / Konsolidasi, inflow asing memberikan konfirmasi institusional kuat bahwa pergerakan didukung modal besar global.`;
+            } else if (netVal < -500_000_000) {
+                calloutCls = 'warning';
+                calloutTitle = '🔴 Tekanan Jual Asing (Outflow)';
+                calloutDesc = `Investor asing membukukan penjualan bersih (Net Sell) sebesar <strong>${sign}Rp ${fmtVal(netVal)}</strong> (${sign}${fmtLot(netLots)} Lot). Jika harga saham bergerak naik atau broksum lokal terakumulasi, waspadai potensi divergensi (dorongan lokal tanpa dukungan asing).`;
+            }
+
+            html = `
+                <!-- 1. Grid Metrik Utama Foreign Flow -->
+                <div class="intel-modal-section">
+                    <div class="intel-modal-sec-title">📊 Arus Kas Asing (Net Flow)</div>
+                    <div class="intel-metric-grid">
+                        <div class="intel-metric-box">
+                            <span class="metric-label">${isRange ? 'Net Periode' : 'Net Hari Ini (1D)'}</span>
+                            <span class="metric-value ${netCls}">${sign}Rp ${fmtVal(netVal)}</span>
+                            <span class="metric-sub">${sign}${fmtLot(netLots)} Lot</span>
+                        </div>
+                        <div class="intel-metric-box">
+                            <span class="metric-label">Tren 5 Hari</span>
+                            <span class="metric-value ${flow5dCls}">${sign5d}Rp ${fmtVal(flow5d)}</span>
+                            <span class="metric-sub">Moving 5D</span>
+                        </div>
+                        <div class="intel-metric-box">
+                            <span class="metric-label">Tren 20 Hari</span>
+                            <span class="metric-value ${flow20dCls}">${sign20d}Rp ${fmtVal(flow20d)}</span>
+                            <span class="metric-sub">Moving 20D</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. Breakdown Beli vs Jual Asing -->
+                <div class="intel-modal-section">
+                    <div class="intel-modal-sec-title">⚖️ Partisipasi Transaksi Asing</div>
+                    <div class="intel-metric-grid cols-2">
+                        <div class="intel-metric-box">
+                            <span class="metric-label">Foreign Buy (${buyPct}%)</span>
+                            <span class="metric-value up">${fmtLot(buyLots)} Lot</span>
+                            <span class="metric-sub">Akumulasi beli asing</span>
+                        </div>
+                        <div class="intel-metric-box">
+                            <span class="metric-label">Foreign Sell (${sellPct}%)</span>
+                            <span class="metric-value down">${fmtLot(sellLots)} Lot</span>
+                            <span class="metric-sub">Distribusi jual asing</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. Emiten Status & Papan Bursa -->
+                <div class="intel-modal-section">
+                    <div class="intel-modal-sec-title">🏢 Keterangan Emiten &amp; Notasi BEI</div>
+                    <div class="intel-metric-box" style="gap: 6px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span class="metric-label">Papan Bursa:</span>
+                            <span style="font-weight: 700; color: #f8fafc; font-size: 11px;">${escapeHtml(papan)}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 5px;">
+                            <span class="metric-label">Notasi Khusus:</span>
+                            <span>${notasi ? `<span class="notasi-pill">[${escapeHtml(notasi)}]</span>` : '<span style="color: #34d399; font-weight: 700; font-size: 11px;">✓ Tidak Ada (Bersih)</span>'}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4. Smart Insight Callout -->
+                <div class="intel-modal-section">
+                    <div class="intel-modal-sec-title">💡 Insight Candlify</div>
+                    <div class="intel-callout-box ${calloutCls}">
+                        <div class="intel-callout-title">${calloutTitle}</div>
+                        <div class="intel-callout-desc">${calloutDesc}</div>
+                    </div>
+                    ${notasi ? `
+                    <div class="intel-callout-box warning" style="margin-top: 6px;">
+                        <div class="intel-callout-title">⚠️ Perhatian Notasi Khusus [${escapeHtml(notasi)}]</div>
+                        <div class="intel-callout-desc">Emiten disematkan notasi khusus oleh Bursa Efek Indonesia. Selalu batasi alokasi risiko dan utamakan konfirmasi teknikal ketat.</div>
+                    </div>` : ''}
+                </div>
+            `;
+        } else if (type === 'trade_nego') {
+            title = `🐳 Trade Size & Pasar Nego • ${symbol}`;
+            subtitle = `Deteksi Crossing, Transaksi Nego & Whale vs Ritel • ${dateLabel}`;
+
+            const tradeSize = summary.trade_size || summary.market_intelligence?.trade_size || {};
+            const nego = summary.pasar_nego || summary.market_intelligence?.pasar_nego || {};
+
+            const whaleRatio = Number(tradeSize.whale_ratio) || 1.0;
+            const todayLpt = tradeSize.today_lot_per_trade || tradeSize.range_lot_per_trade || 0;
+            const avg20dLpt = tradeSize.avg_lot_per_trade_20d || 0;
+
+            const negoVal = Number(nego.value) || 0;
+            const negoLots = Number(nego.volume_lots) || Math.round((Number(nego.volume_shares) || 0) / 100);
+            const pctNego = Number(nego.pct_of_turnover) || 0;
+            const hasCrossing = Boolean(nego.has_crossing);
+            const crossingReason = nego.crossing_reason || '';
+            const crossingEvents = Array.isArray(nego.crossing_events) ? nego.crossing_events : [];
+
+            let whaleBadgeText = 'Normal';
+            if (whaleRatio >= 1.5) {
+                whaleBadgeText = `🐳 Whale Dominant (${whaleRatio.toFixed(1)}x)`;
+            } else if (whaleRatio <= 0.75) {
+                whaleBadgeText = `🦐 Ritel Aktif (${whaleRatio.toFixed(1)}x)`;
+            }
+
+            html = `
+                <!-- 1. Whale vs Ritel Trade Size Grid -->
+                <div class="intel-modal-section">
+                    <div class="intel-modal-sec-title">🐳 Whale vs Ritel (Lot / Transaksi)</div>
+                    <div class="intel-metric-grid">
+                        <div class="intel-metric-box">
+                            <span class="metric-label">${isRange ? 'Rerata Periode' : 'Hari Ini'}</span>
+                            <span class="metric-value">${todayLpt} <span style="font-size: 10px; font-weight: normal; color: #94a3b8;">Lot/Trx</span></span>
+                            <span class="metric-sub">${tradeSize.frequency ? `${tradeSize.frequency.toLocaleString('id-ID')} Trx` : 'Order Size'}</span>
+                        </div>
+                        <div class="intel-metric-box">
+                            <span class="metric-label">Rerata 20 Hari</span>
+                            <span class="metric-value">${avg20dLpt} <span style="font-size: 10px; font-weight: normal; color: #94a3b8;">Lot/Trx</span></span>
+                            <span class="metric-sub">Baseline 20D</span>
+                        </div>
+                        <div class="intel-metric-box">
+                            <span class="metric-label">Whale Ratio</span>
+                            <span class="metric-value" style="color: ${whaleRatio >= 1.5 ? '#c084fc' : (whaleRatio <= 0.75 ? '#94a3b8' : '#f8fafc')};">${whaleRatio.toFixed(1)}x</span>
+                            <span class="metric-sub">${whaleBadgeText}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. Pasar Nego (Non-Reguler) Status -->
+                <div class="intel-modal-section">
+                    <div class="intel-modal-sec-title">🏛️ Transaksi Pasar Negosiasi (Nego)</div>
+                    <div class="intel-metric-grid cols-2">
+                        <div class="intel-metric-box">
+                            <span class="metric-label">Nilai Transaksi Nego</span>
+                            <span class="metric-value" style="color: ${hasCrossing ? '#fbbf24' : '#f8fafc'};">${negoVal > 0 ? `Rp ${fmtVal(negoVal)}` : 'Rp 0'}</span>
+                            <span class="metric-sub">${fmtLot(negoLots)} Lot Non-Reguler</span>
+                        </div>
+                        <div class="intel-metric-box">
+                            <span class="metric-label">Porsi Terhadap Turnover</span>
+                            <span class="metric-value" style="color: ${pctNego >= 20 ? '#fbbf24' : '#f8fafc'};">${pctNego}%</span>
+                            <span class="metric-sub">Pangsa dari total transaksi</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. Crossing Alert & Daftar Transaksi -->
+                ${hasCrossing ? `
+                <div class="intel-modal-section">
+                    <div class="intel-modal-sec-title">⚠️ Deteksi Transaksi Crossing / Nego Material</div>
+                    <div class="intel-callout-box warning">
+                        <div class="intel-callout-title">⚠️ Terdeteksi Transaksi Nego Besar:</div>
+                        <div class="intel-callout-desc"><strong>${escapeHtml(crossingReason || `Volume Nego signifikan Rp ${fmtVal(negoVal)} (${pctNego}% dari turnover)`)}</strong>. Transaksi crossing di pasar negosiasi berpotensi merupakan pengalihan saham internal / repo.</div>
+                    </div>
+
+                    ${crossingEvents.length > 0 ? `
+                    <div style="margin-top: 6px;">
+                        <span style="font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase;">Riwayat Transaksi Nego Terbesar:</span>
+                        <div class="intel-event-list" style="margin-top: 4px;">
+                            ${crossingEvents.map(ev => `
+                                <div class="intel-event-item">
+                                    <span class="intel-event-date">📅 ${escapeHtml(ev.date || '')}</span>
+                                    <span class="intel-event-val">Rp ${fmtVal(ev.value)}</span>
+                                    <span class="intel-event-lot">${fmtLot(ev.lots)} Lot</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>` : ''}
+
+                    <div class="intel-callout-box info" style="margin-top: 8px;">
+                        <div class="intel-callout-title">💡 SOP Mitigasi Candlify (Kasus False Accumulation):</div>
+                        <div class="intel-callout-desc">
+                            Crossing internal seringkali membuat akumulasi broker terlihat sangat masif di broksum agregat padahal harga di pasar reguler tidak digerakkan (contoh kasus broker RS pada saham BINA).<br><br>
+                            <strong>Langkah Mitigasi Cepat:</strong><br>
+                            1. Buka tab <strong>Daily Activity</strong>: Pastikan volume reguler aktif setiap hari, bukan spike sesaat di tanggal crossing.<br>
+                            2. Buka tab <strong>Broker Flow</strong>: Waspadai bila broker penampung selalu beli tanpa pernah jual (pola standby buyer repo).<br>
+                            3. <strong>Validasi Chart</strong>: Hanya entri jika terbentuk setup Pre-Breakout / Breakout riil dengan volume reguler sehat!
+                        </div>
+                    </div>
+                </div>
+                ` : `
+                <div class="intel-modal-section">
+                    <div class="intel-modal-sec-title">🛡️ Integritas Likuiditas</div>
+                    <div class="intel-callout-box success">
+                        <div class="intel-callout-title">✅ Pasar Nego Bersih &amp; Normal</div>
+                        <div class="intel-callout-desc">Tidak ditemukan anomali crossing atau transaksi nego masif (${pctNego}% dari turnover). Akumulasi broker summary berlangsung secara organik di Pasar Reguler dan merefleksikan dinamika pasar yang valid.</div>
+                    </div>
+                </div>
+                `}
+
+                <!-- 4. Whale Activity Explanation -->
+                <div class="intel-modal-section">
+                    <div class="intel-modal-sec-title">💡 Insight Ukuran Transaksi</div>
+                    ${whaleRatio >= 1.5 ? `
+                    <div class="intel-callout-box purple">
+                        <div class="intel-callout-title">🐳 Institusi / Whale Dominan</div>
+                        <div class="intel-callout-desc">Rata-rata lot per order mencapai <strong>${todayLpt} Lot/Trx</strong> (${whaleRatio.toFixed(1)}x normal). Menandakan adanya partisipasi modal institusi / block order besar di pasar reguler.</div>
+                    </div>` : (whaleRatio <= 0.75 ? `
+                    <div class="intel-callout-box info">
+                        <div class="intel-callout-title">🦐 Aktivitas Ritel Tinggi</div>
+                        <div class="intel-callout-desc">Ukuran order rata-rata kecil (<strong>${todayLpt} Lot/Trx</strong>) dengan frekuensi tinggi. Pasar didominasi oleh partisipasi ritel harian.</div>
+                    </div>` : `
+                    <div class="intel-callout-box info">
+                        <div class="intel-callout-title">⚖️ Ukuran Transaksi Normal</div>
+                        <div class="intel-callout-desc">Distribusi lot per order (<strong>${todayLpt} Lot/Trx</strong>) berada dalam rentang normal dan stabil mendekati rerata 20 hari.</div>
+                    </div>`)}
+                </div>
+            `;
+        }
+
+        if (this.dom.intelModalTitle) this.dom.intelModalTitle.textContent = title;
+        if (this.dom.intelModalSubtitle) this.dom.intelModalSubtitle.textContent = subtitle;
+        if (this.dom.intelModalBody) this.dom.intelModalBody.innerHTML = html;
+
+        this.dom.intelDetailBackdrop.classList.remove('hidden');
+        this.dom.intelDetailModal.classList.remove('hidden');
+    }
+
+    closeIntelDetailModal() {
+        if (this.dom.intelDetailModal) this.dom.intelDetailModal.classList.add('hidden');
+        if (this.dom.intelDetailBackdrop) this.dom.intelDetailBackdrop.classList.add('hidden');
     }
 
     openBroksumSheet() {
@@ -3596,6 +3914,11 @@ class CandlifyChart {
                     this.closeLogsModal();
                     return;
                 }
+                if (this.dom.intelDetailModal && !this.dom.intelDetailModal.classList.contains('hidden')) {
+                    e.preventDefault();
+                    this.closeIntelDetailModal();
+                    return;
+                }
             }
 
             if (this.currentView === 'chart') {
@@ -4574,6 +4897,7 @@ class CandlifyChart {
             { el: this.dom.uploadModal, close: () => this.closeUploadModal ? this.closeUploadModal() : this.dom.uploadModal.classList.add('hidden') },
             { el: this.dom.suspendModal, close: () => this.closeSuspendModal ? this.closeSuspendModal() : this.dom.suspendModal.classList.add('hidden') },
             { el: this.dom.logsModal, close: () => this.closeLogsModal ? this.closeLogsModal() : this.dom.logsModal.classList.add('hidden') },
+            { el: this.dom.intelDetailModal, close: () => this.closeIntelDetailModal() },
             { el: this.dom.indicatorSheet, close: () => this.closeSheet ? this.closeSheet('indicator') : this.dom.indicatorSheet.classList.add('hidden') },
             { el: this.dom.drawSheet, close: () => this.closeSheet ? this.closeSheet('draw') : this.dom.drawSheet.classList.add('hidden') }
         ];

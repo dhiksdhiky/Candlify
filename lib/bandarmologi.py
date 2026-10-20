@@ -219,12 +219,26 @@ def get_stock_market_intelligence(symbol: str) -> Dict[str, Any]:
             has_crossing = True
             crossing_reason = f"Volume Nego {nego_lots:,} Lot (>= 1% Saham Beredar)"
 
+        tot_day_val = float(today.get("value") or 0.0) + nego_val
+        pct_day_nego = round((nego_val / tot_day_val * 100.0), 1) if tot_day_val > 0 else 0.0
+
+        crossing_events_1d = []
+        if has_crossing:
+            crossing_events_1d.append({
+                "date": str(today["tanggal"]),
+                "lots": nego_lots,
+                "value": nego_val,
+                "label": f"{today['tanggal']}: Rp {nego_val / 1e9:.1f} B ({nego_lots:,} Lot)"
+            })
+
         nego_intel = {
             "volume_shares": nego_vol_s,
             "volume_lots": nego_lots,
             "value": round(nego_val, 2),
             "has_crossing": has_crossing,
-            "crossing_reason": crossing_reason
+            "crossing_reason": crossing_reason,
+            "pct_of_turnover": pct_day_nego,
+            "crossing_events": crossing_events_1d
         }
 
         result = {
@@ -611,8 +625,11 @@ def get_broksum_range(symbol: str, from_date: Optional[str] = None, to_date: Opt
 
     intel = get_stock_market_intelligence(clean_sym)
     range_foreign = dict(intel.get("foreign_flow", {}))
+    range_nego = dict(intel.get("pasar_nego", {}))
+    range_trade_size = dict(intel.get("trade_size", {}))
+    tradeable = int(intel.get("emiten_info", {}).get("tradeable_shares", 0))
 
-    # Jika rentang waktu lebih dari 1 hari atau tanggal custom, hitung agregasi foreign flow rentang waktu tersebut
+    # Jika rentang waktu lebih dari 1 hari atau tanggal custom, hitung agregasi foreign flow & pasar nego rentang waktu tersebut
     if start_dt != end_dt:
         try:
             engine = get_db_engine()
@@ -624,7 +641,10 @@ def get_broksum_range(symbol: str, from_date: Optional[str] = None, to_date: Opt
                                SUM(foreign_buy) as buy_shares,
                                SUM(foreign_sell) as sell_shares,
                                SUM(non_regular_volume) as nego_vol,
-                               SUM(non_regular_value) as nego_val
+                               SUM(non_regular_value) as nego_val,
+                               SUM(volume) as reg_vol,
+                               SUM(value) as reg_val,
+                               SUM(frequency) as tot_freq
                         FROM harga_saham
                         WHERE ticker = :ticker AND tanggal >= :start_d AND tanggal <= :end_d
                     """)
@@ -641,8 +661,69 @@ def get_broksum_range(symbol: str, from_date: Optional[str] = None, to_date: Opt
                         range_foreign["range_buy_shares"] = int(r_row["buy_shares"] or 0)
                         range_foreign["range_sell_shares"] = int(r_row["sell_shares"] or 0)
                         range_foreign["range_status"] = "ACCUM" if net_s > 0 else ("DISTRIB" if net_s < 0 else "NEUTRAL")
+
+                        # Agregasi Pasar Nego pada rentang waktu terpilih
+                        r_nego_vol = int(r_row["nego_vol"] or 0)
+                        r_nego_val = float(r_row["nego_val"] or 0.0)
+                        r_nego_lots = int(round(r_nego_vol / 100.0))
+                        has_range_crossing = False
+                        range_crossing_reason = ""
+                        if r_nego_val >= 10_000_000_000:
+                            has_range_crossing = True
+                            range_crossing_reason = f"Transaksi Nego Periode Rp {r_nego_val / 1e9:.1f} Miliar"
+                        elif tradeable > 0 and r_nego_vol >= (0.01 * tradeable):
+                            has_range_crossing = True
+                            range_crossing_reason = f"Volume Nego Periode {r_nego_lots:,} Lot (>= 1% Saham)"
+
+                        tot_val_range = float(r_row["reg_val"] or 0.0) + r_nego_val
+                        pct_range_nego = round((r_nego_val / tot_val_range * 100.0), 1) if tot_val_range > 0 else 0.0
+
+                        crossing_events_range = []
+                        if has_range_crossing:
+                            min_sh = max(100000, int(0.005 * tradeable)) if tradeable > 0 else 100000
+                            q_cr = text("""
+                                SELECT tanggal, non_regular_volume, non_regular_value
+                                FROM harga_saham
+                                WHERE ticker = :ticker AND tanggal >= :start_d AND tanggal <= :end_d
+                                  AND (non_regular_value >= 5000000000 OR non_regular_volume >= :min_sh)
+                                ORDER BY non_regular_value DESC
+                                LIMIT 4
+                            """)
+                            c_rows = conn.execute(q_cr, {
+                                "ticker": clean_sym,
+                                "start_d": pd.to_datetime(start_dt).date(),
+                                "end_d": pd.to_datetime(end_dt).date(),
+                                "min_sh": min_sh
+                            }).fetchall()
+                            for cr in c_rows:
+                                d_c = str(cr[0])
+                                l_c = int(round((cr[1] or 0) / 100.0))
+                                v_c = float(cr[2] or 0.0)
+                                crossing_events_range.append({
+                                    "date": d_c,
+                                    "lots": l_c,
+                                    "value": v_c,
+                                    "label": f"{d_c}: Rp {v_c / 1e9:.1f} B ({l_c:,} Lot)"
+                                })
+
+                        range_nego = {
+                            "volume_shares": r_nego_vol,
+                            "volume_lots": r_nego_lots,
+                            "value": round(r_nego_val, 2),
+                            "has_crossing": has_range_crossing,
+                            "crossing_reason": range_crossing_reason,
+                            "pct_of_turnover": pct_range_nego,
+                            "crossing_events": crossing_events_range,
+                            "is_range": True
+                        }
+
+                        # Trade Size rentang
+                        tot_f = int(r_row["tot_freq"] or 0)
+                        tot_reg_v = int(r_row["reg_vol"] or 0)
+                        if tot_f > 0 and tot_reg_v > 0:
+                            range_trade_size["range_lot_per_trade"] = round((tot_reg_v / 100.0) / tot_f, 1)
         except Exception as e:
-            logger.warning(f"Error calculating range foreign flow for {clean_sym}: {e}")
+            logger.warning(f"Error calculating range foreign flow & market intelligence for {clean_sym}: {e}")
 
     summary_dict = {
         "latest_date": pd.to_datetime(end_dt).strftime("%Y-%m-%d"),
@@ -658,8 +739,8 @@ def get_broksum_range(symbol: str, from_date: Optional[str] = None, to_date: Opt
         "top_sellers": top_sellers,
         "market_intelligence": intel,
         "foreign_flow": range_foreign,
-        "trade_size": intel.get("trade_size", {}),
-        "pasar_nego": intel.get("pasar_nego", {}),
+        "trade_size": range_trade_size,
+        "pasar_nego": range_nego,
         "notasi_khusus": intel.get("emiten_info", {}).get("notasi_khusus", "")
     }
 

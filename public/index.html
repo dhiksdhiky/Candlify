@@ -602,7 +602,7 @@
                     <!-- Market Intelligence (Foreign Flow, Whale Size, Pasar Nego) -->
                     <div class="intel-cards-container">
                         <!-- Card 1: Foreign Flow (Asing) -->
-                        <div class="intel-card">
+                        <div class="intel-card clickable" id="card-intel-foreign" title="Klik untuk lihat analisis detail arus asing &amp; partisipasi">
                             <div class="intel-card-header">
                                 <span class="intel-card-title">🌐 Foreign (Asing)</span>
                                 <span class="intel-card-badge" id="intel-foreign-status">Flow</span>
@@ -625,7 +625,7 @@
                         </div>
 
                         <!-- Card 2: Whale vs Ritel & Pasar Nego -->
-                        <div class="intel-card">
+                        <div class="intel-card clickable" id="card-intel-whale-nego" title="Klik untuk lihat analisis crossing &amp; whale ratio">
                             <div class="intel-card-header">
                                 <span class="intel-card-title">🐳 Trade Size &amp; Nego</span>
                                 <span class="intel-card-badge" id="intel-whale-status">Normal</span>
@@ -1477,6 +1477,28 @@
                 <div class="form-modal-body" style="overflow-y: auto; flex: 1;">
                     <div id="logsModalContent" class="error-list"></div>
                 </div>
+            </div>
+        </div>
+
+        <!-- ======================================================== -->
+        <!-- 10D. Market Intelligence Insight Modal (Foreign & Nego)  -->
+        <!-- ======================================================== -->
+        <div id="intel-detail-backdrop" class="filter-modal-backdrop hidden"></div>
+        <div id="intel-detail-modal" class="filter-modal form-modal hidden" style="max-width: 480px;">
+            <div class="filter-modal-header">
+                <div class="filter-modal-title-group">
+                    <h3 class="filter-modal-title" id="intel-modal-title">🌐 Market Intelligence Insight</h3>
+                    <p class="filter-modal-subtitle" id="intel-modal-subtitle">Analisis mendalam arus transaksi</p>
+                </div>
+                <button id="close-intel-modal" class="sheet-close" title="Tutup">✕</button>
+            </div>
+
+            <div class="form-modal-body" id="intel-modal-body" style="max-height: 70vh; overflow-y: auto; padding: 10px 4px;">
+                <!-- Konten dinamis di-render via chart.js -->
+            </div>
+
+            <div class="filter-modal-footer">
+                <button id="btn-close-intel-modal" class="filter-btn-secondary" style="width: 100%;">Tutup</button>
             </div>
         </div>
 
