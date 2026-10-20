@@ -6,6 +6,9 @@ Semua perubahan penting, perbaikan bug, dan peningkatan fitur pada proyek **Cand
 
 ## [2.5.0] — 2026-10-19
 ### 🛠️ Bug Fixes (P0, P1, P2)
+- **Cloudflare WAF Resilience & Auto Gap-Detector (`worker/sync_idx_daily.py`, `worker/downloader_idx.py`, `.github/workflows/harvester-cron.yml`)**:
+  - Memperbaiki kegagalan `HTTP 403` saat mengakses `www.idx.co.id` dari GitHub Actions runner (`ubuntu-latest` / Azure ASN) dengan menambahkan rotasi multi-profil TLS (`safari17_0`, `chrome124`, `chrome120`, `safari15_5`, `edge101`), *Session Cookie Warm-up* (`__cf_bm`), dan routing proxy lokal **Cloudflare WARP (`socks5h://127.0.0.1:40000`)**.
+  - Menambahkan fitur **Auto Gap-Detector (`detect_and_fill_idx_gaps`)** pada sinkronisasi harian BEI yang secara otomatis mendeteksi dan menambal tanggal bursa yang terlewat atau yang sebelumnya hanya terisi oleh fallback Yahoo Finance (`frequency = 0`) hingga 14 hari kalender ke belakang tanpa menimpa master emiten terbaru.
 - **Worker Pipeline Orchestrator (`worker/run.py`, `worker/pipeline.py`, `worker/sync_idx_daily.py`)**:
   - Memperbaiki `NameError: name 'pipeline_success' is not defined` pada `worker/run.py` saat pembuatan laporan status akhir Telegram.
   - Memperbaiki eksekusi ganda (*double execution*) Layer 2 Fallback dengan menonaktifkan internal fallback di dalam `run_sync_daily(use_fallback=False)` ketika dipanggil dari `worker/run.py`.

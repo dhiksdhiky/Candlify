@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, asdict
@@ -110,23 +111,62 @@ class DirectApiExtractor(ExtractionStrategy):
             "language": "id-id",
         }
         url = f"{self.BASE_URL}?{urlencode(params)}"
+        referer_url = "https://www.idx.co.id/id/data-pasar/data-saham/daftar-saham"
         headers = {
             "Accept": "application/json, text/plain, */*",
-            "Referer": "https://www.idx.co.id/id/data-pasar/data-saham/daftar-saham",
+            "Accept-Language": "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7",
+            "Referer": referer_url,
+            "X-Requested-With": "XMLHttpRequest",
+            "Sec-Fetch-Dest": "empty",
+            "Sec-Fetch-Mode": "cors",
+            "Sec-Fetch-Site": "same-origin",
         }
 
-        logger.info("📡 Mengakses endpoint API internal IDX: %s", url)
-        response = cf_requests.get(
-            url,
-            headers=headers,
-            impersonate=self.impersonate,
-            timeout=self.timeout,
-        )
+        proxy_url = os.getenv("IDX_PROXY_URL", "").strip() or None
+        proxies = {"http": proxy_url, "https": proxy_url} if proxy_url else None
+        proxy_candidates = [proxies, None] if proxies else [None]
 
-        if response.status_code != 200:
-            raise RuntimeError(f"HTTP {response.status_code} saat mengakses API IDX.")
+        profiles = [self.impersonate, "safari17_0", "chrome124", "chrome120", "safari15_5"]
+        seen_p = set()
+        ordered_profiles = [p for p in profiles if not (p in seen_p or seen_p.add(p))]
 
-        payload = response.json()
+        payload: Optional[Dict[str, Any]] = None
+        last_err: Optional[Exception] = None
+
+        for p_cfg in proxy_candidates:
+            for prof in ordered_profiles:
+                try:
+                    mode_lbl = f"{prof}+proxy" if p_cfg else prof
+                    logger.info("📡 Mengakses endpoint API internal IDX (impersonate=%s): %s", mode_lbl, url)
+                    response = cf_requests.get(
+                        url,
+                        headers=headers,
+                        impersonate=prof,
+                        proxies=p_cfg,
+                        timeout=self.timeout,
+                    )
+                    if response.status_code == 403:
+                        logger.info("🔄 HTTP 403 pada DirectApiExtractor (%s), mencoba Session Cookie Warm-up...", mode_lbl)
+                        with cf_requests.Session(impersonate=prof, proxies=p_cfg) as s:
+                            s.get(referer_url, timeout=self.timeout)
+                            response = s.get(url, headers=headers, timeout=self.timeout)
+
+                    if response.status_code == 200:
+                        payload = response.json()
+                        break
+                    last_err = RuntimeError(f"HTTP {response.status_code} saat mengakses API IDX (impersonate={mode_lbl}).")
+                except Exception as exc:
+                    last_err = exc
+                    if p_cfg is not None and ("Connection refused" in str(exc) or "Failed to connect" in str(exc) or "(7)" in str(exc)):
+                        break
+            if payload is not None:
+                break
+
+        if payload is None:
+            if last_err:
+                raise last_err
+            raise RuntimeError("Gagal mengakses API IDX setelah mencoba semua profil TLS.")
+
         raw_rows = payload.get("data", [])
         if not isinstance(raw_rows, list) or not raw_rows:
             raise ValueError("Payload API kosong atau format data berubah.")
@@ -162,15 +202,28 @@ class NuxtSsrDecompilerExtractor(ExtractionStrategy):
         if self.html_source:
             return self.html_source
 
-        logger.info("📥 Mengunduh HTML SSR dari: %s", self.PAGE_URL)
-        response = cf_requests.get(
-            self.PAGE_URL,
-            impersonate=self.impersonate,
-            timeout=self.timeout,
-        )
-        if response.status_code != 200:
-            raise RuntimeError(f"Gagal mengambil HTML SSR. HTTP {response.status_code}")
-        return response.text
+        proxy_url = os.getenv("IDX_PROXY_URL", "").strip() or None
+        proxies = {"http": proxy_url, "https": proxy_url} if proxy_url else None
+        profiles = [self.impersonate, "safari17_0", "chrome124", "chrome120", "safari15_5"]
+        seen_p = set()
+        ordered_profiles = [p for p in profiles if not (p in seen_p or seen_p.add(p))]
+
+        last_status = 0
+        for prof in ordered_profiles:
+            try:
+                logger.info("📥 Mengunduh HTML SSR (impersonate=%s) dari: %s", prof, self.PAGE_URL)
+                response = cf_requests.get(
+                    self.PAGE_URL,
+                    impersonate=prof,
+                    proxies=proxies,
+                    timeout=self.timeout,
+                )
+                if response.status_code == 200:
+                    return response.text
+                last_status = response.status_code
+            except Exception:
+                pass
+        raise RuntimeError(f"Gagal mengambil HTML SSR. HTTP {last_status or 403}")
 
     @staticmethod
     def _scan_balanced_block(text: str, start_idx: int, open_char: str, close_char: str) -> Tuple[str, int]:

@@ -273,3 +273,65 @@ class TestBackfiller:
         assert result["synced_days_count"] == 0
         assert result["skipped_existing_count"] == 5
 
+
+class TestCloudflareResilienceAndAutoGap:
+    """Pengujian Session Cookie Warm-up saat HTTP 403 & Auto Gap-Detector."""
+
+    def test_fetch_idx_trading_summary_warmup_on_403(self):
+        from worker.sync_idx_daily import fetch_idx_trading_summary
+
+        mock_403_resp = MagicMock()
+        mock_403_resp.status_code = 403
+
+        mock_200_resp = MagicMock()
+        mock_200_resp.status_code = 200
+        mock_200_resp.json.return_value = {"data": [{"StockCode": "BBCA"}]}
+
+        mock_session = MagicMock()
+        mock_session.__enter__.return_value = mock_session
+        mock_session.get.side_effect = [MagicMock(status_code=200), mock_200_resp]
+
+        with patch("worker.sync_idx_daily.cf_requests.get", return_value=mock_403_resp), \
+             patch("worker.sync_idx_daily.cf_requests.Session", return_value=mock_session):
+            payload = fetch_idx_trading_summary(date_str="20261019")
+            assert "data" in payload
+            assert payload["data"][0]["StockCode"] == "BBCA"
+            assert mock_session.get.call_count == 2
+
+    def test_detect_and_fill_idx_gaps_identifies_yahoo_fallback_and_missing_weekdays(self):
+        from worker.sync_idx_daily import detect_and_fill_idx_gaps
+
+        # Misal latest_trading_date adalah Jumat 2026-10-16:
+        # - Selasa 2026-10-13: Official IDX lengkap (idx_cnt=950, total_cnt=950)
+        # - Rabu 2026-10-14: Hanya Yahoo fallback (idx_cnt=0, total_cnt=950)
+        # - Kamis 2026-10-15: Worker mati / tidak ada baris sama sekali di DB
+        mock_rows = [
+            (date(2026, 10, 13), 950, 950),
+            (date(2026, 10, 14), 0, 950),
+        ]
+
+        mock_conn = MagicMock()
+        mock_conn.__enter__.return_value = mock_conn
+        mock_conn.execute.return_value.fetchall.return_value = mock_rows
+
+        synced_calls = []
+
+        def fake_run_sync_daily(date_str="", use_fallback=False, fill_gaps=False, sync_master=False):
+            synced_calls.append((date_str, use_fallback, fill_gaps, sync_master))
+            return {"status": "success", "prices_synced": 963}
+
+        with patch("worker.sync_idx_daily.engine.connect", return_value=mock_conn), \
+             patch("worker.sync_idx_daily.run_sync_daily", side_effect=fake_run_sync_daily):
+            filled = detect_and_fill_idx_gaps(
+                latest_trading_date=date(2026, 10, 16),
+                max_lookback_days=10,
+                delay_seconds=0.0,
+            )
+
+        assert filled == ["2026-10-14", "2026-10-15"]
+        assert synced_calls == [
+            ("20261014", False, False, False),
+            ("20261015", False, False, False),
+        ]
+
+

@@ -24,9 +24,10 @@ import os
 import sys
 import re
 import csv
+import time
 import logging
-from datetime import datetime, date
-from typing import Any, Dict, List, Optional, Tuple
+from datetime import datetime, date, timedelta
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from sqlalchemy import text
 from curl_cffi import requests as cf_requests
@@ -105,6 +106,7 @@ def fetch_idx_trading_summary(
     """
     Mengambil data Trading Summary dari portal resmi BEI.
     Bisa menerima date_str format 'YYYYMMDD' atau 'YYYY-MM-DD'.
+    Dilengkapi rotasi profil TLS impersonation & session cookie warm-up untuk menembus Cloudflare WAF.
     """
     params: Dict[str, Any] = {
         "length": 9999,
@@ -114,44 +116,79 @@ def fetch_idx_trading_summary(
         clean_d = date_str.replace("-", "").strip()
         params["date"] = clean_d
 
+    referer_url = "https://www.idx.co.id/id/data-pasar/ringkasan-perdagangan/ringkasan-saham"
     headers = {
         "Accept": "application/json, text/plain, */*",
-        "Referer": "https://www.idx.co.id/id/data-pasar/ringkasan-perdagangan/ringkasan-saham",
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"
+        "Accept-Language": "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Referer": referer_url,
+        "X-Requested-With": "XMLHttpRequest",
+        "Sec-Fetch-Dest": "empty",
+        "Sec-Fetch-Mode": "cors",
+        "Sec-Fetch-Site": "same-origin",
     }
 
-    logger.info("📡 Mengakses IDX GetStockSummary (impersonate=%s, date=%s)...", impersonate, date_str or "latest")
-    
-    # Coba impersonate utama, jika gagal coba fallback impersonate
-    try:
-        response = cf_requests.get(
-            IDX_SUMMARY_URL,
-            params=params,
-            headers=headers,
-            impersonate=impersonate,
-            timeout=timeout
-        )
-    except Exception as exc:
-        if impersonate != "safari15_5":
-            logger.warning("⚠️ Impersonate %s gagal (%s), mencoba safari15_5...", impersonate, exc)
-            response = cf_requests.get(
-                IDX_SUMMARY_URL,
-                params=params,
-                headers=headers,
-                impersonate="safari15_5",
-                timeout=timeout
-            )
-        else:
-            raise
+    proxy_url = os.getenv("IDX_PROXY_URL", "").strip() or None
+    proxies = {"http": proxy_url, "https": proxy_url} if proxy_url else None
+    proxy_candidates = [proxies, None] if proxies else [None]
 
-    if response.status_code != 200:
-        raise RuntimeError(f"HTTP {response.status_code} saat mengakses IDX Trading Summary.")
+    profiles = [impersonate, "chrome124", "chrome120", "safari15_5", "edge101"]
+    # Hilangkan duplikat dengan tetap menjaga urutan
+    seen_p = set()
+    ordered_profiles = [p for p in profiles if not (p in seen_p or seen_p.add(p))]
 
-    payload = response.json()
-    if not isinstance(payload, dict) or "data" not in payload:
-        raise ValueError("Payload IDX GetStockSummary tidak valid atau kosong.")
+    last_error: Optional[Exception] = None
 
-    return payload
+    for p_cfg in proxy_candidates:
+        for prof in ordered_profiles:
+            try:
+                mode_lbl = f"{prof}+proxy" if p_cfg else prof
+                logger.info("📡 Mengakses IDX GetStockSummary (impersonate=%s, date=%s)...", mode_lbl, date_str or "latest")
+                response = cf_requests.get(
+                    IDX_SUMMARY_URL,
+                    params=params,
+                    headers=headers,
+                    impersonate=prof,
+                    proxies=p_cfg,
+                    timeout=timeout,
+                )
+
+                # Jika terhadang Cloudflare 403, lakukan Session Warm-up (ambil cookie __cf_bm dari halaman induk)
+                if response.status_code == 403:
+                    logger.info("🔄 HTTP 403 pada direct GET (%s), mencoba Session Cookie Warm-up...", mode_lbl)
+                    with cf_requests.Session(impersonate=prof, proxies=p_cfg) as s:
+                        s.get(
+                            referer_url,
+                            headers={
+                                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                                "Accept-Language": "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7",
+                            },
+                            timeout=timeout,
+                        )
+                        response = s.get(
+                            IDX_SUMMARY_URL,
+                            params=params,
+                            headers=headers,
+                            timeout=timeout,
+                        )
+
+                if response.status_code == 200:
+                    payload = response.json()
+                    if isinstance(payload, dict) and "data" in payload:
+                        return payload
+                    raise ValueError("Payload IDX GetStockSummary tidak valid atau kosong.")
+
+                last_error = RuntimeError(f"HTTP {response.status_code} saat mengakses IDX Trading Summary (impersonate={mode_lbl}).")
+                logger.warning("⚠️ %s", last_error)
+            except Exception as exc:
+                last_error = exc
+                logger.warning("⚠️ Impersonate %s gagal: %s", prof, exc)
+                # Jika koneksi proxy lokal ditolak (misal WARP tidak aktif), langsung beralih ke kandidat tanpa proxy
+                if p_cfg is not None and ("Connection refused" in str(exc) or "Failed to connect" in str(exc) or "(7)" in str(exc)):
+                    break
+
+    if last_error:
+        raise last_error
+    raise RuntimeError("Gagal mengakses IDX Trading Summary setelah mencoba semua profil TLS.")
 
 
 def parse_trading_summary_data(
@@ -490,42 +527,167 @@ def execute_layer_2_fallback() -> Dict[str, Any]:
     return fallback_res
 
 
+def detect_and_fill_idx_gaps(
+    latest_trading_date: date,
+    max_lookback_days: int = 14,
+    delay_seconds: float = 1.0,
+) -> List[str]:
+    """
+    Mendeteksi dan menambal otomatis (Auto-Backfill) tanggal bursa yang bolong
+    atau yang sebelumnya hanya terisi oleh fallback Yahoo Finance (frequency = 0)
+    dalam rentang `max_lookback_days` hari kalender ke belakang.
+    """
+    start_check = latest_trading_date - timedelta(days=max_lookback_days)
+    official_dates: Set[date] = set()
+    fallback_only_dates: Set[date] = set()
+
+    try:
+        with engine.connect() as conn:
+            query = text("""
+                SELECT
+                    tanggal,
+                    SUM(CASE WHEN frequency > 0 THEN 1 ELSE 0 END) AS idx_cnt,
+                    COUNT(*) AS total_cnt
+                FROM harga_saham
+                WHERE tanggal >= :start_d AND tanggal < :end_d
+                GROUP BY tanggal
+            """)
+            rows = conn.execute(
+                query, {"start_d": start_check, "end_d": latest_trading_date}
+            ).fetchall()
+
+            for r in rows:
+                dt_val = r[0]
+                if isinstance(dt_val, str):
+                    try:
+                        dt_val = datetime.strptime(dt_val[:10], "%Y-%m-%d").date()
+                    except Exception:
+                        continue
+                idx_cnt = int(r[1] or 0)
+                total_cnt = int(r[2] or 0)
+                if idx_cnt >= 500:
+                    official_dates.add(dt_val)
+                elif total_cnt > 0:
+                    # Tanggal bursa aktif yang sebelumnya hanya terisi via Yahoo Finance fallback (frequency=0)
+                    fallback_only_dates.add(dt_val)
+    except Exception as db_err:
+        logger.warning("⚠️ [Auto-Gap] Gagal memeriksa histori tanggal di DB: %s", db_err)
+        return []
+
+    if official_dates:
+        last_official_date = max(official_dates)
+    else:
+        last_official_date = latest_trading_date - timedelta(days=min(7, max_lookback_days))
+
+    candidate_dates: Set[date] = set(fallback_only_dates)
+    cur_d = last_official_date + timedelta(days=1)
+    while cur_d < latest_trading_date:
+        if cur_d.weekday() < 5 and cur_d not in official_dates:
+            candidate_dates.add(cur_d)
+        cur_d += timedelta(days=1)
+
+    if not candidate_dates:
+        logger.info("✅ [Auto-Gap] Tidak ada hari bursa yang bolong (histori IDX lengkap hingga %s).", latest_trading_date)
+        return []
+
+    sorted_gaps = sorted(candidate_dates)
+    logger.info(
+        "🩹 [Auto-Gap] Terdeteksi %d kandidat tanggal yang belum memiliki data resmi IDX: %s",
+        len(sorted_gaps),
+        ", ".join(d.strftime("%Y-%m-%d") for d in sorted_gaps),
+    )
+
+    filled_dates: List[str] = []
+    for d in sorted_gaps:
+        d_iso = d.strftime("%Y-%m-%d")
+        d_param = d.strftime("%Y%m%d")
+        try:
+            if filled_dates and delay_seconds > 0:
+                time.sleep(delay_seconds)
+            logger.info("📥 [Auto-Gap] Menambal data IDX untuk tanggal %s...", d_iso)
+            res = run_sync_daily(
+                date_str=d_param,
+                use_fallback=False,
+                fill_gaps=False,
+                sync_master=False,
+            )
+            if res.get("status") == "success" and res.get("prices_synced", 0) > 0:
+                filled_dates.append(d_iso)
+                logger.info(
+                    "✅ [Auto-Gap] Tanggal %s berhasil ditambal (%d saham).",
+                    d_iso,
+                    res.get("prices_synced", 0),
+                )
+            else:
+                logger.info("ℹ️ [Auto-Gap] Tanggal %s dilewati (libur bursa / 0 saham).", d_iso)
+        except Exception as gap_err:
+            logger.warning("⚠️ [Auto-Gap] Gagal menambal tanggal %s: %s", d_iso, gap_err)
+
+    return filled_dates
+
+
 def run_sync_daily(
     date_str: str = "",
-    use_fallback: bool = True
+    use_fallback: bool = True,
+    fill_gaps: bool = True,
+    sync_master: bool = True,
 ) -> Dict[str, Any]:
     """
     Fungsi utama All-in-One EOD Synchronizer.
-    Mengambil data perdagangan resmi BEI, menyimpan ke daftar_saham dan harga_saham.
+    Mengambil data perdagangan resmi BEI, menyimpan ke daftar_saham dan harga_saham,
+    serta otomatis menambal hari bursa yang terlewat di belakangnya (Auto Gap-Detector).
     """
     start_time = datetime.now()
-    logger.info("╔════════════════════════════════════════════════════════════╗")
-    logger.info("║       ALL-IN-ONE IDX TRADING SUMMARY & PRICE ENGINE        ║")
-    logger.info("╚════════════════════════════════════════════════════════════╝")
+    if not date_str:
+        logger.info("╔════════════════════════════════════════════════════════════╗")
+        logger.info("║       ALL-IN-ONE IDX TRADING SUMMARY & PRICE ENGINE        ║")
+        logger.info("╚════════════════════════════════════════════════════════════╝")
 
     try:
         # Layer 1: IDX GetStockSummary
         payload = fetch_idx_trading_summary(date_str=date_str)
+        if date_str and not payload.get("data"):
+            logger.info("ℹ️ Tanggal %s tidak memiliki data perdagangan (libur bursa / belum rilis).", date_str)
+            return {
+                "status": "empty",
+                "layer": 1,
+                "source": "idx_official",
+                "trading_date": date_str,
+                "stocks_synced": 0,
+                "prices_synced": 0,
+                "duration_seconds": round((datetime.now() - start_time).total_seconds(), 2),
+            }
+
         rows_daftar, rows_harga, trading_date = parse_trading_summary_data(payload)
 
-        # 1. Update master daftar_saham di DB
-        stocks_count = sync_daftar_saham_bulk(rows_daftar)
+        stocks_count = 0
+        if sync_master:
+            # 1. Update master daftar_saham di DB
+            stocks_count = sync_daftar_saham_bulk(rows_daftar)
 
-        # 2. Update worker/daftar_saham.csv lokal
-        csv_path = os.path.join(os.path.dirname(__file__), "daftar_saham.csv")
-        try:
-            update_local_csv(rows_daftar, csv_path)
-        except Exception as csv_err:
-            logger.warning("⚠️ Gagal update CSV lokal: %s", csv_err)
+            # 2. Update worker/daftar_saham.csv lokal
+            csv_path = os.path.join(os.path.dirname(__file__), "daftar_saham.csv")
+            try:
+                update_local_csv(rows_daftar, csv_path)
+            except Exception as csv_err:
+                logger.warning("⚠️ Gagal update CSV lokal: %s", csv_err)
 
         # 3. Update tabel harga_saham di DB
         prices_count = sync_harga_saham_bulk(rows_harga)
 
+        # 4. Auto Gap-Detector (tambal otomatis hari bursa di belakangnya yang bolong / hanya Yahoo fallback)
+        gaps_filled: List[str] = []
+        if fill_gaps and not date_str and trading_date and not TEST_MODE:
+            gaps_filled = detect_and_fill_idx_gaps(latest_trading_date=trading_date)
+
         duration = (datetime.now() - start_time).total_seconds()
         logger.info("🎉 SINKRONISASI LAYER 1 SUKSES!")
         logger.info(f"  📅 Tanggal Bursa: {trading_date}")
-        logger.info(f"  🏢 Master Emiten: {stocks_count} saham")
+        if sync_master:
+            logger.info(f"  🏢 Master Emiten: {stocks_count} saham")
         logger.info(f"  📈 Harga & Flow : {prices_count} baris")
+        if gaps_filled:
+            logger.info(f"  🩹 Hari Ditambal: {len(gaps_filled)} hari ({', '.join(gaps_filled)})")
         logger.info(f"  ⏱️ Waktu Proses : {duration:.2f} detik")
 
         return {
@@ -535,6 +697,7 @@ def run_sync_daily(
             "trading_date": str(trading_date) if trading_date else None,
             "stocks_synced": stocks_count,
             "prices_synced": prices_count,
+            "gaps_filled": gaps_filled,
             "duration_seconds": round(duration, 2),
         }
 
