@@ -739,7 +739,76 @@ Volume
 
 ---
 
-## 12. Trader's Quick Checklist Sebelum Menekan Tombol Buy (8 Poin Emas)
+## 12. 🌐 Panduan Market Intelligence Terintegrasi: Foreign Flow, Whale Trade Size & Pasar Nego
+
+Candlify menyajikan metrik **Market Intelligence resmi dari Bursa Efek Indonesia (IDX)** pada lembar Broker Summary. Agar tampilan grafik batang dan angka-angka ringkas pada pop-up modal dapat diinterpretasikan secara tajam, berikut adalah panduan komprehensif cara membacanya:
+
+---
+
+### 12.1 🌐 Arus Dana Asing (Foreign Flow Integration)
+
+Data Foreign Flow di Candlify ditarik langsung dari pelaporan resmi transaksi investor asing harian BEI (`foreign_buy`, `foreign_sell`, dan estimasi `foreign_net` berbasis VWAP harian).
+
+#### 1. Cara Menginterpretasikan Net Flow & Tren Moving Average
+* **🟢 Inflow Bersih (Net Buy Konsisten):**
+  * Terjadi ketika nilai Net Foreign 1D, 5D, dan 20D positif tebal.
+  * *Relevansi Pre-Breakout:* Jika saham sedang membentuk kotak konsolidasi rapat (*base*) dan asing membukukan akumulasi bersih, ini merupakan sinyal **konfirmasi institusional kuat**. Smart money global sedang menyerap barang di pasar reguler tanpa membuat harga loncat agresif.
+* **🔴 Outflow Bersih (Net Sell / Distribusi Asing):**
+  * Terjadi ketika nilai Net Foreign 1D, 5D, atau 20D negatif merah.
+  * *Peringatan Divergensi:* Jika harga saham naik atau broker domestik mencatatkan akumulasi, tetapi asing rutin *net sell*, waspadai potensi **Divergensi Asing vs Lokal**. Reli harga yang tidak didukung asing lebih rapuh terhadap pembalikan arah mendadak (*bull trap*).
+* **⚪ Partisipasi Netral / Domestik Dominan:**
+  * Terjadi ketika porsi transaksi asing $< 5\%$ dari total turnover reguler.
+  * Saham dengan profil ini murni digerakkan oleh bandar domestik (saham lapis dua/tiga). Pada kondisi ini, trader harus fokus 100% pada analisis *top broker* lokal dan akumulasi asimetris (AAR $\ge 1.5$).
+
+#### 2. Proporsi Partisipasi Asing (Buy vs Sell Ratio)
+* Di samping nilai rupiah nominal, perhatikan grafik batang proporsi **Foreign Buy vs Foreign Sell**.
+* Jika Foreign Buy mendominasi $\ge 70\%$, akumulasi asing bersifat agresif menyerap suplai. Jika Foreign Sell $\ge 70\%$, asing sedang aktif melepas inventori sahamnya ke pelaku pasar lokal.
+
+#### 3. Papan Pencatatan & Notasi Khusus BEI
+* **Papan Utama & Pengembangan:** Likuiditas reguler normal (*continuous trading*).
+* **Papan Pemantauan Khusus (FCA):** Perdagangan lelang periodik (Call Auction). Eksekusi wajib cicil pasif dan tidak boleh HAKA agresif.
+* **Notasi Khusus BEI:** Simbol resmi bursa seperti `[X]` (FCA), `[E]` (Ekuitas Negatif), `[M]` (Permohonan PKPU), `[A]` (Opini Tidak Wajar). Emiten dengan notasi khusus memerlukan alokasi risiko yang lebih ketat (*tight risk control*).
+
+---
+
+### 12.2 🐳 Ukuran Order Transaksi (Whale vs Ritel Trade Size)
+
+Ukuran order rata-rata dihitung dari formula:
+$$\text{Lot per Transaksi (LPT)} = \frac{\text{Total Volume Reguler (Lot)}}{\text{Total Frekuensi Transaksi}}$$
+
+Rasio Whale diukur dengan membandingkan LPT hari ini terhadap rata-rata historis 20 hari:
+$$\text{Whale Ratio} = \frac{\text{LPT}_{\text{hari ini}}}{\text{LPT}_{\text{avg\_20d}}}$$
+
+#### Klasifikasi Partisipasi:
+1. **🐳 Whale Dominant ($\text{Whale Ratio} \ge 1.5\text{x}$):**
+   * Ukuran order per transaksi melonjak signifikan di atas rata-rata normal.
+   * Menunjukkan masuknya order blok (*block orders*) dari institusi besar, reksa dana, atau bandar besar yang melakukan serapan barang secara agresif.
+2. **🦐 Ritel Aktif ($\text{Whale Ratio} \le 0.75\text{x}$):**
+   * Ukuran lot per transaksi kecil dengan frekuensi transaksi yang sangat padat.
+   * Mengindikasikan saham sedang ramai digoreng atau menjadi ajang *scalping/churning* investor ritel. Saham cenderung memiliki volatilitas tinggi namun tanpa daya dorong tren jangka panjang yang solid.
+3. **⚖️ Aktivitas Normal ($0.75\text{x} < \text{Whale Ratio} < 1.5\text{x}$):**
+   * Distribusi ukuran pesanan stabil di dekat rerata historisnya.
+
+---
+
+### 12.3 🏛️ Integritas Pasar Nego & Deteksi Crossing (Kasus False Accumulation)
+
+Pasar Negosiasi (Non-Reguler) adalah fasilitas bursa untuk transaksi di luar pasar reguler dengan kesepakatan langsung antar-pihak (*tutup sendiri / crossing*).
+
+#### Kriteria Anomali & Crossing Material:
+Candlify menandai anomali pasar negosiasi jika:
+1. Nilai transaksi Nego harian $\ge \text{Rp } 10\text{ Miliar}$, ATAU
+2. Volume transaksi Nego $\ge 1\%$ dari total saham beredar emiten, ATAU
+3. Transaksi Nego mendominasi $\ge 20\%$ dari total perputaran (*turnover*) gabungan reguler + non-reguler.
+
+#### Bahaya Jebakan Crossing & Standby Repo:
+* Transaksi nego bernilai jumbo seringkali merupakan **tukar kantong internal**, pengalihan jaminan utang (**repo**), atau transaksi *window dressing* tutup kuartal (seperti pada studi kasus saham **BINA**).
+* Transaksi ini menggelembungkan angka akumulasi broker di broker summary, padahal harga di pasar reguler sama sekali tidak digerakkan naik.
+* **Tindakan Trader:** Jika kartu memunculkan status `⚠️ Crossing Terdeteksi`, selalu lakukan konfirmasi silang ke tab **`📅 Daily Activity`** dan **`📈 Broker Flow`** untuk memastikan volume reguler riil benar-benar aktif dan akumulasi bukan berasal dari broker penampung repo searah!
+
+---
+
+## 13. Trader's Quick Checklist Sebelum Menekan Tombol Buy (8 Poin Emas)
 
 Sebelum memasukkan order beli di sekuritas, centang **8 poin emas** ini:
 

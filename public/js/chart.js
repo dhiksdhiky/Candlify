@@ -2607,8 +2607,8 @@ class CandlifyChart {
         let html = '';
 
         if (type === 'foreign') {
-            title = `🌐 Foreign Flow Deep Dive • ${symbol}`;
-            subtitle = `Analisis Arus Dana Asing • Periode: ${dateLabel}`;
+            title = `🌐 Detail Foreign Flow • ${symbol}`;
+            subtitle = `Data Arus Transaksi Asing • ${dateLabel}`;
 
             const foreign = summary.foreign_flow || summary.market_intelligence?.foreign_flow || {};
             const emiten = summary.emiten_info || summary.market_intelligence?.emiten_info || {};
@@ -2633,25 +2633,10 @@ class CandlifyChart {
             const flow20dCls = flow20d > 0 ? 'up' : (flow20d < 0 ? 'down' : '');
             const sign20d = flow20d > 0 ? '+' : (flow20d < 0 ? '-' : '');
 
-            // Callout text logic
-            let calloutCls = 'info';
-            let calloutTitle = '⚪ Partisipasi Asing Netral / Berimbang';
-            let calloutDesc = 'Arus akumulasi dan distribusi asing relatif berimbang. Dinamika harga saat ini lebih dominan dipengaruhi oleh pergerakan bandar domestik dan pasar reguler lokal.';
-
-            if (netVal > 500_000_000) {
-                calloutCls = 'success';
-                calloutTitle = '🟢 Konfirmasi Akumulasi Asing (Inflow)';
-                calloutDesc = `Investor asing membukukan akumulasi bersih sebesar <strong>${sign}Rp ${fmtVal(netVal)}</strong> (${sign}${fmtLot(netLots)} Lot). Pada setup Pre-Breakout / Konsolidasi, inflow asing memberikan konfirmasi institusional kuat bahwa pergerakan didukung modal besar global.`;
-            } else if (netVal < -500_000_000) {
-                calloutCls = 'warning';
-                calloutTitle = '🔴 Tekanan Jual Asing (Outflow)';
-                calloutDesc = `Investor asing membukukan penjualan bersih (Net Sell) sebesar <strong>${sign}Rp ${fmtVal(netVal)}</strong> (${sign}${fmtLot(netLots)} Lot). Jika harga saham bergerak naik atau broksum lokal terakumulasi, waspadai potensi divergensi (dorongan lokal tanpa dukungan asing).`;
-            }
-
             html = `
                 <!-- 1. Grid Metrik Utama Foreign Flow -->
                 <div class="intel-modal-section">
-                    <div class="intel-modal-sec-title">📊 Arus Kas Asing (Net Flow)</div>
+                    <div class="intel-modal-sec-title">📊 Arus Kas Bersih (Net Flow)</div>
                     <div class="intel-metric-grid">
                         <div class="intel-metric-box">
                             <span class="metric-label">${isRange ? 'Net Periode' : 'Net Hari Ini (1D)'}</span>
@@ -2671,55 +2656,54 @@ class CandlifyChart {
                     </div>
                 </div>
 
-                <!-- 2. Breakdown Beli vs Jual Asing -->
+                <!-- 2. Visual Bar Proporsi Beli vs Jual Asing -->
                 <div class="intel-modal-section">
-                    <div class="intel-modal-sec-title">⚖️ Partisipasi Transaksi Asing</div>
-                    <div class="intel-metric-grid cols-2">
-                        <div class="intel-metric-box">
-                            <span class="metric-label">Foreign Buy (${buyPct}%)</span>
-                            <span class="metric-value up">${fmtLot(buyLots)} Lot</span>
-                            <span class="metric-sub">Akumulasi beli asing</span>
+                    <div class="intel-modal-sec-title">⚖️ Proporsi Transaksi Asing</div>
+                    <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 10px 12px;">
+                        <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 6px;">
+                            <span style="color: #34d399; font-weight: 700;">Buy: ${fmtLot(buyLots)} Lot (${buyPct}%)</span>
+                            <span style="color: #f87171; font-weight: 700;">Sell: ${fmtLot(sellLots)} Lot (${sellPct}%)</span>
                         </div>
-                        <div class="intel-metric-box">
-                            <span class="metric-label">Foreign Sell (${sellPct}%)</span>
-                            <span class="metric-value down">${fmtLot(sellLots)} Lot</span>
-                            <span class="metric-sub">Distribusi jual asing</span>
+                        <div class="broksum-ratio-bar-container" style="height: 8px;">
+                            <div class="ratio-buy-bar" style="width: ${buyPct}%;"></div>
+                            <div class="ratio-sell-bar" style="width: ${sellPct}%;"></div>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 9.5px; color: var(--text-muted); margin-top: 5px;">
+                            <span>Total Akumulasi Asing</span>
+                            <span>Total Distribusi Asing</span>
                         </div>
                     </div>
                 </div>
 
                 <!-- 3. Emiten Status & Papan Bursa -->
                 <div class="intel-modal-section">
-                    <div class="intel-modal-sec-title">🏢 Keterangan Emiten &amp; Notasi BEI</div>
-                    <div class="intel-metric-box" style="gap: 6px;">
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <span class="metric-label">Papan Bursa:</span>
-                            <span style="font-weight: 700; color: #f8fafc; font-size: 11px;">${escapeHtml(papan)}</span>
+                    <div class="intel-modal-sec-title">🏢 Papan Bursa &amp; Notasi BEI</div>
+                    <div class="intel-metric-grid cols-2">
+                        <div class="intel-metric-box">
+                            <span class="metric-label">Papan Pencatatan</span>
+                            <span class="metric-value" style="font-size: 12px;">${escapeHtml(papan)}</span>
+                            <span class="metric-sub">Segmen Bursa</span>
                         </div>
-                        <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 5px;">
-                            <span class="metric-label">Notasi Khusus:</span>
-                            <span>${notasi ? `<span class="notasi-pill">[${escapeHtml(notasi)}]</span>` : '<span style="color: #34d399; font-weight: 700; font-size: 11px;">✓ Tidak Ada (Bersih)</span>'}</span>
+                        <div class="intel-metric-box">
+                            <span class="metric-label">Notasi Khusus</span>
+                            <span class="metric-value" style="font-size: 12px;">
+                                ${notasi ? `<span class="notasi-pill">[${escapeHtml(notasi)}]</span>` : '<span style="color: #34d399;">✓ Bersih</span>'}
+                            </span>
+                            <span class="metric-sub">${notasi ? 'Kepatuhan BEI' : 'Tanpa Notasi'}</span>
                         </div>
                     </div>
                 </div>
 
-                <!-- 4. Smart Insight Callout -->
-                <div class="intel-modal-section">
-                    <div class="intel-modal-sec-title">💡 Insight Candlify</div>
-                    <div class="intel-callout-box ${calloutCls}">
-                        <div class="intel-callout-title">${calloutTitle}</div>
-                        <div class="intel-callout-desc">${calloutDesc}</div>
-                    </div>
-                    ${notasi ? `
-                    <div class="intel-callout-box warning" style="margin-top: 6px;">
-                        <div class="intel-callout-title">⚠️ Perhatian Notasi Khusus [${escapeHtml(notasi)}]</div>
-                        <div class="intel-callout-desc">Emiten disematkan notasi khusus oleh Bursa Efek Indonesia. Selalu batasi alokasi risiko dan utamakan konfirmasi teknikal ketat.</div>
-                    </div>` : ''}
+                <!-- 4. Link ke Kitab Panduan Lengkap -->
+                <div style="margin-top: 4px;">
+                    <button type="button" class="intel-doc-link-btn" id="btn-goto-foreign-doc">
+                        📖 Buka Panduan Lengkap Foreign Flow di Kitab →
+                    </button>
                 </div>
             `;
         } else if (type === 'trade_nego') {
-            title = `🐳 Trade Size & Pasar Nego • ${symbol}`;
-            subtitle = `Deteksi Crossing, Transaksi Nego & Whale vs Ritel • ${dateLabel}`;
+            title = `🐳 Detail Trade Size & Pasar Nego • ${symbol}`;
+            subtitle = `Data Transaksi Nego & Whale vs Ritel • ${dateLabel}`;
 
             const tradeSize = summary.trade_size || summary.market_intelligence?.trade_size || {};
             const nego = summary.pasar_nego || summary.market_intelligence?.pasar_nego || {};
@@ -2732,7 +2716,6 @@ class CandlifyChart {
             const negoLots = Number(nego.volume_lots) || Math.round((Number(nego.volume_shares) || 0) / 100);
             const pctNego = Number(nego.pct_of_turnover) || 0;
             const hasCrossing = Boolean(nego.has_crossing);
-            const crossingReason = nego.crossing_reason || '';
             const crossingEvents = Array.isArray(nego.crossing_events) ? nego.crossing_events : [];
 
             let whaleBadgeText = 'Normal';
@@ -2742,19 +2725,24 @@ class CandlifyChart {
                 whaleBadgeText = `🦐 Ritel Aktif (${whaleRatio.toFixed(1)}x)`;
             }
 
+            // Visual Comparison Bar Scaling
+            const maxLpt = Math.max(todayLpt, avg20dLpt, 1);
+            const todayBarPct = Math.min(100, Math.max(12, Math.round((todayLpt / maxLpt) * 100)));
+            const avgBarPct = Math.min(100, Math.max(12, Math.round((avg20dLpt / maxLpt) * 100)));
+
             html = `
                 <!-- 1. Whale vs Ritel Trade Size Grid -->
                 <div class="intel-modal-section">
-                    <div class="intel-modal-sec-title">🐳 Whale vs Ritel (Lot / Transaksi)</div>
+                    <div class="intel-modal-sec-title">🐳 Ukuran Order Transaksi (Lot / Trx)</div>
                     <div class="intel-metric-grid">
                         <div class="intel-metric-box">
-                            <span class="metric-label">${isRange ? 'Rerata Periode' : 'Hari Ini'}</span>
-                            <span class="metric-value">${todayLpt} <span style="font-size: 10px; font-weight: normal; color: #94a3b8;">Lot/Trx</span></span>
-                            <span class="metric-sub">${tradeSize.frequency ? `${tradeSize.frequency.toLocaleString('id-ID')} Trx` : 'Order Size'}</span>
+                            <span class="metric-label">${isRange ? 'Rerata Periode' : 'Hari Ini (1D)'}</span>
+                            <span class="metric-value">${todayLpt} <span style="font-size: 10px; font-weight: normal; color: #94a3b8;">Lot</span></span>
+                            <span class="metric-sub">${tradeSize.frequency ? `${tradeSize.frequency.toLocaleString('id-ID')} Trx` : 'Frekuensi'}</span>
                         </div>
                         <div class="intel-metric-box">
                             <span class="metric-label">Rerata 20 Hari</span>
-                            <span class="metric-value">${avg20dLpt} <span style="font-size: 10px; font-weight: normal; color: #94a3b8;">Lot/Trx</span></span>
+                            <span class="metric-value">${avg20dLpt} <span style="font-size: 10px; font-weight: normal; color: #94a3b8;">Lot</span></span>
                             <span class="metric-sub">Baseline 20D</span>
                         </div>
                         <div class="intel-metric-box">
@@ -2765,7 +2753,32 @@ class CandlifyChart {
                     </div>
                 </div>
 
-                <!-- 2. Pasar Nego (Non-Reguler) Status -->
+                <!-- 2. Visual Perbandingan Grafik Batang Horizontal -->
+                <div class="intel-modal-section">
+                    <div class="intel-modal-sec-title">📊 Perbandingan vs Rerata 20 Hari</div>
+                    <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px;">
+                        <div>
+                            <div style="display: flex; justify-content: space-between; font-size: 10px; color: #cbd5e1; margin-bottom: 3px;">
+                                <span>${isRange ? 'Periode Terpilih' : 'Hari Ini'}: <strong style="color: #fff;">${todayLpt} Lot/Trx</strong></span>
+                                <span style="color: ${whaleRatio >= 1.5 ? '#c084fc' : '#38bdf8'}; font-weight: 700;">${whaleRatio.toFixed(1)}x</span>
+                            </div>
+                            <div class="broksum-ratio-bar-container" style="height: 6px; background: rgba(255,255,255,0.06);">
+                                <div style="background: ${whaleRatio >= 1.5 ? '#c084fc' : '#38bdf8'}; width: ${todayBarPct}%; height: 100%; border-radius: 3px;"></div>
+                            </div>
+                        </div>
+                        <div>
+                            <div style="display: flex; justify-content: space-between; font-size: 10px; color: #94a3b8; margin-bottom: 3px;">
+                                <span>Baseline 20 Hari: <strong style="color: #cbd5e1;">${avg20dLpt} Lot/Trx</strong></span>
+                                <span>1.0x</span>
+                            </div>
+                            <div class="broksum-ratio-bar-container" style="height: 6px; background: rgba(255,255,255,0.06);">
+                                <div style="background: #64748b; width: ${avgBarPct}%; height: 100%; border-radius: 3px;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. Pasar Nego (Non-Reguler) Status -->
                 <div class="intel-modal-section">
                     <div class="intel-modal-sec-title">🏛️ Transaksi Pasar Negosiasi (Nego)</div>
                     <div class="intel-metric-grid cols-2">
@@ -2777,71 +2790,31 @@ class CandlifyChart {
                         <div class="intel-metric-box">
                             <span class="metric-label">Porsi Terhadap Turnover</span>
                             <span class="metric-value" style="color: ${pctNego >= 20 ? '#fbbf24' : '#f8fafc'};">${pctNego}%</span>
-                            <span class="metric-sub">Pangsa dari total transaksi</span>
+                            <span class="metric-sub">${hasCrossing ? '⚠️ Crossing Terdeteksi' : '✓ Normal'}</span>
                         </div>
                     </div>
                 </div>
 
-                <!-- 3. Crossing Alert & Daftar Transaksi -->
-                ${hasCrossing ? `
+                <!-- 4. Riwayat Transaksi Nego Terbesar (Data Tabel Bersih) -->
+                ${crossingEvents.length > 0 ? `
                 <div class="intel-modal-section">
-                    <div class="intel-modal-sec-title">⚠️ Deteksi Transaksi Crossing / Nego Material</div>
-                    <div class="intel-callout-box warning">
-                        <div class="intel-callout-title">⚠️ Terdeteksi Transaksi Nego Besar:</div>
-                        <div class="intel-callout-desc"><strong>${escapeHtml(crossingReason || `Volume Nego signifikan Rp ${fmtVal(negoVal)} (${pctNego}% dari turnover)`)}</strong>. Transaksi crossing di pasar negosiasi berpotensi merupakan pengalihan saham internal / repo.</div>
+                    <div class="intel-modal-sec-title">📋 Transaksi Nego Terbesar (≥ Rp 5 B / ≥ 1% Saham)</div>
+                    <div class="intel-event-list">
+                        ${crossingEvents.map(ev => `
+                            <div class="intel-event-item">
+                                <span class="intel-event-date">📅 ${escapeHtml(ev.date || '')}</span>
+                                <span class="intel-event-val">Rp ${fmtVal(ev.value)}</span>
+                                <span class="intel-event-lot">${fmtLot(ev.lots)} Lot</span>
+                            </div>
+                        `).join('')}
                     </div>
+                </div>` : ''}
 
-                    ${crossingEvents.length > 0 ? `
-                    <div style="margin-top: 6px;">
-                        <span style="font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase;">Riwayat Transaksi Nego Terbesar:</span>
-                        <div class="intel-event-list" style="margin-top: 4px;">
-                            ${crossingEvents.map(ev => `
-                                <div class="intel-event-item">
-                                    <span class="intel-event-date">📅 ${escapeHtml(ev.date || '')}</span>
-                                    <span class="intel-event-val">Rp ${fmtVal(ev.value)}</span>
-                                    <span class="intel-event-lot">${fmtLot(ev.lots)} Lot</span>
-                                </div>
-                            `).join('')}
-                        </div>
-                    </div>` : ''}
-
-                    <div class="intel-callout-box info" style="margin-top: 8px;">
-                        <div class="intel-callout-title">💡 SOP Mitigasi Candlify (Kasus False Accumulation):</div>
-                        <div class="intel-callout-desc">
-                            Crossing internal seringkali membuat akumulasi broker terlihat sangat masif di broksum agregat padahal harga di pasar reguler tidak digerakkan (contoh kasus broker RS pada saham BINA).<br><br>
-                            <strong>Langkah Mitigasi Cepat:</strong><br>
-                            1. Buka tab <strong>Daily Activity</strong>: Pastikan volume reguler aktif setiap hari, bukan spike sesaat di tanggal crossing.<br>
-                            2. Buka tab <strong>Broker Flow</strong>: Waspadai bila broker penampung selalu beli tanpa pernah jual (pola standby buyer repo).<br>
-                            3. <strong>Validasi Chart</strong>: Hanya entri jika terbentuk setup Pre-Breakout / Breakout riil dengan volume reguler sehat!
-                        </div>
-                    </div>
-                </div>
-                ` : `
-                <div class="intel-modal-section">
-                    <div class="intel-modal-sec-title">🛡️ Integritas Likuiditas</div>
-                    <div class="intel-callout-box success">
-                        <div class="intel-callout-title">✅ Pasar Nego Bersih &amp; Normal</div>
-                        <div class="intel-callout-desc">Tidak ditemukan anomali crossing atau transaksi nego masif (${pctNego}% dari turnover). Akumulasi broker summary berlangsung secara organik di Pasar Reguler dan merefleksikan dinamika pasar yang valid.</div>
-                    </div>
-                </div>
-                `}
-
-                <!-- 4. Whale Activity Explanation -->
-                <div class="intel-modal-section">
-                    <div class="intel-modal-sec-title">💡 Insight Ukuran Transaksi</div>
-                    ${whaleRatio >= 1.5 ? `
-                    <div class="intel-callout-box purple">
-                        <div class="intel-callout-title">🐳 Institusi / Whale Dominan</div>
-                        <div class="intel-callout-desc">Rata-rata lot per order mencapai <strong>${todayLpt} Lot/Trx</strong> (${whaleRatio.toFixed(1)}x normal). Menandakan adanya partisipasi modal institusi / block order besar di pasar reguler.</div>
-                    </div>` : (whaleRatio <= 0.75 ? `
-                    <div class="intel-callout-box info">
-                        <div class="intel-callout-title">🦐 Aktivitas Ritel Tinggi</div>
-                        <div class="intel-callout-desc">Ukuran order rata-rata kecil (<strong>${todayLpt} Lot/Trx</strong>) dengan frekuensi tinggi. Pasar didominasi oleh partisipasi ritel harian.</div>
-                    </div>` : `
-                    <div class="intel-callout-box info">
-                        <div class="intel-callout-title">⚖️ Ukuran Transaksi Normal</div>
-                        <div class="intel-callout-desc">Distribusi lot per order (<strong>${todayLpt} Lot/Trx</strong>) berada dalam rentang normal dan stabil mendekati rerata 20 hari.</div>
-                    </div>`)}
+                <!-- 5. Link ke Kitab Panduan Lengkap -->
+                <div style="margin-top: 4px;">
+                    <button type="button" class="intel-doc-link-btn" id="btn-goto-nego-doc">
+                        📖 Buka Panduan Mitigasi Crossing &amp; Standby Repo di Kitab →
+                    </button>
                 </div>
             `;
         }
@@ -2849,6 +2822,22 @@ class CandlifyChart {
         if (this.dom.intelModalTitle) this.dom.intelModalTitle.textContent = title;
         if (this.dom.intelModalSubtitle) this.dom.intelModalSubtitle.textContent = subtitle;
         if (this.dom.intelModalBody) this.dom.intelModalBody.innerHTML = html;
+
+        // Pasang event listener tombol link dokumen
+        const btnForeignDoc = this.dom.intelModalBody.querySelector('#btn-goto-foreign-doc');
+        if (btnForeignDoc) {
+            btnForeignDoc.addEventListener('click', () => {
+                this.closeIntelDetailModal();
+                this.openDocModal('bandarmology_pre_breakout', 'Kitab Pre-Breakout & Bandarmology', 'Dokumentasi Resmi Candlify', '📖');
+            });
+        }
+        const btnNegoDoc = this.dom.intelModalBody.querySelector('#btn-goto-nego-doc');
+        if (btnNegoDoc) {
+            btnNegoDoc.addEventListener('click', () => {
+                this.closeIntelDetailModal();
+                this.openDocModal('03_sop_strategi_pre_breakout', 'SOP Strategi Pre-Breakout', 'Dokumentasi Resmi Candlify', '📖');
+            });
+        }
 
         this.dom.intelDetailBackdrop.classList.remove('hidden');
         this.dom.intelDetailModal.classList.remove('hidden');

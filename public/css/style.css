@@ -1445,6 +1445,34 @@ html, body {
     font-size: 10px;
 }
 
+.intel-doc-link-btn {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px dashed rgba(255, 255, 255, 0.16);
+    border-radius: 6px;
+    padding: 8px 12px;
+    color: #94a3b8;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.18s ease;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    text-align: center;
+    margin-top: 4px;
+}
+
+.intel-doc-link-btn:hover {
+    background: rgba(59, 130, 246, 0.08);
+    border-color: rgba(59, 130, 246, 0.4);
+    color: #60a5fa;
+}
+
+.intel-doc-link-btn:active {
+    transform: scale(0.99);
+}
+
 /* Notasi Khusus Badge (Subtle, non-intrusive) */
 .notasi-badge, .notasi-pill {
     display: inline-flex;
