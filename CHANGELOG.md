@@ -7,7 +7,9 @@ Semua perubahan penting, perbaikan bug, dan peningkatan fitur pada proyek **Cand
 ## [2.5.0] — 2026-10-19
 ### 🛠️ Bug Fixes (P0, P1, P2)
 - **Cloudflare WAF Resilience & Auto Gap-Detector (`worker/sync_idx_daily.py`, `worker/downloader_idx.py`, `.github/workflows/harvester-cron.yml`)**:
-  - Memperbaiki kegagalan `HTTP 403` saat mengakses `www.idx.co.id` dari GitHub Actions runner (`ubuntu-latest` / Azure ASN) dengan menambahkan rotasi multi-profil TLS (`safari17_0`, `chrome124`, `chrome120`, `safari15_5`, `edge101`), *Session Cookie Warm-up* (`__cf_bm`), dan routing proxy lokal **Cloudflare WARP (`socks5h://127.0.0.1:40000`)**.
+  - Memperbaiki kegagalan `HTTP 403` (`cf-mitigated: challenge`) saat mengakses `www.idx.co.id` dengan memensiunkan profil TLS lawas yang diblokir (`safari17_0`, `safari15_5`, `edge101`) dan menggantinya dengan profil modern murni (`chrome131`, `chrome124`, `safari180`, `safari184`, `firefox133`, `chrome120`) tanpa override header `Sec-Fetch-*` manual yang merusak *HTTP/2 pseudo-header fingerprint*.
+  - Menambahkan **WARP Pre-Flight Verification & Auto IP Rotation (`_rotate_warp_ip`)** untuk me-reset registrasi & mendapatkan IP keluar Cloudflare WARP baru secara otomatis jika IP sebelumnya terkena challenge 403.
+  - Menambahkan **Layer 1B Real Browser Fallback (`fetch_idx_via_browser` via `DrissionPage` + `xvfb`)** untuk mengeksekusi JavaScript Challenge Cloudflare di dalam DOM Chromium asli sebelum beralih ke fallback Layer 2 (Yahoo Finance).
   - Menambahkan fitur **Auto Gap-Detector (`detect_and_fill_idx_gaps`)** pada sinkronisasi harian BEI yang secara otomatis mendeteksi dan menambal tanggal bursa yang terlewat atau yang sebelumnya hanya terisi oleh fallback Yahoo Finance (`frequency = 0`) hingga 14 hari kalender ke belakang tanpa menimpa master emiten terbaru.
 - **Worker Pipeline Orchestrator (`worker/run.py`, `worker/pipeline.py`, `worker/sync_idx_daily.py`)**:
   - Memperbaiki `NameError: name 'pipeline_success' is not defined` pada `worker/run.py` saat pembuatan laporan status akhir Telegram.

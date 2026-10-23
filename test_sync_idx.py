@@ -298,6 +298,24 @@ class TestCloudflareResilienceAndAutoGap:
             assert payload["data"][0]["StockCode"] == "BBCA"
             assert mock_session.get.call_count == 2
 
+    def test_fetch_idx_trading_summary_layer1b_browser_fallback_when_all_curl_403(self):
+        from worker.sync_idx_daily import fetch_idx_trading_summary
+
+        mock_403_resp = MagicMock()
+        mock_403_resp.status_code = 403
+
+        mock_session = MagicMock()
+        mock_session.__enter__.return_value = mock_session
+        mock_session.get.return_value = mock_403_resp
+
+        with patch("worker.sync_idx_daily.cf_requests.get", return_value=mock_403_resp), \
+             patch("worker.sync_idx_daily.cf_requests.Session", return_value=mock_session), \
+             patch("worker.sync_idx_daily.time.sleep"), \
+             patch("worker.sync_idx_daily.fetch_idx_via_browser", return_value={"data": [{"StockCode": "BBRI"}]}) as mock_browser:
+            payload = fetch_idx_trading_summary(date_str="20261022")
+            assert payload["data"][0]["StockCode"] == "BBRI"
+            assert mock_browser.called
+
     def test_detect_and_fill_idx_gaps_identifies_yahoo_fallback_and_missing_weekdays(self):
         from worker.sync_idx_daily import detect_and_fill_idx_gaps
 

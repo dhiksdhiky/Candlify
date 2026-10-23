@@ -25,6 +25,8 @@ import sys
 import re
 import csv
 import time
+import shutil
+import subprocess
 import logging
 from datetime import datetime, date, timedelta
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -98,15 +100,140 @@ def format_shares_dot(shares: int) -> str:
     return f"{shares:,}".replace(",", ".")
 
 
+def _rotate_warp_ip() -> bool:
+    """
+    Me-reset registrasi & koneksi Cloudflare WARP lokal (jika tersedia di Linux/GitHub Actions)
+    agar mendapatkan IP keluar (egress IP) Cloudflare baru ketika IP sebelumnya terkena challenge 403.
+    """
+    if not shutil.which("warp-cli"):
+        return False
+    try:
+        logger.info("🔄 Merotasi sesi & IP Cloudflare WARP (warp-cli registration renew)...")
+        cmds = [
+            "warp-cli --accept-tos disconnect",
+            "warp-cli --accept-tos registration delete || warp-cli --accept-tos delete",
+            "warp-cli --accept-tos registration new || warp-cli --accept-tos register",
+            "warp-cli --accept-tos mode proxy || warp-cli --accept-tos set-mode proxy",
+            "warp-cli --accept-tos proxy port 40000 || warp-cli --accept-tos set-proxy-port 40000",
+            "warp-cli --accept-tos connect",
+        ]
+        for cmd in cmds:
+            subprocess.run(cmd, shell=True, timeout=12, capture_output=True)
+        time.sleep(3.0)
+        return True
+    except Exception as exc:
+        logger.warning("⚠️ Gagal merotasi IP WARP: %s", exc)
+        return False
+
+
+def fetch_idx_via_browser(
+    date_str: str = "",
+    proxy_url: Optional[str] = None,
+    timeout: int = 35,
+) -> Dict[str, Any]:
+    """
+    Layer 1B Fallback: Mengambil data IDX GetStockSummary menggunakan Real Browser (DrissionPage)
+    untuk mengeksekusi JavaScript Challenge Cloudflare (cf-mitigated: challenge) jika curl_cffi diblokir.
+    """
+    from DrissionPage import ChromiumOptions, ChromiumPage
+
+    clean_d = date_str.replace("-", "").strip() if date_str else ""
+    query_str = f"length=9999&start=0&date={clean_d}" if clean_d else "length=9999&start=0"
+    api_path = f"/primary/TradingSummary/GetStockSummary?{query_str}"
+    full_api_url = f"https://www.idx.co.id{api_path}"
+    referer_url = "https://www.idx.co.id/id/data-pasar/ringkasan-perdagangan/ringkasan-saham"
+
+    proxy_modes = [proxy_url, None] if proxy_url else [None]
+    last_err: Optional[Exception] = None
+
+    # Deteksi path browser Chrome/Edge lintas OS
+    browser_candidates = [
+        "/usr/bin/google-chrome",
+        "/usr/bin/google-chrome-stable",
+        "/usr/bin/chromium",
+        "/usr/bin/chromium-browser",
+        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+        r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+    ]
+    browser_path = next((p for p in browser_candidates if os.path.exists(p)), None)
+
+    for p_url in proxy_modes:
+        page = None
+        try:
+            co = ChromiumOptions().auto_port()
+            if browser_path:
+                co.set_browser_path(browser_path)
+            co.set_argument("--no-sandbox")
+            co.set_argument("--disable-gpu")
+            co.set_argument("--disable-dev-shm-usage")
+            co.set_argument("--lang=id-ID")
+            # Gunakan headful jika ada DISPLAY (misal xvfb-run di GitHub Actions), headless jika tidak ada
+            if os.name != "nt" and not os.environ.get("DISPLAY"):
+                co.headless(True)
+            if p_url and p_url.startswith("http"):
+                co.set_proxy(p_url)
+
+            mode_lbl = "Browser+Proxy" if p_url else "Browser-Direct"
+            logger.info("🌐 [Layer 1B] Membuka Real Chromium (%s) untuk bypass Cloudflare JS Challenge...", mode_lbl)
+            page = ChromiumPage(co)
+            page.get(referer_url, timeout=timeout)
+
+            # Tunggu hingga Cloudflare challenge ("Just a moment...") selesai (maks 15 detik)
+            for _ in range(15):
+                title = (page.title or "").lower()
+                if "just a moment" not in title and "tunggu sebentar" not in title and "attention required" not in title:
+                    break
+                time.sleep(1.0)
+
+            # Eksekusi fetch() langsung dari konteks DOM halaman www.idx.co.id
+            js_code = f"""
+                return await fetch("{api_path}", {{
+                    headers: {{ "Accept": "application/json, text/plain, */*" }}
+                }}).then(r => {{
+                    if (!r.ok) throw new Error("HTTP " + r.status);
+                    return r.json();
+                }});
+            """
+            payload = page.run_js(js_code)
+            if isinstance(payload, dict) and "data" in payload:
+                logger.info("✅ [Layer 1B] Real Browser berhasil mengekstrak payload IDX (%d baris).", len(payload.get("data", [])))
+                return payload
+
+            # Fallback: navigasi langsung ke URL JSON API
+            page.get(full_api_url, timeout=timeout)
+            raw_json = page.json
+            if isinstance(raw_json, dict) and "data" in raw_json:
+                logger.info("✅ [Layer 1B] Real Browser direct JSON berhasil (%d baris).", len(raw_json.get("data", [])))
+                return raw_json
+
+            raise RuntimeError(f"Browser tidak mengembalikan JSON valid (title={page.title!r}).")
+        except Exception as exc:
+            last_err = exc
+            logger.warning("⚠️ [Layer 1B] %s gagal: %s", "Browser+Proxy" if p_url else "Browser-Direct", exc)
+        finally:
+            if page is not None:
+                try:
+                    page.quit()
+                except Exception:
+                    pass
+
+    if last_err:
+        raise last_err
+    raise RuntimeError("Layer 1B (Real Browser) gagal mengambil data IDX.")
+
+
 def fetch_idx_trading_summary(
     date_str: str = "",
-    impersonate: str = "safari17_0",
+    impersonate: str = "chrome131",
     timeout: int = 25
 ) -> Dict[str, Any]:
     """
     Mengambil data Trading Summary dari portal resmi BEI.
     Bisa menerima date_str format 'YYYYMMDD' atau 'YYYY-MM-DD'.
-    Dilengkapi rotasi profil TLS impersonation & session cookie warm-up untuk menembus Cloudflare WAF.
+    Arsitektur Anti-403 Tiga Lapis:
+    - Layer 1A: Modern curl_cffi TLS Impersonation (chrome131, chrome124, safari180, safari184, firefox133)
+      dengan header native murni, Session Cookie Warm-up, dan Auto WARP IP Rotation.
+    - Layer 1B: Real Browser Bypass (DrissionPage Chromium + Xvfb) jika Cloudflare mengaktifkan JS Challenge.
     """
     params: Dict[str, Any] = {
         "length": 9999,
@@ -117,30 +244,31 @@ def fetch_idx_trading_summary(
         params["date"] = clean_d
 
     referer_url = "https://www.idx.co.id/id/data-pasar/ringkasan-perdagangan/ringkasan-saham"
+    # Gunakan header minimal agar tidak merusak urutan HTTP/2 pseudo-header & sec-ch-ua bawaan curl_cffi
     headers = {
         "Accept": "application/json, text/plain, */*",
-        "Accept-Language": "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7",
         "Referer": referer_url,
-        "X-Requested-With": "XMLHttpRequest",
-        "Sec-Fetch-Dest": "empty",
-        "Sec-Fetch-Mode": "cors",
-        "Sec-Fetch-Site": "same-origin",
     }
 
     proxy_url = os.getenv("IDX_PROXY_URL", "").strip() or None
     proxies = {"http": proxy_url, "https": proxy_url} if proxy_url else None
     proxy_candidates = [proxies, None] if proxies else [None]
 
-    profiles = [impersonate, "chrome124", "chrome120", "safari15_5", "edge101"]
-    # Hilangkan duplikat dengan tetap menjaga urutan
+    # Hanya gunakan profil browser modern yang lolos verifikasi Cloudflare (tanpa safari17_0 / safari15_5 / edge101)
+    if impersonate in ("safari17_0", "safari15_5", "edge101"):
+        impersonate = "chrome131"
+    profiles = [impersonate, "chrome131", "chrome124", "safari180", "safari184", "firefox133", "chrome120"]
     seen_p = set()
     ordered_profiles = [p for p in profiles if not (p in seen_p or seen_p.add(p))]
 
     last_error: Optional[Exception] = None
+    warp_rotations = 0
 
     for p_cfg in proxy_candidates:
-        for prof in ordered_profiles:
+        for idx, prof in enumerate(ordered_profiles):
             try:
+                if idx > 0:
+                    time.sleep(1.0)
                 mode_lbl = f"{prof}+proxy" if p_cfg else prof
                 logger.info("📡 Mengakses IDX GetStockSummary (impersonate=%s, date=%s)...", mode_lbl, date_str or "latest")
                 response = cf_requests.get(
@@ -156,14 +284,7 @@ def fetch_idx_trading_summary(
                 if response.status_code == 403:
                     logger.info("🔄 HTTP 403 pada direct GET (%s), mencoba Session Cookie Warm-up...", mode_lbl)
                     with cf_requests.Session(impersonate=prof, proxies=p_cfg) as s:
-                        s.get(
-                            referer_url,
-                            headers={
-                                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                                "Accept-Language": "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7",
-                            },
-                            timeout=timeout,
-                        )
+                        s.get(referer_url, timeout=timeout)
                         response = s.get(
                             IDX_SUMMARY_URL,
                             params=params,
@@ -179,6 +300,11 @@ def fetch_idx_trading_summary(
 
                 last_error = RuntimeError(f"HTTP {response.status_code} saat mengakses IDX Trading Summary (impersonate={mode_lbl}).")
                 logger.warning("⚠️ %s", last_error)
+
+                # Jika menggunakan WARP proxy dan terkena 403, rotasi IP WARP agar percobaan profil berikutnya memakai IP baru
+                if p_cfg is not None and response.status_code == 403 and warp_rotations < 2:
+                    if _rotate_warp_ip():
+                        warp_rotations += 1
             except Exception as exc:
                 last_error = exc
                 logger.warning("⚠️ Impersonate %s gagal: %s", prof, exc)
@@ -186,9 +312,16 @@ def fetch_idx_trading_summary(
                 if p_cfg is not None and ("Connection refused" in str(exc) or "Failed to connect" in str(exc) or "(7)" in str(exc)):
                     break
 
+    # Jika seluruh profil curl_cffi (Layer 1A) terkena HTTP 403 (Cloudflare JS Managed Challenge),
+    # aktifkan Layer 1B (Real Browser via DrissionPage) sebelum menyerah ke Yahoo Finance!
+    try:
+        return fetch_idx_via_browser(date_str=date_str, proxy_url=proxy_url, timeout=35)
+    except Exception as browser_exc:
+        logger.warning("⚠️ [Layer 1B] Fallback Real Browser gagal: %s", browser_exc)
+
     if last_error:
         raise last_error
-    raise RuntimeError("Gagal mengakses IDX Trading Summary setelah mencoba semua profil TLS.")
+    raise RuntimeError("Gagal mengakses IDX Trading Summary setelah mencoba semua profil TLS & Real Browser.")
 
 
 def parse_trading_summary_data(

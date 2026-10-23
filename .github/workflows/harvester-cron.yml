@@ -30,19 +30,28 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r worker/requirements.txt
 
-    - name: Setup Cloudflare WARP Proxy (Bypass Azure ASN Block on IDX)
+    - name: Setup Cloudflare WARP Proxy & Pre-Verify Clean IDX IP
       continue-on-error: true
       run: |
         curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg | sudo gpg --yes --dearmor --output /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
         echo "deb [signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg] https://pkg.cloudflareclient.com/ $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/cloudflare-client.list
-        sudo apt-get update && sudo apt-get install -y cloudflare-warp
-        sudo warp-svc > /dev/null 2>&1 &
+        sudo apt-get update && sudo apt-get install -y cloudflare-warp xvfb
+        sudo systemctl start warp-svc || (sudo warp-svc > /dev/null 2>&1 &)
         sleep 2
-        warp-cli --accept-tos registration new || warp-cli --accept-tos register || true
-        warp-cli --accept-tos mode proxy || warp-cli --accept-tos set-mode proxy || true
-        warp-cli --accept-tos proxy port 40000 || warp-cli --accept-tos set-proxy-port 40000 || true
-        warp-cli --accept-tos connect || true
-        sleep 3
+        for attempt in 1 2 3 4; do
+          echo "🔄 [WARP Attempt $attempt/4] Registering & connecting proxy..."
+          warp-cli --accept-tos disconnect || true
+          warp-cli --accept-tos registration delete || warp-cli --accept-tos delete || true
+          warp-cli --accept-tos registration new || warp-cli --accept-tos register || true
+          warp-cli --accept-tos mode proxy || warp-cli --accept-tos set-mode proxy || true
+          warp-cli --accept-tos proxy port 40000 || warp-cli --accept-tos set-proxy-port 40000 || true
+          warp-cli --accept-tos connect || true
+          sleep 4
+          if python -c "from curl_cffi import requests as cf; r = cf.get('https://www.idx.co.id/primary/TradingSummary/GetStockSummary?length=1&start=0', headers={'Accept':'application/json, text/plain, */*','Referer':'https://www.idx.co.id/id/data-pasar/ringkasan-perdagangan/ringkasan-saham'}, impersonate='chrome131', proxies={'http':'socks5h://127.0.0.1:40000','https':'socks5h://127.0.0.1:40000'}, timeout=15); print('WARP Pre-check HTTP:', r.status_code); exit(0 if r.status_code == 200 else 1)"; then
+            echo "✅ Clean WARP IP verified for IDX (HTTP 200)!"
+            break
+          fi
+        done
 
     - name: Run Stock Engine (Pipeline + Harvester)
       timeout-minutes: 350 # Strict step timeout: runner actively kills if step reaches 350 menit
@@ -54,4 +63,4 @@ jobs:
         TELE_CHAT_ID_DHIKA: ${{ secrets.TELE_CHAT_ID_DHIKA }}
       run: |
         cd worker
-        python -u run.py
+        xvfb-run -a python -u run.py || python -u run.py

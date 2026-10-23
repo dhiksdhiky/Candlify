@@ -93,7 +93,7 @@ class DirectApiExtractor(ExtractionStrategy):
         self,
         sector: str = "",
         board: str = "",
-        impersonate: str = "chrome124",
+        impersonate: str = "chrome131",
         timeout: int = 20,
     ) -> None:
         self.sector = sector.strip()
@@ -114,19 +114,14 @@ class DirectApiExtractor(ExtractionStrategy):
         referer_url = "https://www.idx.co.id/id/data-pasar/data-saham/daftar-saham"
         headers = {
             "Accept": "application/json, text/plain, */*",
-            "Accept-Language": "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7",
             "Referer": referer_url,
-            "X-Requested-With": "XMLHttpRequest",
-            "Sec-Fetch-Dest": "empty",
-            "Sec-Fetch-Mode": "cors",
-            "Sec-Fetch-Site": "same-origin",
         }
 
         proxy_url = os.getenv("IDX_PROXY_URL", "").strip() or None
         proxies = {"http": proxy_url, "https": proxy_url} if proxy_url else None
         proxy_candidates = [proxies, None] if proxies else [None]
 
-        profiles = [self.impersonate, "safari17_0", "chrome124", "chrome120", "safari15_5"]
+        profiles = [self.impersonate, "chrome131", "chrome124", "safari180", "safari184", "firefox133", "chrome120"]
         seen_p = set()
         ordered_profiles = [p for p in profiles if not (p in seen_p or seen_p.add(p))]
 
@@ -191,7 +186,7 @@ class NuxtSsrDecompilerExtractor(ExtractionStrategy):
     def __init__(
         self,
         html_source: Optional[str] = None,
-        impersonate: str = "chrome124",
+        impersonate: str = "chrome131",
         timeout: int = 20,
     ) -> None:
         self.html_source = html_source
@@ -204,25 +199,28 @@ class NuxtSsrDecompilerExtractor(ExtractionStrategy):
 
         proxy_url = os.getenv("IDX_PROXY_URL", "").strip() or None
         proxies = {"http": proxy_url, "https": proxy_url} if proxy_url else None
-        profiles = [self.impersonate, "safari17_0", "chrome124", "chrome120", "safari15_5"]
+        proxy_candidates = [proxies, None] if proxies else [None]
+        profiles = [self.impersonate, "chrome131", "chrome124", "safari180", "safari184", "firefox133"]
         seen_p = set()
         ordered_profiles = [p for p in profiles if not (p in seen_p or seen_p.add(p))]
 
         last_status = 0
-        for prof in ordered_profiles:
-            try:
-                logger.info("📥 Mengunduh HTML SSR (impersonate=%s) dari: %s", prof, self.PAGE_URL)
-                response = cf_requests.get(
-                    self.PAGE_URL,
-                    impersonate=prof,
-                    proxies=proxies,
-                    timeout=self.timeout,
-                )
-                if response.status_code == 200:
-                    return response.text
-                last_status = response.status_code
-            except Exception:
-                pass
+        for p_cfg in proxy_candidates:
+            for prof in ordered_profiles:
+                try:
+                    logger.info("📥 Mengunduh HTML SSR (impersonate=%s) dari: %s", prof, self.PAGE_URL)
+                    response = cf_requests.get(
+                        self.PAGE_URL,
+                        impersonate=prof,
+                        proxies=p_cfg,
+                        timeout=self.timeout,
+                    )
+                    if response.status_code == 200:
+                        return response.text
+                    last_status = response.status_code
+                except Exception as exc:
+                    if p_cfg is not None and ("Connection refused" in str(exc) or "Failed to connect" in str(exc) or "(7)" in str(exc)):
+                        break
         raise RuntimeError(f"Gagal mengambil HTML SSR. HTTP {last_status or 403}")
 
     @staticmethod
@@ -299,7 +297,7 @@ class NuxtSsrDecompilerExtractor(ExtractionStrategy):
         return records
 
 
-def fetch_idx_stocks(impersonate: str = "chrome124", timeout: int = 20) -> List[StockRecord]:
+def fetch_idx_stocks(impersonate: str = "chrome131", timeout: int = 20) -> List[StockRecord]:
     """
     Mengambil seluruh daftar saham BEI dengan fallback berjenjang.
     """
