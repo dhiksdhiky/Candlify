@@ -77,6 +77,7 @@ def main():
     # ── Step 1b & 2: Primary All-in-One IDX Sync (Master Emiten + Harga & Flow) ────
     sync_daily_success = False
     pipeline_success = True if harvester_only else False
+    idx_gaps_filled = []
 
     if not harvester_only and not ("--legacy-pipeline" in args):
         try:
@@ -88,6 +89,7 @@ def main():
             if sync_res.get("status") == "success":
                 sync_daily_success = True
                 pipeline_success = True
+                idx_gaps_filled = sync_res.get("gaps_filled") or []
                 logger.info(f"✅ Sync IDX All-in-One Sukses: {sync_res.get('stocks_synced', 0)} emiten, {sync_res.get('prices_synced', 0)} baris harga.")
         except Exception as e:
             logger.warning(f"⚠️ Primary IDX Sync gagal ({e}), mengaktifkan fallback berjenjang...")
@@ -120,16 +122,21 @@ def main():
     if not daemon_mode and not pipeline_only and not harvester_only and pipeline_success:
         try:
             from scanner_bali import run_scanner
-            run_scanner()
+            run_scanner(touched_dates=idx_gaps_filled)
         except Exception as e:
             logger.warning(f"⚠️ Initial Scanner pass gagal: {e}")
 
     # ── Step 3: Harvester BrokSum ───────────────────────────
     harvester_success = True
+    harv_touched_dates = []
     if not pipeline_only:
         try:
             from harvester import run_harvester
-            run_harvester(daemon_mode=daemon_mode)
+            harv_res = run_harvester(daemon_mode=daemon_mode)
+            if isinstance(harv_res, dict):
+                harv_touched_dates = harv_res.get("touched_dates") or []
+                if harv_res.get("status") == "error":
+                    harvester_success = False
         except Exception as e:
             logger.error(f"❌ Harvester crash: {e}")
             harvester_success = False
@@ -147,7 +154,8 @@ def main():
     if not daemon_mode and not pipeline_only:
         try:
             from scanner_bali import run_scanner
-            run_scanner()
+            combined_touched = list(set(idx_gaps_filled) | set(harv_touched_dates))
+            run_scanner(touched_dates=combined_touched)
         except Exception as e:
             logger.error(f"❌ Scanner crash: {e}")
             scanner_success = False

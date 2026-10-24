@@ -343,7 +343,10 @@ def get_idx_market_intelligence_universe() -> Dict[str, Dict[str, Any]]:
     try:
         sql = text("""
             WITH latest_date AS (
-                SELECT MAX(tanggal) as max_d FROM harga_saham
+                SELECT COALESCE(
+                    (SELECT MAX(tanggal) FROM harga_saham WHERE frequency > 0),
+                    (SELECT MAX(tanggal) FROM harga_saham)
+                ) as max_d
             ),
             recent_20d AS (
                 SELECT ticker, tanggal, close, volume, value, frequency, foreign_net, non_regular_value,

@@ -63,4 +63,8 @@ jobs:
         TELE_CHAT_ID_DHIKA: ${{ secrets.TELE_CHAT_ID_DHIKA }}
       run: |
         cd worker
-        xvfb-run -a python -u run.py || python -u run.py
+        if command -v xvfb-run >/dev/null 2>&1; then
+          xvfb-run -a python -u run.py
+        else
+          python -u run.py
+        fi

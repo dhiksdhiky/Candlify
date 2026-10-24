@@ -77,11 +77,12 @@ Engine Screener Candlify menyaring ribuan saham di BEI setiap hari dengan menguj
 
 ### Parameter Tambahan Institutional Pre-Breakout V2
 Mulai **Candlify v2.5**, mesin `scanner_bali.py` menghitung dan menyimpan 5 metrik mikrostruktur institusional ke dalam database (`candlify_signals`) yang bisa dilihat langsung pada badge dan tooltip Screener:
-1. **Top-3 Dominance (`dominance`)**: Persentase penguasaan barang bersih oleh 3 broker pembeli teratas selama 10 hari bursa terakhir di dalam base.
-2. **Active Accumulation Ratio (`aar`)**: Persentase jumlah hari bursa di mana akumulasi bersih bernilai positif selama fase pembentukan base (minimal $\ge 45\%$).
-3. **Close Location Value 3D (`clv_3d`)**: Posisi penutupan candle rata-rata 3 hari terakhir dalam rentang `Low`–`High` ($\ge 0.55$ menandakan serapan beli kuat menjelang penutupan).
-4. **Up/Down Volume Ratio (`up_down_vol_ratio`)**: Rasio rata-rata volume pada hari candle hijau dibandingkan hari candle merah dalam 10 hari terakhir.
-5. **Pocket Pivot (`is_pocket_pivot` / `⚡Pivot`)**: Sinyal akselerasi dini di dalam kotak base ketika candle ditutup menguat ($\text{CLV} \ge 0.60$) dengan volume hari itu melampaui volume tertinggi candle merah dalam 10 hari terakhir.
+1. **Top-1 Dominance (`dominance`) & Top-5 Net-Inventory HMB**: Persentase penguasaan barang bersih oleh akumulator utama serta Harga Modal Bandar (HMB) dari 5 akumulator teratas yang dikunci ketat **hanya di dalam tanggal fase konsolidasi (`w7` = 5–7 hari bursa terakhir)** agar tidak terdistorsi oleh volume *Prior Spike* di luar base.
+2. **Accumulation Asymmetry Ratio (`aar`)**: Rasio konsentrasi Herfindahl-Hirschman Index ($\text{HHI}_{\text{Buy}} / \text{HHI}_{\text{Sell}}$) selama fase pembentukan base ($\ge 1.5\times$ menandakan pembeli jauh lebih terkonsentrasi daripada penjual).
+3. **Close Location Value 3D (`clv_3d`)**: Posisi penutupan candle rata-rata 3 hari terakhir dalam rentang `Low`–`High` ($\ge 0.50$ menandakan serapan beli kuat menjelang penutupan).
+4. **Up/Down Volume Ratio (`up_down_vol_ratio`)**: Rasio rata-rata volume pada hari candle hijau dibandingkan hari candle merah di dalam base.
+5. **Pocket Pivot (`is_pocket_pivot` / `⚡Pivot`)**: Sinyal akselerasi dini di dalam kotak base ketika candle ditutup di atas MA5 dekat support base dengan volume melampaui volume tertinggi candle merah dalam 10 hari terakhir.
+6. **Broksum Freshness Guard & Smart Auto Re-Scan**: Sinyal akumulasi bandar hanya divalidasi jika terdapat minimal $\ge 3$ hari bursa data *Broker Summary* di dalam base dan maksimal tertinggal 2 hari bursa. Jika server *Broker Summary* sempat mengalami *down* beberapa hari dan ditambal belakangan oleh Harvester, mesin otomatis melakukan *Auto Re-Scan* untuk memperbarui sinyal historis yang terdampak.
 
 ---
 

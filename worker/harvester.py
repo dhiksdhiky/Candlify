@@ -28,7 +28,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from db_config import (
     engine, SessionLocal, log_to_db,
     get_date_cutoff_sql, TEST_MODE,
-    GAP_EXCLUDE_SQL, today_jkt, get_dialect
+    GAP_EXCLUDE_SQL, today_jkt, get_dialect,
+    get_backfill_floor
 )
 from scraper import BroksumScraper, SoftBlockError
 from archiver import archive_and_delete_old_data
@@ -53,31 +54,39 @@ TELEGRAM_CHAT_ID = os.getenv("TELE_CHAT_ID_DHIKA")
 class BatchHarvester:
     def __init__(self):
         self.scraper = BroksumScraper()
+        self.touched_dates = set()
+        self.last_batch_aborted = False
 
     def get_pending_targets(self) -> list:
         """
         Cari pasangan (ticker, tanggal) di harga_saham yang belum punya
-        broker_summary. Hanya ambil yang volume > 0 dan tidak terdaftar di harvester_gaps (attempts >= 3).
+        broker_summary. Hanya ambil yang volume > 0, berada di dalam batas retensi
+        (backfill_floor), dan tidak terdaftar di harvester_gaps (attempts >= 3).
+        Diurutkan dari tanggal terbaru & nilai transaksi terbesar (DESC) agar
+        data hari H langsung lengkap lebih dulu saat pulih dari outage multi-hari.
         """
         gap_threshold = today_jkt() - timedelta(days=30)
+        backfill_floor = get_backfill_floor()
         query = text(f"""
             SELECT h.ticker, h.tanggal
             FROM harga_saham h
             JOIN daftar_saham ds ON h.ticker = ds.kode
             WHERE h.volume > 0
+            AND h.tanggal >= :backfill_floor
             AND NOT EXISTS (
                 SELECT 1 FROM broker_summary b
                 WHERE b.ticker = h.ticker AND b.date = h.tanggal
             )
             AND {GAP_EXCLUDE_SQL}
-            ORDER BY h.tanggal ASC
+            ORDER BY h.tanggal DESC, COALESCE(h.value, 0) DESC, h.volume DESC
             LIMIT :limit
         """)
         try:
             with SessionLocal() as db:
                 results = db.execute(query, {
                     "limit": TARGET_LIMIT,
-                    "gap_threshold": gap_threshold
+                    "gap_threshold": gap_threshold,
+                    "backfill_floor": backfill_floor
                 }).fetchall()
                 return results
         except SQLAlchemyError as e:
@@ -113,19 +122,24 @@ class BatchHarvester:
         except Exception as e:
             logger.warning(f"⚠️ Gagal catat gap ({ticker}, {target_date}): {e}")
 
+    def _normalize_date(self, target_date):
+        if isinstance(target_date, str):
+            from datetime import datetime as dt
+            return dt.strptime(target_date[:10], "%Y-%m-%d").date()
+        elif isinstance(target_date, datetime):
+            return target_date.date()
+        return target_date
+
     def process_target(self, ticker: str, target_date) -> str:
         """
         Proses satu target scraping.
         Returns: 'success', 'soft_block', atau 'error'
         """
         try:
-            # Handle string date dari SQLite
-            if isinstance(target_date, str):
-                from datetime import datetime as dt
-                target_date = dt.strptime(target_date, "%Y-%m-%d").date()
-
-            logger.info(f"🕷️ Scraping {ticker} [{target_date}]...")
-            self.scraper.fetch_and_save(ticker, target_date)
+            norm_date = self._normalize_date(target_date)
+            logger.info(f"🕷️ Scraping {ticker} [{norm_date}]...")
+            self.scraper.fetch_and_save(ticker, norm_date)
+            self.touched_dates.add(norm_date)
             return 'success'
         except SoftBlockError as sbe:
             logger.error(f"🛑 CIRCUIT BREAKER: {sbe}")
@@ -139,6 +153,7 @@ class BatchHarvester:
         Eksekusi satu batch harvesting.
         Returns: True jika masih ada data pending, False jika sudah complete atau dihentikan karena IPOT outage.
         """
+        self.last_batch_aborted = False
         logger.info("═══════════════════════════════════════════")
         logger.info("  🕷️ HARVESTER BATCH DIMULAI")
         logger.info("═══════════════════════════════════════════")
@@ -244,15 +259,17 @@ class BatchHarvester:
         )
         logger.info("═══════════════════════════════════════════")
         if aborted_by_outage:
+            self.last_batch_aborted = True
             return False
         return True
 
 
-def run_harvester(daemon_mode: bool = True):
+def run_harvester(daemon_mode: bool = True) -> dict:
     """
     Entry point harvester.
     - daemon_mode=True: loop terus sampai manual stop
     - daemon_mode=False: loop sampai semua data sinkron, lalu berhenti (Auto-Sync)
+    Returns dict berisi status ('completed' / 'aborted_outage' / 'error') dan list touched_dates.
     """
     harvester = BatchHarvester()
     mode_str = "Daemon" if daemon_mode else "Auto-Sync"
@@ -264,16 +281,34 @@ def run_harvester(daemon_mode: bool = True):
             has_more = harvester.run_batch()
 
             if not has_more:
-                # S1: Panggil archiver saat drain tuntas (1x per siklus)
-                try:
-                    archive_and_delete_old_data()
-                    last_archive_time = time.time()
-                except Exception as e:
-                    logger.error(f"❌ Archiver gagal saat drain selesai: {e}")
+                if harvester.last_batch_aborted:
+                    if not daemon_mode:
+                        logger.warning(
+                            "⚠️ Harvester Auto-Sync dihentikan sementara karena server IPOT sedang down/maintenance "
+                            "(target sisa tetap aman di antrean)."
+                        )
+                        return {
+                            "status": "aborted_outage",
+                            "touched_dates": sorted(harvester.touched_dates)
+                        }
+                    logger.warning(f"💤 Server IPOT sedang down. Istirahat {REST_INTERVAL}s sebelum cek ulang...")
+                    time.sleep(REST_INTERVAL)
+                    continue
+
+                # Hanya panggil archiver di dalam loop jika daemon_mode=True (karena di single-run, run.py Step 4 sudah memanggil archiver)
+                if daemon_mode:
+                    try:
+                        archive_and_delete_old_data()
+                        last_archive_time = time.time()
+                    except Exception as e:
+                        logger.error(f"❌ Archiver gagal saat drain selesai: {e}")
 
                 if not daemon_mode:
                     logger.info("🏁 Harvester Auto-Sync selesai.")
-                    break
+                    return {
+                        "status": "completed",
+                        "touched_dates": sorted(harvester.touched_dates)
+                    }
 
                 logger.info(f"💤 Semua sinkron. Istirahat {REST_INTERVAL}s...")
                 time.sleep(REST_INTERVAL)
@@ -291,21 +326,22 @@ def run_harvester(daemon_mode: bool = True):
 
         except KeyboardInterrupt:
             logger.info("🛑 Harvester dihentikan manual.")
-            break
+            return {
+                "status": "interrupted",
+                "touched_dates": sorted(harvester.touched_dates)
+            }
         except Exception as e:
             logger.error(f"❌ Fatal error: {e}")
             log_to_db("harvester", "CRITICAL", f"Crash: {e}")
             if not daemon_mode:
-                break
+                return {
+                    "status": "error",
+                    "touched_dates": sorted(harvester.touched_dates)
+                }
             time.sleep(300)
 
 
 if __name__ == "__main__":
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s [%(levelname)s] %(message)s',
-        handlers=[logging.StreamHandler(sys.stdout)]
-    )
-    from db_config import setup_tables
-    setup_tables()
-    run_harvester(daemon_mode=True)
+    # Bisa dipanggil langsung: python harvester.py [--once]
+    once = "--once" in sys.argv
+    run_harvester(daemon_mode=not once)
