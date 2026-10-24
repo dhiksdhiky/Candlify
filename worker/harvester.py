@@ -8,7 +8,8 @@ Error Handling:
   - Soft Block → Circuit Breaker: cooldown 10 menit, lalu lanjut
   - Hard Block → masuk retry queue
   - Network error → masuk retry queue
-  - Retry Phase: ulang semua target yang gagal
+  - Server-wide 502 / Outage → Probe cooldown 60s pada gagal ke-5, abort batch pada gagal ke-8
+  - Retry Phase: ulang semua target yang gagal (kecuali abort karena server outage)
   - TEST_MODE: limit 10 target, delay 2-5 detik
 """
 
@@ -130,15 +131,13 @@ class BatchHarvester:
             logger.error(f"🛑 CIRCUIT BREAKER: {sbe}")
             return 'soft_block'
         except Exception as e:
-            logger.warning(f"⚠️ Gagal {ticker} [{target_date}]: {str(e)[:100]}")
+            logger.warning(f"⚠️ Gagal {ticker} [{target_date}]: {str(e)[:250]}")
             return 'error'
-
-
 
     def run_batch(self) -> bool:
         """
         Eksekusi satu batch harvesting.
-        Returns: True jika masih ada data pending, False jika sudah complete.
+        Returns: True jika masih ada data pending, False jika sudah complete atau dihentikan karena IPOT outage.
         """
         logger.info("═══════════════════════════════════════════")
         logger.info("  🕷️ HARVESTER BATCH DIMULAI")
@@ -158,6 +157,7 @@ class BatchHarvester:
         consecutive_failures = 0
         throttle_detected = False
         has_any_success = False
+        aborted_by_outage = False
 
         # ── Fase Utama ──────────────────────────────────────
         for i, row in enumerate(targets):
@@ -170,9 +170,23 @@ class BatchHarvester:
                 has_any_success = True
             else:
                 consecutive_failures += 1
-                if consecutive_failures >= 5:
-                    logger.warning("🚨 IPOT-wide throttle/WAF terdeteksi (>=5 non-success berurutan). Skip gap marking & cooldown...")
+                if consecutive_failures == 5:
+                    probe_wait = 60 if not TEST_MODE else 2
+                    logger.warning(
+                        f"🚨 IPOT-wide throttle/outage terdeteksi (5 non-success berurutan). "
+                        f"Skip gap marking & cooldown {probe_wait}s sebelum probe ulang..."
+                    )
                     throttle_detected = True
+                    time.sleep(probe_wait)
+                elif consecutive_failures >= 8:
+                    logger.error(
+                        "🛑 Server IndoPremier (IPOT) masih down/502 setelah probe ulang "
+                        "(>=8 gagal beruntun). Menghentikan batch lebih awal agar tidak membuang "
+                        "kuota runner (target tetap aman di antrean untuk ditarik otomatis saat IPOT pulih)."
+                    )
+                    throttle_detected = True
+                    aborted_by_outage = True
+                    break
 
                 if status == 'soft_block':
                     logger.warning(f"💤 Cooldown {COOLDOWN_SOFT_BLOCK}s (Soft-Block)...")
@@ -187,7 +201,7 @@ class BatchHarvester:
                 time.sleep(random.uniform(DELAY_MIN, DELAY_MAX))
 
         # ── Fase Retry ──────────────────────────────────────
-        if deferred_queue:
+        if deferred_queue and not aborted_by_outage:
             logger.info(
                 f"🔄 Cooldown {COOLDOWN_RETRY}s sebelum retry "
                 f"({len(deferred_queue)} target)..."
@@ -206,6 +220,10 @@ class BatchHarvester:
                     consecutive_failures += 1
                     if consecutive_failures >= 5:
                         throttle_detected = True
+                    if consecutive_failures >= 8:
+                        logger.error("🛑 IPOT outage berlanjut pada fase retry. Menghentikan retry lebih awal.")
+                        aborted_by_outage = True
+                        break
 
                     if status == 'soft_block':
                         logger.warning(f"💤 Cooldown {COOLDOWN_SOFT_BLOCK}s pada retry...")
@@ -225,6 +243,8 @@ class BatchHarvester:
             f"  🕷️ BATCH SELESAI | ✅ {success_count}/{total_targets}"
         )
         logger.info("═══════════════════════════════════════════")
+        if aborted_by_outage:
+            return False
         return True
 
 
@@ -252,9 +272,9 @@ def run_harvester(daemon_mode: bool = True):
                     logger.error(f"❌ Archiver gagal saat drain selesai: {e}")
 
                 if not daemon_mode:
-                    logger.info("🏁 Semua data sudah sinkron. Auto-sync selesai.")
+                    logger.info("🏁 Harvester Auto-Sync selesai.")
                     break
-                
+
                 logger.info(f"💤 Semua sinkron. Istirahat {REST_INTERVAL}s...")
                 time.sleep(REST_INTERVAL)
             else:

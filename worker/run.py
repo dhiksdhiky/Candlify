@@ -1,11 +1,12 @@
 """
-run.py — Main Orchestrator (Sequential: Pipeline → Harvester)
-===============================================================
+run.py — Main Orchestrator (Sequential: Pipeline → Scanner → Harvester → Scanner)
+=================================================================================
 Entry point utama. Menjalankan Pipeline OHLCV terlebih dahulu,
-lalu Harvester BrokSum. Semua dalam SATU proses Python (hemat RAM).
+lalu Pre-Breakout Scanner awal, Harvester BrokSum, dan refresh Scanner.
+Semua dalam SATU proses Python (hemat RAM).
 
 Usage:
-  python run.py                  # Single run (pipeline + 1 batch harvester)
+  python run.py                  # Single run (pipeline + scanner + harvester)
   python run.py --daemon         # Daemon mode (harvester loop terus)
   python run.py --pipeline-only  # Hanya pipeline
   python run.py --harvester-only # Hanya harvester
@@ -115,6 +116,14 @@ def main():
             logger.error(f"❌ Pipeline fallback crash: {e}")
             pipeline_success = False
 
+    # ── Step 2b: Pre-Breakout Scanner (Initial Pass setelah Harga & Flow Masuk) ──
+    if not daemon_mode and not pipeline_only and not harvester_only and pipeline_success:
+        try:
+            from scanner_bali import run_scanner
+            run_scanner()
+        except Exception as e:
+            logger.warning(f"⚠️ Initial Scanner pass gagal: {e}")
+
     # ── Step 3: Harvester BrokSum ───────────────────────────
     harvester_success = True
     if not pipeline_only:
@@ -133,7 +142,7 @@ def main():
         except Exception as e:
             logger.error(f"❌ Final Archiver gagal: {e}")
 
-    # ── Step 5: Pre-Breakout Scanner Engine ─────────────────
+    # ── Step 5: Pre-Breakout Scanner Engine (Final Refresh dengan BrokSum Terbaru) ──
     scanner_success = True
     if not daemon_mode and not pipeline_only:
         try:
@@ -152,9 +161,9 @@ def main():
     logger.info("╔═══════════════════════════════════════════╗")
     logger.info(f"║  🏁 SELESAI — Durasi: {str(duration).split('.')[0]:>17s}  ║")
     logger.info("╚═══════════════════════════════════════════╝")
-    
+
     if (
-        not pipeline_success 
+        not pipeline_success
         or (not pipeline_only and not harvester_success)
         or (not daemon_mode and not pipeline_only and not scanner_success)
     ):

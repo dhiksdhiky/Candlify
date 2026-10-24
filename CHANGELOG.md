@@ -11,10 +11,12 @@ Semua perubahan penting, perbaikan bug, dan peningkatan fitur pada proyek **Cand
   - Menambahkan **WARP Pre-Flight Verification & Auto IP Rotation (`_rotate_warp_ip`)** untuk me-reset registrasi & mendapatkan IP keluar Cloudflare WARP baru secara otomatis jika IP sebelumnya terkena challenge 403.
   - Menambahkan **Layer 1B Real Browser Fallback (`fetch_idx_via_browser` via `DrissionPage` + `xvfb`)** untuk mengeksekusi JavaScript Challenge Cloudflare di dalam DOM Chromium asli sebelum beralih ke fallback Layer 2 (Yahoo Finance).
   - Menambahkan fitur **Auto Gap-Detector (`detect_and_fill_idx_gaps`)** pada sinkronisasi harian BEI yang secara otomatis mendeteksi dan menambal tanggal bursa yang terlewat atau yang sebelumnya hanya terisi oleh fallback Yahoo Finance (`frequency = 0`) hingga 14 hari kalender ke belakang tanpa menimpa master emiten terbaru.
-- **Worker Pipeline Orchestrator (`worker/run.py`, `worker/pipeline.py`, `worker/sync_idx_daily.py`)**:
+- **Worker Pipeline Orchestrator (`worker/run.py`, `worker/pipeline.py`, `worker/sync_idx_daily.py`, `worker/harvester.py`)**:
   - Memperbaiki `NameError: name 'pipeline_success' is not defined` pada `worker/run.py` saat pembuatan laporan status akhir Telegram.
   - Memperbaiki eksekusi ganda (*double execution*) Layer 2 Fallback dengan menonaktifkan internal fallback di dalam `run_sync_daily(use_fallback=False)` ketika dipanggil dari `worker/run.py`.
   - Memperbaiki `NameError: name 'benchmark_tickers' is not defined` dan `NameError: name 'master_cal' is not defined` pada fungsi `get_master_calendar()` dan `run_pipeline()` di `worker/pipeline.py`.
+  - Menambahkan **Early-Exit Circuit Breaker (`aborted_by_outage`)** pada `worker/harvester.py` saat server IndoPremier (IPOT) mengalami *down* (`HTTP 502 Bad Gateway` / `NOSERVICE`), sehingga worker berhenti otomatis setelah 8 kegagalan beruntun tanpa membuang waktu ~3,5 jam untuk 500 saham dan tanpa mengotori `harvester_gaps`.
+  - Menjalankan *initial pass* `scanner_bali.py` tepat setelah sinkronisasi harga EOD selesai di `worker/run.py`, sehingga sinyal Pre-Breakout V2 selalu ter-update meskipun server Broker Summary sedang *maintenance*.
 - **Integritas Data Master Emiten (`worker/sync_idx_daily.py`, `worker/sync_seed.py`, `lib/database_monitor.py`)**:
   - Memperbaiki `update_local_csv()` di `worker/sync_idx_daily.py` agar membaca dan mempertahankan kolom `Tanggal Pencatatan` (IPO date) yang sudah ada di `worker/daftar_saham.csv`.
   - Mengubah `process_saham_excel()` di `lib/database_monitor.py` dari operasi destruktif `DELETE FROM daftar_saham` menjadi *atomic upsert* (`INSERT ... ON CONFLICT (kode) DO UPDATE`) sehingga data `tradeable_shares` dan `notasi_khusus` tidak hilang saat upload Excel.
