@@ -1,26 +1,22 @@
 """
-harvester.py — Broker Summary Harvester Orchestrator
-======================================================
-Mengatur batch scraping broker summary dari IndoPremier.
+harvester.py — Broker Summary Harvester Orchestrator (Stockbit Exodus Engine)
+=============================================================================
+Mengatur batch pengambilan Broker Summary dari API Stockbit (exodus.stockbit.com).
 Bergantung pada data harga_saham yang sudah ada dari pipeline.
 
-Error Handling:
-  - Soft Block → Circuit Breaker: cooldown 10 menit, lalu lanjut
-  - Hard Block → masuk retry queue
-  - Network error → masuk retry queue
-  - Server-wide 502 / Outage → Probe cooldown 60s pada gagal ke-5, abort batch pada gagal ke-8
-  - Retry Phase: ulang semua target yang gagal (kecuali abort karena server outage)
-  - TEST_MODE: limit 10 target, delay 2-5 detik
+Error Handling & Keamanan Akun:
+  - AuthExpiredError (401/403 & refresh gagal) → Langsung hentikan batch (Zero Brute-Force).
+  - Soft Block (HTTP 429) → Circuit Breaker: cooldown 10 menit, lalu lanjut.
+  - EmptyBrokerDataError (HTTP 200 tapi 0 transaksi) → Catat gap, tidak memicu outage palsu.
+  - Server-wide 5xx / Outage → Probe cooldown 60s pada gagal ke-5, abort batch pada gagal ke-8.
+  - Retry Phase: ulang target error transien di akhir batch.
 """
 
 import os
 import sys
-import io
 import time
 import random
 import logging
-import pandas as pd
-import requests
 from datetime import datetime, timedelta
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
@@ -31,20 +27,25 @@ from db_config import (
     GAP_EXCLUDE_SQL, today_jkt, get_dialect,
     get_backfill_floor
 )
-from scraper import BroksumScraper, SoftBlockError
+from scraper import (
+    BroksumScraper,
+    SoftBlockError,
+    AuthExpiredError,
+    EmptyBrokerDataError,
+)
 from archiver import archive_and_delete_old_data
 from dotenv import load_dotenv
 
 load_dotenv()
 logger = logging.getLogger("Harvester")
 
-# ── Konfigurasi ─────────────────────────────────────────────
+# ── Konfigurasi Pacing Aman (Human-like Jitter) ─────────────
 TARGET_LIMIT = 500 if not TEST_MODE else 10
-DELAY_MIN = 7 if not TEST_MODE else 2
-DELAY_MAX = 20 if not TEST_MODE else 5
+DELAY_MIN = 1.5 if not TEST_MODE else 0.5
+DELAY_MAX = 3.5 if not TEST_MODE else 1.5
 COOLDOWN_SOFT_BLOCK = 600 if not TEST_MODE else 30  # 10 menit prod, 30s test
 COOLDOWN_RETRY = 30 if not TEST_MODE else 5
-COOLDOWN_BATCH = 120 if not TEST_MODE else 10
+COOLDOWN_BATCH = 30 if not TEST_MODE else 5
 REST_INTERVAL = 60 * 60 * 3 if not TEST_MODE else 30  # 3 jam prod, 30s test
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELE_BOT_DHIKSDHIKY")
@@ -133,7 +134,7 @@ class BatchHarvester:
     def process_target(self, ticker: str, target_date) -> str:
         """
         Proses satu target scraping.
-        Returns: 'success', 'soft_block', atau 'error'
+        Returns: 'success', 'empty', 'soft_block', 'auth_expired', atau 'error'
         """
         try:
             norm_date = self._normalize_date(target_date)
@@ -141,8 +142,16 @@ class BatchHarvester:
             self.scraper.fetch_and_save(ticker, norm_date)
             self.touched_dates.add(norm_date)
             return 'success'
+        except EmptyBrokerDataError:
+            norm_date = self._normalize_date(target_date)
+            logger.info(f"ℹ️ [{ticker}] {norm_date} → Tidak ada transaksi broker di Stockbit (catat gap).")
+            return 'empty'
+        except AuthExpiredError as ae:
+            logger.error(f"🛑 AUTH CIRCUIT BREAKER: {ae}")
+            log_to_db("harvester", "CRITICAL", f"Auth Stockbit expired: {ae}", ticker=ticker)
+            return 'auth_expired'
         except SoftBlockError as sbe:
-            logger.error(f"🛑 CIRCUIT BREAKER: {sbe}")
+            logger.error(f"🛑 CIRCUIT BREAKER (Rate-Limit): {sbe}")
             return 'soft_block'
         except Exception as e:
             logger.warning(f"⚠️ Gagal {ticker} [{target_date}]: {str(e)[:250]}")
@@ -151,11 +160,11 @@ class BatchHarvester:
     def run_batch(self) -> bool:
         """
         Eksekusi satu batch harvesting.
-        Returns: True jika masih ada data pending, False jika sudah complete atau dihentikan karena IPOT outage.
+        Returns: True jika masih ada data pending, False jika sudah complete atau dihentikan karena outage/auth.
         """
         self.last_batch_aborted = False
         logger.info("═══════════════════════════════════════════")
-        logger.info("  🕷️ HARVESTER BATCH DIMULAI")
+        logger.info("  🕷️ HARVESTER BATCH DIMULAI (STOCKBIT)")
         logger.info("═══════════════════════════════════════════")
 
         targets = self.get_pending_targets()
@@ -183,28 +192,40 @@ class BatchHarvester:
                 success_count += 1
                 consecutive_failures = 0
                 has_any_success = True
+            elif status == 'empty':
+                # Server sehat (HTTP 200), hanya emiten ini yang kosong di tanggal tsb
+                consecutive_failures = 0
+                has_any_success = True
+                self.record_gap(ticker, target_date, reason="empty_broksum")
+            elif status == 'auth_expired':
+                logger.error(
+                    "🛑 Menghentikan batch seketika karena sesi token Stockbit kedaluwarsa/ditolak "
+                    "(mencegah akun terkunci)."
+                )
+                aborted_by_outage = True
+                break
             else:
                 consecutive_failures += 1
                 if consecutive_failures == 5:
                     probe_wait = 60 if not TEST_MODE else 2
                     logger.warning(
-                        f"🚨 IPOT-wide throttle/outage terdeteksi (5 non-success berurutan). "
+                        f"🚨 Throttle/gangguan jaringan terdeteksi (5 non-success berurutan). "
                         f"Skip gap marking & cooldown {probe_wait}s sebelum probe ulang..."
                     )
                     throttle_detected = True
                     time.sleep(probe_wait)
                 elif consecutive_failures >= 8:
                     logger.error(
-                        "🛑 Server IndoPremier (IPOT) masih down/502 setelah probe ulang "
-                        "(>=8 gagal beruntun). Menghentikan batch lebih awal agar tidak membuang "
-                        "kuota runner (target tetap aman di antrean untuk ditarik otomatis saat IPOT pulih)."
+                        "🛑 Server masih gangguan setelah probe ulang "
+                        "(>=8 gagal beruntun). Menghentikan batch lebih awal agar aman "
+                        "(target tetap aman di antrean)."
                     )
                     throttle_detected = True
                     aborted_by_outage = True
                     break
 
                 if status == 'soft_block':
-                    logger.warning(f"💤 Cooldown {COOLDOWN_SOFT_BLOCK}s (Soft-Block)...")
+                    logger.warning(f"💤 Cooldown {COOLDOWN_SOFT_BLOCK}s (Rate-Limit 429)...")
                     log_to_db("harvester", "WARNING", "Circuit Breaker aktif", ticker=ticker)
                     time.sleep(COOLDOWN_SOFT_BLOCK)
                     deferred_queue.append((ticker, target_date))
@@ -231,12 +252,19 @@ class BatchHarvester:
                     success_count += 1
                     consecutive_failures = 0
                     has_any_success = True
+                elif status == 'empty':
+                    consecutive_failures = 0
+                    has_any_success = True
+                    self.record_gap(ticker, target_date, reason="empty_broksum")
+                elif status == 'auth_expired':
+                    aborted_by_outage = True
+                    break
                 else:
                     consecutive_failures += 1
                     if consecutive_failures >= 5:
                         throttle_detected = True
                     if consecutive_failures >= 8:
-                        logger.error("🛑 IPOT outage berlanjut pada fase retry. Menghentikan retry lebih awal.")
+                        logger.error("🛑 Gangguan berlanjut pada fase retry. Menghentikan retry lebih awal.")
                         aborted_by_outage = True
                         break
 
@@ -246,7 +274,7 @@ class BatchHarvester:
                     else:
                         log_to_db("harvester", "WARNING", "Gagal setelah retry", ticker=ticker)
 
-                    # F1: Catat gap HANYA jika bukan IPOT throttle dan run ini punya minimal 1 success!
+                    # F1: Catat gap HANYA jika bukan throttle dan run ini punya minimal 1 success!
                     if has_any_success and not throttle_detected:
                         self.record_gap(ticker, target_date, reason=status)
 
@@ -284,18 +312,17 @@ def run_harvester(daemon_mode: bool = True) -> dict:
                 if harvester.last_batch_aborted:
                     if not daemon_mode:
                         logger.warning(
-                            "⚠️ Harvester Auto-Sync dihentikan sementara karena server IPOT sedang down/maintenance "
+                            "⚠️ Harvester Auto-Sync dihentikan sementara karena circuit breaker aktif "
                             "(target sisa tetap aman di antrean)."
                         )
                         return {
                             "status": "aborted_outage",
                             "touched_dates": sorted(harvester.touched_dates)
                         }
-                    logger.warning(f"💤 Server IPOT sedang down. Istirahat {REST_INTERVAL}s sebelum cek ulang...")
+                    logger.warning(f"💤 Circuit breaker aktif. Istirahat {REST_INTERVAL}s sebelum cek ulang...")
                     time.sleep(REST_INTERVAL)
                     continue
 
-                # Hanya panggil archiver di dalam loop jika daemon_mode=True (karena di single-run, run.py Step 4 sudah memanggil archiver)
                 if daemon_mode:
                     try:
                         archive_and_delete_old_data()
@@ -313,7 +340,6 @@ def run_harvester(daemon_mode: bool = True) -> dict:
                 logger.info(f"💤 Semua sinkron. Istirahat {REST_INTERVAL}s...")
                 time.sleep(REST_INTERVAL)
             else:
-                # S1: Fallback time-based jika drain menggantung > 4 jam
                 if time.time() - last_archive_time > 4 * 3600:
                     try:
                         archive_and_delete_old_data()
@@ -342,6 +368,5 @@ def run_harvester(daemon_mode: bool = True) -> dict:
 
 
 if __name__ == "__main__":
-    # Bisa dipanggil langsung: python harvester.py [--once]
     once = "--once" in sys.argv
     run_harvester(daemon_mode=not once)

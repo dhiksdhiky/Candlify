@@ -549,5 +549,110 @@ def migrate_schema():
                 conn.execute(text("ALTER TABLE candlify_signals ADD COLUMN IF NOT EXISTS up_down_vol_ratio FLOAT DEFAULT 1.0;"))
                 conn.execute(text("ALTER TABLE candlify_signals ADD COLUMN IF NOT EXISTS is_pocket_pivot BOOLEAN DEFAULT FALSE;"))
 
+            if dialect == "sqlite":
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS auth_sessions (
+                        provider TEXT PRIMARY KEY,
+                        access_token TEXT,
+                        refresh_token TEXT,
+                        user_agent TEXT,
+                        access_exp INTEGER DEFAULT 0,
+                        refresh_exp INTEGER DEFAULT 0,
+                        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                    );
+                """))
+            else:
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS auth_sessions (
+                        provider VARCHAR(50) PRIMARY KEY,
+                        access_token TEXT,
+                        refresh_token TEXT,
+                        user_agent TEXT,
+                        access_exp BIGINT DEFAULT 0,
+                        refresh_exp BIGINT DEFAULT 0,
+                        updated_at TIMESTAMPTZ DEFAULT NOW()
+                    );
+                """))
+
     logger.info("✅ Migrasi skema selesai.")
+
+
+def get_auth_session(provider: str = "stockbit") -> Optional[dict]:
+    """Ambil sesi token autentikasi (Stockbit) dari tabel auth_sessions."""
+    try:
+        with engine.connect() as conn:
+            row = conn.execute(
+                text("""
+                    SELECT access_token, refresh_token, user_agent, access_exp, refresh_exp
+                    FROM auth_sessions
+                    WHERE provider = :provider
+                """),
+                {"provider": provider}
+            ).fetchone()
+            if row:
+                return {
+                    "access_token": row[0] or "",
+                    "refresh_token": row[1] or "",
+                    "user_agent": row[2] or "",
+                    "access_exp": int(row[3] or 0),
+                    "refresh_exp": int(row[4] or 0),
+                }
+    except Exception as e:
+        logger.warning(f"⚠️ Gagal membaca auth_sessions ({provider}): {e}")
+    return None
+
+
+def save_auth_session(
+    provider: str,
+    access_token: str,
+    refresh_token: str,
+    user_agent: str = "",
+    access_exp: int = 0,
+    refresh_exp: int = 0,
+) -> bool:
+    """Simpan atau perbarui sesi token autentikasi secara atomik di database."""
+    dialect = get_dialect()
+    try:
+        with engine.connect() as conn:
+            with conn.begin():
+                if dialect == "sqlite":
+                    sql = text("""
+                        INSERT INTO auth_sessions
+                            (provider, access_token, refresh_token, user_agent, access_exp, refresh_exp, updated_at)
+                        VALUES
+                            (:provider, :access_token, :refresh_token, :user_agent, :access_exp, :refresh_exp, CURRENT_TIMESTAMP)
+                        ON CONFLICT (provider) DO UPDATE SET
+                            access_token = excluded.access_token,
+                            refresh_token = excluded.refresh_token,
+                            user_agent = excluded.user_agent,
+                            access_exp = excluded.access_exp,
+                            refresh_exp = excluded.refresh_exp,
+                            updated_at = CURRENT_TIMESTAMP
+                    """)
+                else:
+                    sql = text("""
+                        INSERT INTO auth_sessions
+                            (provider, access_token, refresh_token, user_agent, access_exp, refresh_exp, updated_at)
+                        VALUES
+                            (:provider, :access_token, :refresh_token, :user_agent, :access_exp, :refresh_exp, NOW())
+                        ON CONFLICT (provider) DO UPDATE SET
+                            access_token = EXCLUDED.access_token,
+                            refresh_token = EXCLUDED.refresh_token,
+                            user_agent = EXCLUDED.user_agent,
+                            access_exp = EXCLUDED.access_exp,
+                            refresh_exp = EXCLUDED.refresh_exp,
+                            updated_at = NOW()
+                    """)
+                conn.execute(sql, {
+                    "provider": provider,
+                    "access_token": (access_token or "").strip(),
+                    "refresh_token": (refresh_token or "").strip(),
+                    "user_agent": (user_agent or "").strip(),
+                    "access_exp": int(access_exp or 0),
+                    "refresh_exp": int(refresh_exp or 0),
+                })
+        return True
+    except Exception as e:
+        logger.warning(f"⚠️ Gagal menyimpan auth_sessions ({provider}): {e}")
+        return False
 

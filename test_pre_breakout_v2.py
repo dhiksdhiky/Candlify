@@ -179,3 +179,15 @@ def test_sync_daftar_saham_csv_fallback():
     assert first.code == "AADI"
     assert first.listing_board in ["Utama", "Pengembangan", "Pemantauan Khusus", "Akselerasi", "Ekonomi Baru"]
 
+
+def test_stockbit_broksum_scraper_helpers():
+    from worker.scraper import BroksumScraper, _decode_jwt_exp
+    scraper = BroksumScraper()
+    assert scraper._clean_broker_code(" bk ") == "BK"
+    assert scraper._clean_broker_code("AK*") == "AK"
+    assert scraper._clean_broker_code("") is None
+    assert scraper._convert_to_float("2.12629637e+11") == pytest.approx(2.12629637e11)
+    assert scraper._convert_to_float("427824") == 427824.0
+    assert _decode_jwt_exp("invalid") == 0
+
+
