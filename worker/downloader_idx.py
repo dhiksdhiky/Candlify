@@ -128,11 +128,12 @@ class DirectApiExtractor(ExtractionStrategy):
         payload: Optional[Dict[str, Any]] = None
         last_err: Optional[Exception] = None
 
+        logger.info("📡 Mengakses endpoint API internal IDX (%s)...", self.BASE_URL)
         for p_cfg in proxy_candidates:
             for prof in ordered_profiles:
                 try:
                     mode_lbl = f"{prof}+proxy" if p_cfg else prof
-                    logger.info("📡 Mengakses endpoint API internal IDX (impersonate=%s): %s", mode_lbl, url)
+                    logger.debug("📡 Mencoba profil %s: %s", mode_lbl, url)
                     response = cf_requests.get(
                         url,
                         headers=headers,
@@ -141,7 +142,7 @@ class DirectApiExtractor(ExtractionStrategy):
                         timeout=self.timeout,
                     )
                     if response.status_code == 403:
-                        logger.info("🔄 HTTP 403 pada DirectApiExtractor (%s), mencoba Session Cookie Warm-up...", mode_lbl)
+                        logger.debug("🔄 HTTP 403 pada DirectApiExtractor (%s), mencoba Session Cookie Warm-up...", mode_lbl)
                         with cf_requests.Session(impersonate=prof, proxies=p_cfg) as s:
                             s.get(referer_url, timeout=self.timeout)
                             response = s.get(url, headers=headers, timeout=self.timeout)
@@ -205,10 +206,11 @@ class NuxtSsrDecompilerExtractor(ExtractionStrategy):
         ordered_profiles = [p for p in profiles if not (p in seen_p or seen_p.add(p))]
 
         last_status = 0
+        logger.info("📥 Mengunduh HTML SSR dari: %s", self.PAGE_URL)
         for p_cfg in proxy_candidates:
             for prof in ordered_profiles:
                 try:
-                    logger.info("📥 Mengunduh HTML SSR (impersonate=%s) dari: %s", prof, self.PAGE_URL)
+                    logger.debug("📥 Mencoba HTML SSR (impersonate=%s): %s", prof, self.PAGE_URL)
                     response = cf_requests.get(
                         self.PAGE_URL,
                         impersonate=prof,

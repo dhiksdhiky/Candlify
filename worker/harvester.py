@@ -41,8 +41,8 @@ logger = logging.getLogger("Harvester")
 
 # ── Konfigurasi Pacing Aman (Human-like Jitter) ─────────────
 TARGET_LIMIT = 500 if not TEST_MODE else 10
-DELAY_MIN = 1.5 if not TEST_MODE else 0.5
-DELAY_MAX = 3.5 if not TEST_MODE else 1.5
+DELAY_MIN = 2.0 if not TEST_MODE else 0.5
+DELAY_MAX = 4.5 if not TEST_MODE else 1.5
 COOLDOWN_SOFT_BLOCK = 600 if not TEST_MODE else 30  # 10 menit prod, 30s test
 COOLDOWN_RETRY = 30 if not TEST_MODE else 5
 COOLDOWN_BATCH = 30 if not TEST_MODE else 5
@@ -138,7 +138,7 @@ class BatchHarvester:
         """
         try:
             norm_date = self._normalize_date(target_date)
-            logger.info(f"🕷️ Scraping {ticker} [{norm_date}]...")
+            logger.debug(f"🕷️ Scraping {ticker} [{norm_date}]...")
             self.scraper.fetch_and_save(ticker, norm_date)
             self.touched_dates.add(norm_date)
             return 'success'
@@ -233,8 +233,19 @@ class BatchHarvester:
                 else:
                     deferred_queue.append((ticker, target_date))
 
+            if (i + 1) % 50 == 0 or (i + 1) == total_targets:
+                logger.info(
+                    f"📊 Progress Harvester: {i+1}/{total_targets} target ({(i+1)/total_targets*100:.1f}%) | "
+                    f"✅ {success_count} sukses"
+                )
+
             if i < total_targets - 1:
-                time.sleep(random.uniform(DELAY_MIN, DELAY_MAX))
+                if not TEST_MODE and (i + 1) % 40 == 0:
+                    pause_s = random.uniform(8.0, 15.0)
+                    logger.info(f"☕ Jeda natural anti-spam ({pause_s:.1f}s)...")
+                    time.sleep(pause_s)
+                else:
+                    time.sleep(random.uniform(DELAY_MIN, DELAY_MAX))
 
         # ── Fase Retry ──────────────────────────────────────
         if deferred_queue and not aborted_by_outage:

@@ -18,7 +18,18 @@ import traceback
 import logging
 import time
 import pandas as pd
+import warnings
 import yfinance as yf
+
+warnings.filterwarnings("ignore")
+logging.getLogger("yfinance").setLevel(logging.CRITICAL)
+logging.getLogger("peewee").setLevel(logging.CRITICAL)
+try:
+    _tz_dir = os.path.join(os.path.expanduser("~"), ".cache", "py-yfinance")
+    os.makedirs(_tz_dir, exist_ok=True)
+    yf.set_tz_cache_location(_tz_dir)
+except Exception:
+    pass
 from datetime import datetime, date, timedelta
 
 import pytz
@@ -52,7 +63,7 @@ def get_tickers() -> list:
     if not tickers:
         csv_path = os.path.join(os.path.dirname(__file__), "daftar_saham.csv")
         if os.path.exists(csv_path):
-            logger.info("📄 Fallback: Membaca ticker dari daftar_saham.csv...")
+            logger.debug("📄 Fallback: Membaca ticker dari daftar_saham.csv...")
             df = pd.read_csv(csv_path, sep=";")
             tickers = df["Kode"].str.strip().tolist()
 
@@ -70,7 +81,7 @@ def get_tickers() -> list:
                                 "INSERT INTO daftar_saham (kode, nama_perusahaan) "
                                 "VALUES (:kode, :nama) ON CONFLICT (kode) DO NOTHING"
                             ), {"kode": kode, "nama": nama_str})
-                logger.info(f"✅ {len(tickers)} ticker di-seed ke daftar_saham.")
+                logger.debug(f"✅ {len(tickers)} ticker di-seed ke daftar_saham.")
             except Exception as e:
                 logger.error(f"⚠️ Gagal seed daftar_saham: {e}")
         else:
@@ -228,7 +239,7 @@ def run_pipeline():
             )
 
             if data_raw.empty:
-                logger.warning(f"({i}/{total_tickers}) ⚠️ {ticker_code}: Data kosong dari yfinance.")
+                logger.debug(f"({i}/{total_tickers}) ⚠️ {ticker_code}: Data kosong dari yfinance.")
                 skip_count += 1
                 continue
 
@@ -271,7 +282,7 @@ def run_pipeline():
 
             all_data.extend(data_clean.to_dict(orient='records'))
 
-            logger.info(
+            logger.debug(
                 f"({i}/{total_tickers}) ✅ {ticker_code} | {rows_count} baris | "
                 f"{data_clean['tanggal'].min()} → {data_clean['tanggal'].max()}"
             )
@@ -282,16 +293,21 @@ def run_pipeline():
             error_count += 1
 
         time.sleep(TICKER_SLEEP)
+        if i % BATCH_SIZE == 0 or i == total_tickers:
+            logger.info(
+                f"📊 Progress OHLCV: {i}/{total_tickers} emiten ({i/total_tickers*100:.1f}%) | "
+                f"✅ {success_count} ok | ⚠️ {skip_count} skip | ❌ {error_count} error"
+            )
         if i % BATCH_SIZE == 0 and i < total_tickers:
             # Heartbeat ping for serverless DB (Keep-alive)
             try:
                 with engine.connect() as conn:
                     conn.execute(text("SELECT 1"))
-                logger.info("💓 DB Heartbeat: Ping sent (keep-alive).")
+                logger.debug("💓 DB Heartbeat: Ping sent (keep-alive).")
             except Exception as e:
                 logger.warning(f"⚠️ Heartbeat ping failed: {e}")
 
-            logger.info(f"💤 Batch cooldown {BATCH_SLEEP}s...")
+            logger.debug(f"💤 Batch cooldown {BATCH_SLEEP}s...")
             time.sleep(BATCH_SLEEP)
 
     # ── Bulk UPSERT ─────────────────────────────────────────
@@ -310,7 +326,7 @@ def run_pipeline():
                             volume = EXCLUDED.volume
                     """)
                     conn.execute(upsert_sql, all_data)
-            logger.info(f"✅ Bulk UPSERT berhasil ({total_rows} baris).")
+            logger.debug(f"✅ Bulk UPSERT berhasil ({total_rows} baris).")
         except Exception as e:
             logger.error(f"❌ CRITICAL: Bulk UPSERT gagal: {e}")
             log_to_db("pipeline", "CRITICAL", f"Bulk UPSERT gagal: {e}")

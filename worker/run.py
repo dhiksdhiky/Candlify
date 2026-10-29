@@ -20,8 +20,14 @@ if sys.platform == "win32":
     except Exception:
         pass
 
+import warnings
 import logging
 from datetime import datetime
+
+warnings.filterwarnings("ignore")
+logging.getLogger("yfinance").setLevel(logging.CRITICAL)
+logging.getLogger("peewee").setLevel(logging.CRITICAL)
+logging.getLogger("urllib3").setLevel(logging.WARNING)
 
 from db_config import setup_tables, TEST_MODE
 

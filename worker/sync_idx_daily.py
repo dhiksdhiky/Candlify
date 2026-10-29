@@ -163,13 +163,18 @@ def fetch_idx_via_browser(
             co = ChromiumOptions().auto_port()
             if browser_path:
                 co.set_browser_path(browser_path)
+            co.set_user_agent(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+            )
+            co.set_argument("--disable-blink-features=AutomationControlled")
             co.set_argument("--no-sandbox")
             co.set_argument("--disable-gpu")
             co.set_argument("--disable-dev-shm-usage")
             co.set_argument("--lang=id-ID")
             # Gunakan headful jika ada DISPLAY (misal xvfb-run di GitHub Actions), headless jika tidak ada
             if os.name != "nt" and not os.environ.get("DISPLAY"):
-                co.headless(True)
+                co.set_argument("--headless=new")
             if p_url and p_url.startswith("http"):
                 co.set_proxy(p_url)
 
@@ -185,14 +190,20 @@ def fetch_idx_via_browser(
                     break
                 time.sleep(1.0)
 
-            # Eksekusi fetch() langsung dari konteks DOM halaman www.idx.co.id
+            # Eksekusi synchronous XMLHttpRequest dari konteks DOM www.idx.co.id (tanpa 'await' agar kompatibel dengan wrapper function() DrissionPage)
             js_code = f"""
-                return await fetch("{api_path}", {{
-                    headers: {{ "Accept": "application/json, text/plain, */*" }}
-                }}).then(r => {{
-                    if (!r.ok) throw new Error("HTTP " + r.status);
-                    return r.json();
-                }});
+                try {{
+                    const xhr = new XMLHttpRequest();
+                    xhr.open("GET", "{api_path}", false);
+                    xhr.setRequestHeader("Accept", "application/json, text/plain, */*");
+                    xhr.send(null);
+                    if (xhr.status === 200) {{
+                        return JSON.parse(xhr.responseText);
+                    }}
+                    return {{ "_err_status": xhr.status }};
+                }} catch (e) {{
+                    return {{ "_err_msg": String(e) }};
+                }}
             """
             payload = page.run_js(js_code)
             if isinstance(payload, dict) and "data" in payload:
@@ -206,10 +217,12 @@ def fetch_idx_via_browser(
                 logger.info("✅ [Layer 1B] Real Browser direct JSON berhasil (%d baris).", len(raw_json.get("data", [])))
                 return raw_json
 
-            raise RuntimeError(f"Browser tidak mengembalikan JSON valid (title={page.title!r}).")
+            err_detail = payload.get("_err_status") or payload.get("_err_msg") if isinstance(payload, dict) else None
+            raise RuntimeError(f"HTTP/DOM belum lolos challenge (title={page.title!r}, status={err_detail}).")
         except Exception as exc:
             last_err = exc
-            logger.warning("⚠️ [Layer 1B] %s gagal: %s", "Browser+Proxy" if p_url else "Browser-Direct", exc)
+            short_err = str(exc).splitlines()[0][:180]
+            logger.warning("⚠️ [Layer 1B] %s belum berhasil: %s", "Browser+Proxy" if p_url else "Browser-Direct", short_err)
         finally:
             if page is not None:
                 try:
@@ -263,6 +276,9 @@ def fetch_idx_trading_summary(
 
     last_error: Optional[Exception] = None
     warp_rotations = 0
+    tried_profiles: List[str] = []
+
+    logger.info("📡 Mengakses IDX GetStockSummary (date=%s)...", date_str or "latest")
 
     for p_cfg in proxy_candidates:
         for idx, prof in enumerate(ordered_profiles):
@@ -270,7 +286,8 @@ def fetch_idx_trading_summary(
                 if idx > 0:
                     time.sleep(1.0)
                 mode_lbl = f"{prof}+proxy" if p_cfg else prof
-                logger.info("📡 Mengakses IDX GetStockSummary (impersonate=%s, date=%s)...", mode_lbl, date_str or "latest")
+                tried_profiles.append(mode_lbl)
+                logger.debug("📡 Mencoba profil TLS %s (date=%s)...", mode_lbl, date_str or "latest")
                 response = cf_requests.get(
                     IDX_SUMMARY_URL,
                     params=params,
@@ -282,7 +299,7 @@ def fetch_idx_trading_summary(
 
                 # Jika terhadang Cloudflare 403, lakukan Session Warm-up (ambil cookie __cf_bm dari halaman induk)
                 if response.status_code == 403:
-                    logger.info("🔄 HTTP 403 pada direct GET (%s), mencoba Session Cookie Warm-up...", mode_lbl)
+                    logger.debug("🔄 HTTP 403 pada direct GET (%s), mencoba Session Cookie Warm-up...", mode_lbl)
                     with cf_requests.Session(impersonate=prof, proxies=p_cfg) as s:
                         s.get(referer_url, timeout=timeout)
                         response = s.get(
@@ -295,11 +312,12 @@ def fetch_idx_trading_summary(
                 if response.status_code == 200:
                     payload = response.json()
                     if isinstance(payload, dict) and "data" in payload:
+                        logger.info("✅ IDX GetStockSummary berhasil diakses via profil %s.", mode_lbl)
                         return payload
                     raise ValueError("Payload IDX GetStockSummary tidak valid atau kosong.")
 
                 last_error = RuntimeError(f"HTTP {response.status_code} saat mengakses IDX Trading Summary (impersonate={mode_lbl}).")
-                logger.warning("⚠️ %s", last_error)
+                logger.debug("⚠️ %s", last_error)
 
                 # Jika menggunakan WARP proxy dan terkena 403, rotasi IP WARP agar percobaan profil berikutnya memakai IP baru
                 if p_cfg is not None and response.status_code == 403 and warp_rotations < 2:
@@ -307,17 +325,23 @@ def fetch_idx_trading_summary(
                         warp_rotations += 1
             except Exception as exc:
                 last_error = exc
-                logger.warning("⚠️ Impersonate %s gagal: %s", prof, exc)
+                logger.debug("⚠️ Impersonate %s gagal: %s", prof, exc)
                 # Jika koneksi proxy lokal ditolak (misal WARP tidak aktif), langsung beralih ke kandidat tanpa proxy
                 if p_cfg is not None and ("Connection refused" in str(exc) or "Failed to connect" in str(exc) or "(7)" in str(exc)):
                     break
+
+    logger.warning(
+        "⚠️ [Layer 1A] Seluruh %d profil TLS diblokir Cloudflare (HTTP 403), mengaktifkan Layer 1B (Real Browser)...",
+        len(tried_profiles),
+    )
 
     # Jika seluruh profil curl_cffi (Layer 1A) terkena HTTP 403 (Cloudflare JS Managed Challenge),
     # aktifkan Layer 1B (Real Browser via DrissionPage) sebelum menyerah ke Yahoo Finance!
     try:
         return fetch_idx_via_browser(date_str=date_str, proxy_url=proxy_url, timeout=35)
     except Exception as browser_exc:
-        logger.warning("⚠️ [Layer 1B] Fallback Real Browser gagal: %s", browser_exc)
+        short_b_err = str(browser_exc).splitlines()[0][:180]
+        logger.warning("⚠️ [Layer 1B] Fallback Real Browser belum berhasil: %s", short_b_err)
 
     if last_error:
         raise last_error
