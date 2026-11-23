@@ -101,6 +101,119 @@
                     </div>
                 </div>
 
+                <!-- 2B. Daily Market Insight Card (Foreign Flow + Multi-Broker Radar) -->
+                <div class="db-insight-card" id="db-daily-insight-card">
+                    <div class="db-insight-header">
+                        <div class="db-insight-title-group">
+                            <span class="db-insight-title">📊 Market Insight</span>
+                            <span class="db-insight-date-pill" id="daily-insight-date-label">--</span>
+                        </div>
+                        <div class="db-insight-tabs" role="tablist">
+                            <button type="button" class="db-insight-tab active" data-insight-tab="foreign">🌐 Foreign</button>
+                            <button type="button" class="db-insight-tab" data-insight-tab="broker">🏦 Broker</button>
+                        </div>
+                    </div>
+
+                    <!-- Sub-Tab 1: Foreign Flow Market-Wide + Barometer 20D -->
+                    <div id="insight-pane-foreign" class="db-insight-pane">
+                        <div class="daily-foreign-top-grid">
+                            <div class="daily-stat-box">
+                                <span class="daily-stat-label">Net Foreign BEI</span>
+                                <span class="daily-stat-val" id="daily-foreign-net">--</span>
+                                <div class="daily-ratio-wrap">
+                                    <div class="broksum-ratio-bar-container" style="height: 5px;">
+                                        <div class="ratio-buy-bar" id="daily-foreign-buy-bar" style="width: 50%;"></div>
+                                        <div class="ratio-sell-bar" id="daily-foreign-sell-bar" style="width: 50%;"></div>
+                                    </div>
+                                    <div class="daily-ratio-labels">
+                                        <span id="daily-foreign-buy-pct">Buy 50%</span>
+                                        <span id="daily-foreign-sell-pct">Sell 50%</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="daily-stat-box">
+                                <span class="daily-stat-label">Barometer Pasar</span>
+                                <div class="daily-breadth-pills" id="daily-breadth-counts">
+                                    <span class="breadth-up">▲ --</span>
+                                    <span class="breadth-down">▼ --</span>
+                                    <span class="breadth-flat">• --</span>
+                                </div>
+                                <span class="daily-stat-sub" id="daily-breadth-ma20">Di atas MA20: --%</span>
+                            </div>
+                        </div>
+
+                        <div class="daily-trend-wrap">
+                            <div class="daily-trend-header">
+                                <span class="daily-trend-title">Tren Net Foreign 20 Hari Bursa</span>
+                                <span class="daily-trend-hint" id="daily-trend-hover-val">Tap batang utk tanggal</span>
+                            </div>
+                            <div class="daily-trend-bars" id="daily-foreign-trend-bars"></div>
+                        </div>
+
+                        <div class="daily-dual-columns">
+                            <div class="daily-col">
+                                <div class="daily-col-hdr buy">🟢 Top Foreign Buy</div>
+                                <div class="daily-list" id="daily-foreign-top-buy">
+                                    <div class="daily-empty">Memuat data...</div>
+                                </div>
+                            </div>
+                            <div class="daily-col">
+                                <div class="daily-col-hdr sell">🔴 Top Foreign Sell</div>
+                                <div class="daily-list" id="daily-foreign-top-sell">
+                                    <div class="daily-empty">Memuat data...</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sub-Tab 2: Multi-Broker Radar (1D / 5D / 20D, Multi-Select Chips) -->
+                    <div id="insight-pane-broker" class="db-insight-pane hidden">
+                        <div class="broker-radar-toolbar">
+                            <div class="broker-range-pills">
+                                <button type="button" class="broker-range-btn active" data-days="1">1D</button>
+                                <button type="button" class="broker-range-btn" data-days="5">5D</button>
+                                <button type="button" class="broker-range-btn" data-days="20">20D</button>
+                            </div>
+                            <div class="broker-add-wrap">
+                                <input type="text" id="input-add-broker-chip" class="broker-add-input" placeholder="+ Kode (RS, YU)" maxlength="3" autocomplete="off">
+                                <button type="button" id="btn-add-broker-chip" class="broker-add-btn" title="Tambah broker ke pilihan">+</button>
+                            </div>
+                        </div>
+
+                        <div class="broker-radar-chips" id="broker-radar-chips"></div>
+
+                        <div class="broker-radar-summary">
+                            <div class="broker-sum-row">
+                                <span class="broker-sum-label" id="broker-radar-combo-label">Gabungan (AK + BK)</span>
+                                <span class="broker-sum-net" id="broker-radar-net-val">--</span>
+                            </div>
+                            <div class="broksum-ratio-bar-container" style="height: 5px; margin-top: 4px;">
+                                <div class="ratio-buy-bar" id="broker-radar-buy-bar" style="width: 50%;"></div>
+                                <div class="ratio-sell-bar" id="broker-radar-sell-bar" style="width: 50%;"></div>
+                            </div>
+                            <div class="daily-ratio-labels" style="margin-top: 3px;">
+                                <span id="broker-radar-period-sub">Periode: --</span>
+                                <span id="broker-radar-ratio-sub">Buy 50% / Sell 50%</span>
+                            </div>
+                        </div>
+
+                        <div class="daily-dual-columns">
+                            <div class="daily-col">
+                                <div class="daily-col-hdr buy">🟢 Top Net Buy</div>
+                                <div class="daily-list" id="broker-radar-top-buy">
+                                    <div class="daily-empty">Memuat data...</div>
+                                </div>
+                            </div>
+                            <div class="daily-col">
+                                <div class="daily-col-hdr sell">🔴 Top Net Sell</div>
+                                <div class="daily-list" id="broker-radar-top-sell">
+                                    <div class="daily-empty">Memuat data...</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- 3. Action Bar: 3 Tombol Fitur dari Stock Engine -->
                 <div class="db-action-bar">
                     <button id="btnActionSuspend" class="db-action-btn" title="Lihat Saham Suspensi & Gap IPOT">

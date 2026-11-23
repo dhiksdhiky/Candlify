@@ -42,6 +42,8 @@ from lib.bandarmologi import (
 )
 from lib.screener import get_screened_stocks, get_pre_breakout_signals, get_stock_board_map
 from lib.database_monitor import get_database_metrics, process_saham_excel, get_calendar_history
+from lib.daily_insight import get_daily_foreign_insight, get_multi_broker_insight
+from lib.pre_breakout_report import render_hybrid_pre_breakout_doc
 from lib.portfolio import (
     get_all_watchlists,
     add_to_watchlist,
@@ -684,6 +686,46 @@ def api_database_calendar(month: str = Query(...)):
         logger.error(f"Error in api_database_calendar: {err}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Gagal memuat kalender")
 
+@app.get("/api/database/daily-insight")
+def api_database_daily_insight(
+    response: Response,
+    date: Optional[str] = Query(None, description="Tanggal bursa (YYYY-MM-DD), default tanggal terbaru")
+):
+    """Ambil insight Foreign Flow harian seluruh BEI, Market Breadth, & tren 20 hari."""
+    try:
+        res = get_daily_foreign_insight(target_date=date)
+        if not res.get("success", False):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=res.get("error", "Data tidak ditemukan"))
+        response.headers["Cache-Control"] = "public, s-maxage=120, stale-while-revalidate=300"
+        return res
+    except HTTPException:
+        raise
+    except Exception as err:
+        logger.error(f"Error in api_database_daily_insight: {err}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Gagal memuat daily insight")
+
+@app.get("/api/database/broker-radar")
+def api_database_broker_radar(
+    response: Response,
+    date: Optional[str] = Query(None, description="Tanggal akhir bursa (YYYY-MM-DD)"),
+    brokers: str = Query("AK,BK", description="Kode broker dipisah koma (misal AK,BK,ZP)"),
+    days: int = Query(1, ge=1, le=20, description="Rentang hari bursa mundur (1, 5, atau 20)"),
+    limit: int = Query(8, ge=3, le=20, description="Jumlah top saham buy/sell")
+):
+    """Agregasi aktivitas gabungan 1 atau lebih broker (Multi-Broker Radar) untuk rentang 1D/5D/20D."""
+    try:
+        broker_list = [b.strip().upper() for b in brokers.split(",") if b.strip()]
+        res = get_multi_broker_insight(target_date=date, brokers=broker_list, days=days, limit=limit)
+        if not res.get("success", False):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=res.get("error", "Data broker tidak ditemukan"))
+        response.headers["Cache-Control"] = "public, s-maxage=120, stale-while-revalidate=300"
+        return res
+    except HTTPException:
+        raise
+    except Exception as err:
+        logger.error(f"Error in api_database_broker_radar: {err}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Gagal memuat broker radar")
+
 @app.post("/api/database/upload", dependencies=[Depends(verify_mutation_auth)])
 def api_database_upload(file: UploadFile = File(...)):
     """Upload dan replace master data emiten dari file Excel IDX (.xlsx)."""
@@ -797,6 +839,9 @@ def api_get_doc_by_slug(slug: str):
     try:
         with open(file_path, "r", encoding="utf-8") as doc_f:
             content = doc_f.read()
+
+        # Render konten hybrid dinamis jika dokumen memiliki placeholder scorecard
+        content = render_hybrid_pre_breakout_doc(content)
             
         title = target_file.replace(".md", "").replace("_", " ")
         icon = "📖"

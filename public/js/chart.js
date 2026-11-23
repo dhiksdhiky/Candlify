@@ -601,6 +601,35 @@ class CandlifyChart {
             dbCalendarCard: document.getElementById('db-calendar-card'),
             btnCalPrev: document.getElementById('btn-cal-prev'),
             btnCalNext: document.getElementById('btn-cal-next'),
+            // Daily Market Insight (Foreign Flow + Multi-Broker Radar)
+            dbDailyInsightCard: document.getElementById('db-daily-insight-card'),
+            dailyInsightDateLabel: document.getElementById('daily-insight-date-label'),
+            dailyInsightTabs: document.querySelectorAll('.db-insight-tab'),
+            insightPaneForeign: document.getElementById('insight-pane-foreign'),
+            insightPaneBroker: document.getElementById('insight-pane-broker'),
+            dailyForeignNet: document.getElementById('daily-foreign-net'),
+            dailyForeignBuyBar: document.getElementById('daily-foreign-buy-bar'),
+            dailyForeignSellBar: document.getElementById('daily-foreign-sell-bar'),
+            dailyForeignBuyPct: document.getElementById('daily-foreign-buy-pct'),
+            dailyForeignSellPct: document.getElementById('daily-foreign-sell-pct'),
+            dailyBreadthCounts: document.getElementById('daily-breadth-counts'),
+            dailyBreadthMa20: document.getElementById('daily-breadth-ma20'),
+            dailyForeignTrendBars: document.getElementById('daily-foreign-trend-bars'),
+            dailyTrendHoverVal: document.getElementById('daily-trend-hover-val'),
+            dailyForeignTopBuy: document.getElementById('daily-foreign-top-buy'),
+            dailyForeignTopSell: document.getElementById('daily-foreign-top-sell'),
+            brokerRangeBtns: document.querySelectorAll('.broker-range-btn'),
+            inputAddBrokerChip: document.getElementById('input-add-broker-chip'),
+            btnAddBrokerChip: document.getElementById('btn-add-broker-chip'),
+            brokerRadarChips: document.getElementById('broker-radar-chips'),
+            brokerRadarComboLabel: document.getElementById('broker-radar-combo-label'),
+            brokerRadarNetVal: document.getElementById('broker-radar-net-val'),
+            brokerRadarBuyBar: document.getElementById('broker-radar-buy-bar'),
+            brokerRadarSellBar: document.getElementById('broker-radar-sell-bar'),
+            brokerRadarPeriodSub: document.getElementById('broker-radar-period-sub'),
+            brokerRadarRatioSub: document.getElementById('broker-radar-ratio-sub'),
+            brokerRadarTopBuy: document.getElementById('broker-radar-top-buy'),
+            brokerRadarTopSell: document.getElementById('broker-radar-top-sell'),
             btnActionSuspend: document.getElementById('btnActionSuspend'),
             btnActionLogs: document.getElementById('btnActionLogs'),
             btnActionUpload: document.getElementById('btnActionUpload'),
@@ -4349,6 +4378,9 @@ class CandlifyChart {
             });
         }
 
+        // 6B. Daily Market Insight & Multi-Broker Radar Events
+        this.setupDailyInsightEvents();
+
         // 7. Calendar Touch Swipe Gestures (Mobile / PWA)
         const calContainer = this.dom.dbCalendarCard || this.dom.calendarGrid;
         if (calContainer) {
@@ -6021,7 +6053,18 @@ class CandlifyChart {
                 this.calendarCache[activeMonth] = d.history || [];
 
                 // Render Calendar Heatmap
-                this.renderSyncCalendar(d.history || [], activeMonth);
+                const histArr = d.history || [];
+                if (!this.selectedInsightDate && histArr.length > 0) {
+                    this.selectedInsightDate = histArr[histArr.length - 1].date;
+                }
+                this.renderSyncCalendar(histArr, activeMonth);
+
+                // Muat Daily Market Insight untuk tanggal terpilih
+                if (this.selectedInsightDate) {
+                    this.loadDailyInsightForDate(this.selectedInsightDate);
+                } else {
+                    this.loadDailyInsightForDate(null);
+                }
             } else {
                 throw new Error(json.detail || json.error || `HTTP ${res.status}`);
             }
@@ -6203,12 +6246,14 @@ class CandlifyChart {
             let contentHtml = `<div class="cal-stats" style="margin-top: 6px; opacity: 0.35;">-</div>`;
 
             let idxDotHtml = '';
+            let clickAttrs = '';
             if (hist) {
                 if (hist.broksum_synced >= hist.target_harvester && hist.broksum_synced > 0) {
-                    boxClass = 'cal-box-green';
+                    boxClass = 'cal-box-green cal-clickable';
                 } else if (hist.ohlcv_scraped > 0) {
-                    boxClass = 'cal-box-red';
+                    boxClass = 'cal-box-red cal-clickable';
                 }
+                clickAttrs = `data-date="${dateStr}" title="Klik untuk lihat Market Insight ${dateStr}"`;
 
                 if (hist.idx_official_synced > 0) {
                     idxDotHtml = `<span class="cal-idx-dot" title="IDX Official Synced: ${hist.idx_official_synced} emiten">✓</span>`;
@@ -6222,10 +6267,11 @@ class CandlifyChart {
                 `;
             }
 
+            const isSelected = (this.selectedInsightDate && this.selectedInsightDate === dateStr) ? ' cal-selected' : '';
             const isToday = (isCurrentRealMonth && day === today.getDate()) ? 'border: 1px solid var(--accent-emerald);' : '';
 
             html += `
-                <div class="cal-box ${boxClass}" style="${isToday}">
+                <div class="cal-box ${boxClass}${isSelected}" ${clickAttrs} style="${isToday}">
                     ${idxDotHtml}
                     <div class="cal-date">${day}</div>
                     ${contentHtml}
@@ -6234,6 +6280,482 @@ class CandlifyChart {
         }
 
         this.dom.calendarGrid.innerHTML = html;
+    }
+
+    // =========================================================================
+    // DAILY MARKET INSIGHT (FOREIGN FLOW + MULTI-BROKER RADAR)
+    // =========================================================================
+    setupDailyInsightEvents() {
+        this.activeInsightTab = this.activeInsightTab || 'foreign';
+        this.brokerRadarDays = this.brokerRadarDays || 1;
+        this.brokerRadarAvailable = this.brokerRadarAvailable || ['AK', 'BK', 'ZP', 'KZ', 'RX', 'CC', 'YP', 'XL', 'MG'];
+        this.brokerRadarSelected = this.brokerRadarSelected || ['AK', 'BK'];
+        this._dailyInsightCache = this._dailyInsightCache || {};
+        this._brokerRadarCache = this._brokerRadarCache || {};
+
+        this.renderBrokerRadarChips();
+
+        // 1. Klik tanggal pada kalender sync
+        if (this.dom.calendarGrid) {
+            this.dom.calendarGrid.addEventListener('click', (e) => {
+                const cell = e.target.closest('.cal-box.cal-clickable[data-date]');
+                if (!cell) return;
+                const pickedDate = cell.dataset.date;
+                if (!pickedDate) return;
+                this.selectInsightDate(pickedDate);
+            });
+        }
+
+        // 2. Switch Sub-Tab (Foreign vs Multi-Broker)
+        if (this.dom.dailyInsightTabs) {
+            this.dom.dailyInsightTabs.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const tab = btn.dataset.insightTab;
+                    if (!tab || tab === this.activeInsightTab) return;
+                    this.activeInsightTab = tab;
+
+                    this.dom.dailyInsightTabs.forEach(b => b.classList.toggle('active', b.dataset.insightTab === tab));
+                    if (this.dom.insightPaneForeign) {
+                        this.dom.insightPaneForeign.classList.toggle('hidden', tab !== 'foreign');
+                    }
+                    if (this.dom.insightPaneBroker) {
+                        this.dom.insightPaneBroker.classList.toggle('hidden', tab !== 'broker');
+                    }
+
+                    if (tab === 'broker') {
+                        this.loadMultiBrokerRadar();
+                    } else {
+                        this.loadDailyForeignInsight(this.selectedInsightDate);
+                    }
+                });
+            });
+        }
+
+        // 3. Range Pills (1D / 5D / 20D) pada Multi-Broker Radar
+        if (this.dom.brokerRangeBtns) {
+            this.dom.brokerRangeBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const days = parseInt(btn.dataset.days, 10) || 1;
+                    if (days === this.brokerRadarDays) return;
+                    this.brokerRadarDays = days;
+                    this.dom.brokerRangeBtns.forEach(b => b.classList.toggle('active', parseInt(b.dataset.days, 10) === days));
+                    this.loadMultiBrokerRadar();
+                });
+            });
+        }
+
+        // 4. Multi-Select Toggle Chips Broker
+        if (this.dom.brokerRadarChips) {
+            this.dom.brokerRadarChips.addEventListener('click', (e) => {
+                const chip = e.target.closest('.broker-radar-chip[data-broker]');
+                if (!chip) return;
+                const code = chip.dataset.broker;
+                const idx = this.brokerRadarSelected.indexOf(code);
+                if (idx >= 0) {
+                    if (this.brokerRadarSelected.length <= 1) {
+                        this.showToast('Pilih minimal 1 broker untuk radar', 'info');
+                        return;
+                    }
+                    this.brokerRadarSelected.splice(idx, 1);
+                } else {
+                    this.brokerRadarSelected.push(code);
+                }
+                this.renderBrokerRadarChips();
+                this.loadMultiBrokerRadar();
+            });
+        }
+
+        // 5. Tambah Broker Custom via Input (+ Kode)
+        const handleAddBroker = () => {
+            if (!this.dom.inputAddBrokerChip) return;
+            const raw = (this.dom.inputAddBrokerChip.value || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+            if (raw.length < 2 || raw.length > 3) {
+                this.showToast('Masukkan 2 huruf kode broker (misal RS, YU, LG)', 'warning');
+                return;
+            }
+            if (!this.brokerRadarAvailable.includes(raw)) {
+                this.brokerRadarAvailable.push(raw);
+            }
+            if (!this.brokerRadarSelected.includes(raw)) {
+                this.brokerRadarSelected.push(raw);
+            }
+            this.dom.inputAddBrokerChip.value = '';
+            this.renderBrokerRadarChips();
+            this.loadMultiBrokerRadar();
+        };
+
+        if (this.dom.btnAddBrokerChip) {
+            this.dom.btnAddBrokerChip.addEventListener('click', handleAddBroker);
+        }
+        if (this.dom.inputAddBrokerChip) {
+            this.dom.inputAddBrokerChip.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAddBroker();
+                }
+            });
+        }
+
+        // 6. Klik Saham di Daftar Foreign / Multi-Broker -> Langsung Buka Chart
+        const bindStockRowClick = (containerEl, getListFn) => {
+            if (!containerEl) return;
+            containerEl.addEventListener('click', (e) => {
+                const row = e.target.closest('.daily-stock-row[data-symbol]');
+                if (!row) return;
+                const sym = row.dataset.symbol;
+                if (sym) {
+                    this.openChartFromDailyInsight(sym, getListFn());
+                }
+            });
+        };
+
+        bindStockRowClick(this.dom.dailyForeignTopBuy, () => (this._lastForeignInsight?.top_buy || []).map(x => x.ticker));
+        bindStockRowClick(this.dom.dailyForeignTopSell, () => (this._lastForeignInsight?.top_sell || []).map(x => x.ticker));
+        bindStockRowClick(this.dom.brokerRadarTopBuy, () => (this._lastBrokerRadar?.top_buy || []).map(x => x.ticker));
+        bindStockRowClick(this.dom.brokerRadarTopSell, () => (this._lastBrokerRadar?.top_sell || []).map(x => x.ticker));
+
+        // 7. Klik Batang Mini Trend 20D -> Ganti Tanggal Terpilih
+        if (this.dom.dailyForeignTrendBars) {
+            this.dom.dailyForeignTrendBars.addEventListener('click', (e) => {
+                const col = e.target.closest('.trend-bar-col[data-date]');
+                if (!col) return;
+                const d = col.dataset.date;
+                if (d) this.selectInsightDate(d);
+            });
+            this.dom.dailyForeignTrendBars.addEventListener('mouseover', (e) => {
+                const col = e.target.closest('.trend-bar-col[data-label]');
+                if (col && this.dom.dailyTrendHoverVal) {
+                    this.dom.dailyTrendHoverVal.textContent = col.dataset.label;
+                }
+            });
+        }
+    }
+
+    renderBrokerRadarChips() {
+        if (!this.dom.brokerRadarChips) return;
+        const selectedSet = new Set(this.brokerRadarSelected || ['AK', 'BK']);
+        this.dom.brokerRadarChips.innerHTML = (this.brokerRadarAvailable || []).map(code => {
+            const isActive = selectedSet.has(code);
+            return `<button type="button" class="broker-radar-chip${isActive ? ' active' : ''}" data-broker="${escapeHtml(code)}">${isActive ? '✓ ' : ''}${escapeHtml(code)}</button>`;
+        }).join('');
+    }
+
+    selectInsightDate(dateStr) {
+        this.selectedInsightDate = dateStr;
+        if (this.dom.calendarGrid) {
+            this.dom.calendarGrid.querySelectorAll('.cal-box.cal-selected').forEach(el => el.classList.remove('cal-selected'));
+            const targetCell = this.dom.calendarGrid.querySelector(`.cal-box[data-date="${dateStr}"]`);
+            if (targetCell) targetCell.classList.add('cal-selected');
+        }
+        this.loadDailyInsightForDate(dateStr);
+    }
+
+    loadDailyInsightForDate(dateStr) {
+        if (this.activeInsightTab === 'broker') {
+            this.loadMultiBrokerRadar();
+        } else {
+            this.loadDailyForeignInsight(dateStr);
+        }
+    }
+
+    formatShortDateIndo(dateStr) {
+        if (!dateStr) return '--';
+        const parts = String(dateStr).split('-');
+        if (parts.length !== 3) return dateStr;
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+        const mIdx = parseInt(parts[1], 10) - 1;
+        return `${parseInt(parts[2], 10)} ${months[mIdx] || parts[1]} ${parts[0]}`;
+    }
+
+    formatRupiahCompact(val) {
+        const abs = Math.abs(val || 0);
+        if (abs >= 1e12) return (abs / 1e12).toFixed(2) + ' T';
+        if (abs >= 1e9) return (abs / 1e9).toFixed(1) + ' B';
+        if (abs >= 1e6) return (abs / 1e6).toFixed(0) + ' M';
+        if (abs >= 1e3) return (abs / 1e3).toFixed(0) + ' K';
+        return String(Math.round(abs));
+    }
+
+    async loadDailyForeignInsight(targetDate = null) {
+        const cacheKey = targetDate || 'latest';
+        if (this._dailyInsightCache && this._dailyInsightCache[cacheKey]) {
+            this.renderDailyForeignInsight(this._dailyInsightCache[cacheKey]);
+            return;
+        }
+
+        if (this.dom.dailyForeignTopBuy) {
+            this.dom.dailyForeignTopBuy.innerHTML = '<div class="daily-empty">Memuat data...</div>';
+        }
+        if (this.dom.dailyForeignTopSell) {
+            this.dom.dailyForeignTopSell.innerHTML = '<div class="daily-empty">Memuat data...</div>';
+        }
+
+        try {
+            const url = targetDate
+                ? `/api/database/daily-insight?date=${encodeURIComponent(targetDate)}`
+                : '/api/database/daily-insight';
+            const res = await fetch(url);
+            const json = await res.json();
+            if (!res.ok || !json.success) {
+                throw new Error(json.detail || json.error || 'Gagal memuat Foreign Flow');
+            }
+            this._dailyInsightCache[cacheKey] = json;
+            if (json.date) {
+                this._dailyInsightCache[json.date] = json;
+                this.selectedInsightDate = json.date;
+            }
+            this.renderDailyForeignInsight(json);
+        } catch (err) {
+            console.warn('Daily Foreign Insight error:', err);
+            if (this.dom.dailyForeignTopBuy) {
+                this.dom.dailyForeignTopBuy.innerHTML = `<div class="daily-empty">${escapeHtml(err.message)}</div>`;
+            }
+            if (this.dom.dailyForeignTopSell) {
+                this.dom.dailyForeignTopSell.innerHTML = '<div class="daily-empty">-</div>';
+            }
+        }
+    }
+
+    renderDailyForeignInsight(data) {
+        this._lastForeignInsight = data;
+        const fs = data.foreign_summary || {};
+        const br = data.breadth || {};
+
+        if (this.dom.dailyInsightDateLabel) {
+            this.dom.dailyInsightDateLabel.textContent = this.formatShortDateIndo(data.date);
+        }
+
+        const netVal = Number(fs.net_val || 0);
+        const sign = netVal > 0 ? '+' : (netVal < 0 ? '-' : '');
+        const cls = netVal > 0 ? 'up' : (netVal < 0 ? 'down' : '');
+
+        if (this.dom.dailyForeignNet) {
+            this.dom.dailyForeignNet.textContent = `${sign}Rp ${this.formatRupiahCompact(netVal)}`;
+            this.dom.dailyForeignNet.className = `daily-stat-val ${cls}`;
+        }
+
+        const bPct = Number(fs.buy_pct ?? 50);
+        const sPct = Number(fs.sell_pct ?? 50);
+        if (this.dom.dailyForeignBuyBar) this.dom.dailyForeignBuyBar.style.width = `${bPct}%`;
+        if (this.dom.dailyForeignSellBar) this.dom.dailyForeignSellBar.style.width = `${sPct}%`;
+        if (this.dom.dailyForeignBuyPct) this.dom.dailyForeignBuyPct.textContent = `Buy ${Math.round(bPct)}%`;
+        if (this.dom.dailyForeignSellPct) this.dom.dailyForeignSellPct.textContent = `Sell ${Math.round(sPct)}%`;
+
+        if (this.dom.dailyBreadthCounts) {
+            this.dom.dailyBreadthCounts.innerHTML = `
+                <span class="breadth-up" title="Saham Naik">▲ ${br.advancers ?? 0}</span>
+                <span class="breadth-down" title="Saham Turun">▼ ${br.decliners ?? 0}</span>
+                <span class="breadth-flat" title="Stagnan">• ${br.unchanged ?? 0}</span>
+            `;
+        }
+        if (this.dom.dailyBreadthMa20) {
+            const pctMa = Number(br.above_ma20_pct || 0);
+            const maColor = pctMa >= 55 ? '#34d399' : (pctMa <= 35 ? '#f87171' : '#fbbf24');
+            this.dom.dailyBreadthMa20.innerHTML = `Di atas MA20: <strong style="color:${maColor};">${pctMa.toFixed(1)}%</strong> (${br.above_ma20_count ?? 0}/${br.total_ma20 ?? 0})`;
+        }
+
+        // Render Mini Bar Chart 20 Hari
+        if (this.dom.dailyForeignTrendBars) {
+            const trend = data.trend_20d || [];
+            if (trend.length === 0) {
+                this.dom.dailyForeignTrendBars.innerHTML = '<div style="grid-column: 1/-1; text-align:center; font-size:10px; color:var(--text-muted);">Belum ada data tren 20H</div>';
+            } else {
+                const maxAbs = Math.max(...trend.map(t => Math.abs(t.net_val || 0)), 1);
+                this.dom.dailyForeignTrendBars.innerHTML = trend.map(t => {
+                    const v = Number(t.net_val || 0);
+                    const isUp = v >= 0;
+                    const hPct = Math.max(8, Math.round((Math.abs(v) / maxAbs) * 100));
+                    const isActive = (t.date === data.date);
+                    const lbl = `${this.formatShortDateIndo(t.date)}: ${isUp ? '+' : '-'}Rp ${this.formatRupiahCompact(v)}`;
+                    return `
+                        <div class="trend-bar-col${isActive ? ' active-day' : ''}" data-date="${escapeHtml(t.date)}" data-label="${escapeHtml(lbl)}" title="${escapeHtml(lbl)}">
+                            <div class="trend-bar-half top">
+                                ${isUp ? `<div class="trend-bar-fill up" style="height:${hPct}%;"></div>` : ''}
+                            </div>
+                            <div class="trend-bar-half bottom">
+                                ${!isUp ? `<div class="trend-bar-fill down" style="height:${hPct}%;"></div>` : ''}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+                if (this.dom.dailyTrendHoverVal) {
+                    this.dom.dailyTrendHoverVal.textContent = `${this.formatShortDateIndo(data.date)}: ${sign}Rp ${this.formatRupiahCompact(netVal)}`;
+                }
+            }
+        }
+
+        // Render Top 5 Foreign Buy & Sell
+        const renderForeignList = (items, isBuy) => {
+            if (!items || items.length === 0) {
+                return '<div class="daily-empty">Tidak ada data</div>';
+            }
+            const maxAbs = Math.max(...items.map(x => Math.abs(x.net_val || 0)), 1);
+            return items.map(item => {
+                const v = Number(item.net_val || 0);
+                const chg = Number(item.change_pct || 0);
+                const chgSign = chg > 0 ? '+' : '';
+                const chgCls = chg > 0 ? '#34d399' : (chg < 0 ? '#f87171' : '#94a3b8');
+                const barW = Math.max(10, Math.round((Math.abs(v) / maxAbs) * 100));
+                return `
+                    <div class="daily-stock-row" data-symbol="${escapeHtml(item.ticker)}" title="Buka Chart ${escapeHtml(item.ticker)}">
+                        <div class="daily-row-top">
+                            <span class="daily-row-ticker">${escapeHtml(item.ticker)}</span>
+                            <span class="daily-row-val ${isBuy ? 'up' : 'down'}">${isBuy ? '+' : '-'}${this.formatRupiahCompact(v)}</span>
+                        </div>
+                        <div class="daily-row-bottom">
+                            <span>Rp ${Number(item.close || 0).toLocaleString('id-ID')}</span>
+                            <span style="color:${chgCls};">${chgSign}${chg.toFixed(1)}%</span>
+                        </div>
+                        <div class="daily-row-bar-track">
+                            <div class="daily-row-bar-fill ${isBuy ? 'buy' : 'sell'}" style="width:${barW}%;"></div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        };
+
+        if (this.dom.dailyForeignTopBuy) {
+            this.dom.dailyForeignTopBuy.innerHTML = renderForeignList(data.top_buy, true);
+        }
+        if (this.dom.dailyForeignTopSell) {
+            this.dom.dailyForeignTopSell.innerHTML = renderForeignList(data.top_sell, false);
+        }
+    }
+
+    async loadMultiBrokerRadar() {
+        const brokers = (this.brokerRadarSelected && this.brokerRadarSelected.length > 0)
+            ? this.brokerRadarSelected
+            : ['AK', 'BK'];
+        const days = this.brokerRadarDays || 1;
+        const dt = this.selectedInsightDate || '';
+        const cacheKey = `${dt || 'latest'}|${[...brokers].sort().join(',')}|${days}`;
+
+        if (this._brokerRadarCache && this._brokerRadarCache[cacheKey]) {
+            this.renderMultiBrokerRadar(this._brokerRadarCache[cacheKey]);
+            return;
+        }
+
+        if (this.dom.brokerRadarTopBuy) {
+            this.dom.brokerRadarTopBuy.innerHTML = '<div class="daily-empty">Menghitung agregasi...</div>';
+        }
+        if (this.dom.brokerRadarTopSell) {
+            this.dom.brokerRadarTopSell.innerHTML = '<div class="daily-empty">Menghitung agregasi...</div>';
+        }
+
+        try {
+            const params = new URLSearchParams({
+                brokers: brokers.join(','),
+                days: String(days),
+                limit: '6',
+            });
+            if (dt) params.set('date', dt);
+
+            const res = await fetch(`/api/database/broker-radar?${params.toString()}`);
+            const json = await res.json();
+            if (!res.ok || !json.success) {
+                throw new Error(json.detail || json.error || 'Gagal memuat broker radar');
+            }
+            this._brokerRadarCache[cacheKey] = json;
+            this.renderMultiBrokerRadar(json);
+        } catch (err) {
+            console.warn('Multi-Broker Radar error:', err);
+            if (this.dom.brokerRadarTopBuy) {
+                this.dom.brokerRadarTopBuy.innerHTML = `<div class="daily-empty">${escapeHtml(err.message)}</div>`;
+            }
+            if (this.dom.brokerRadarTopSell) {
+                this.dom.brokerRadarTopSell.innerHTML = '<div class="daily-empty">-</div>';
+            }
+        }
+    }
+
+    renderMultiBrokerRadar(data) {
+        this._lastBrokerRadar = data;
+        const sum = data.summary || {};
+        const brokersList = data.brokers || [];
+
+        if (this.dom.dailyInsightDateLabel && data.date) {
+            this.dom.dailyInsightDateLabel.textContent = this.formatShortDateIndo(data.date);
+        }
+
+        if (this.dom.brokerRadarComboLabel) {
+            const labelPrefix = brokersList.length > 1 ? 'Gabungan' : 'Broker';
+            this.dom.brokerRadarComboLabel.textContent = `${labelPrefix} (${brokersList.join(' + ')})`;
+        }
+
+        const netVal = Number(sum.total_net_val || 0);
+        const sign = netVal > 0 ? '+' : (netVal < 0 ? '-' : '');
+        const cls = netVal > 0 ? 'up' : (netVal < 0 ? 'down' : '');
+
+        if (this.dom.brokerRadarNetVal) {
+            this.dom.brokerRadarNetVal.textContent = `${sign}Rp ${this.formatRupiahCompact(netVal)}`;
+            this.dom.brokerRadarNetVal.className = `broker-sum-net ${cls}`;
+        }
+
+        const bPct = Number(sum.buy_pct ?? 50);
+        const sPct = Number(sum.sell_pct ?? 50);
+        if (this.dom.brokerRadarBuyBar) this.dom.brokerRadarBuyBar.style.width = `${bPct}%`;
+        if (this.dom.brokerRadarSellBar) this.dom.brokerRadarSellBar.style.width = `${sPct}%`;
+
+        if (this.dom.brokerRadarPeriodSub) {
+            if (data.from_date && data.to_date && data.from_date !== data.to_date) {
+                this.dom.brokerRadarPeriodSub.textContent = `${this.formatShortDateIndo(data.from_date)} – ${this.formatShortDateIndo(data.to_date)} (${data.trading_days}H)`;
+            } else {
+                this.dom.brokerRadarPeriodSub.textContent = `Tanggal: ${this.formatShortDateIndo(data.date)}`;
+            }
+        }
+        if (this.dom.brokerRadarRatioSub) {
+            this.dom.brokerRadarRatioSub.textContent = `Buy ${Math.round(bPct)}% / Sell ${Math.round(sPct)}%`;
+        }
+
+        const renderBrokerList = (items, isBuy) => {
+            if (!items || items.length === 0) {
+                return '<div class="daily-empty">Tidak ada transaksi</div>';
+            }
+            return items.map(item => {
+                const v = Number(item.net_val || 0);
+                const avgP = Number(item.avg_price || 0);
+                const cl = Number(item.close || 0);
+                const barW = Number(item.bar_pct || 20);
+                return `
+                    <div class="daily-stock-row" data-symbol="${escapeHtml(item.ticker)}" title="Buka Chart ${escapeHtml(item.ticker)}">
+                        <div class="daily-row-top">
+                            <span class="daily-row-ticker">${escapeHtml(item.ticker)}</span>
+                            <span class="daily-row-val ${isBuy ? 'up' : 'down'}">${isBuy ? '+' : '-'}${this.formatRupiahCompact(v)}</span>
+                        </div>
+                        <div class="daily-row-bottom">
+                            <span>Avg ${avgP > 0 ? Math.round(avgP).toLocaleString('id-ID') : '-'}</span>
+                            <span>Cls ${cl > 0 ? Math.round(cl).toLocaleString('id-ID') : '-'}</span>
+                        </div>
+                        <div class="daily-row-bar-track">
+                            <div class="daily-row-bar-fill ${isBuy ? 'buy' : 'sell'}" style="width:${barW}%;"></div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        };
+
+        if (this.dom.brokerRadarTopBuy) {
+            this.dom.brokerRadarTopBuy.innerHTML = renderBrokerList(data.top_buy, true);
+        }
+        if (this.dom.brokerRadarTopSell) {
+            this.dom.brokerRadarTopSell.innerHTML = renderBrokerList(data.top_sell, false);
+        }
+    }
+
+    openChartFromDailyInsight(symbol, navList = []) {
+        this.updateChartBackButton('database');
+        const clean = (symbol || '').replace('IDX:', '').replace('.JK', '').toUpperCase().trim();
+        if (Array.isArray(navList) && navList.length > 0) {
+            this.activeNavigationList = Array.from(new Set(navList));
+        } else {
+            this.activeNavigationList = [clean];
+        }
+        const idx = this.activeNavigationList.indexOf(clean);
+        this.currentNavigationIndex = idx >= 0 ? idx : 0;
+        this.renderQuickChipsFromList(this.activeNavigationList, clean);
+        this.updateNavIndex();
+        this.switchView('chart', true, clean);
+        this.setSymbol(clean, true);
     }
 
     async deleteWatchlistItem(itemId, symbol) {
