@@ -248,3 +248,35 @@ def test_fastapi_endpoints_daily_insight_broker_radar_and_docs(sqlite_market_eng
     assert "<!-- LIVE_PRE_BREAKOUT_SCORECARD -->" not in md
     assert "Live Scorecard Neon DB" in md
     assert "Perbandingan Menyeluruh Formula V1 vs V2" in md
+
+    # Test AI Daily Report save + retrieval + hybrid merge
+    import worker.ai_analyst as ai_analyst
+    ai_analyst.save_ai_daily_report(
+        engine=sqlite_market_engine,
+        report_date="2026-10-17",
+        model_used="gemini-4-neon",
+        parsed_json={
+            "daily_brief": ["Foreign Inflow kuat di BBCA.", "Market Breadth sehat."],
+            "post_radar_checklist": ["Step 1: Cek MA20 > 45%", "Step 2: Cek 0 Crossing Nego"],
+            "winning_patterns": ["Foreign Inflow + Dominance >= 30% unggul."],
+            "signal_notes": [{"key": "2026-10-12|FAIL", "note": "Jebol support T+1 akibat distribusi."}],
+            "full_report_md": "## 1. Cuaca Makro\nBBCA kuat.\n## 2. Bedah Sinyal\nSUPR hit.",
+        },
+        stats_snapshot={"overall_win_rate": 50.0},
+    )
+
+    r5 = client.get("/api/reports/ai-daily?date=2026-10-17")
+    assert r5.status_code == 200
+    j5 = r5.json()
+    assert j5["success"] is True
+    assert j5["report"]["model_used"] == "gemini-4-neon"
+    assert "Cuaca Makro" in j5["report"]["full_report_md"]
+    assert len(j5["available_dates"]) == 1
+
+    # Cek hybrid doc sekarang menyuntikkan Ringkasan AI & Checklist + catatan AI untuk FAIL
+    r6 = client.get("/api/docs/04_laporan_kinerja_pre_breakout")
+    assert r6.status_code == 200
+    md6 = r6.json()["markdown"]
+    assert "Ringkasan AI Harian" in md6
+    assert "Checklist Wajib Pasca-Radar" in md6
+    assert "Jebol support T+1 akibat distribusi." in md6

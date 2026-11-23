@@ -43,7 +43,7 @@ from lib.bandarmologi import (
 from lib.screener import get_screened_stocks, get_pre_breakout_signals, get_stock_board_map
 from lib.database_monitor import get_database_metrics, process_saham_excel, get_calendar_history
 from lib.daily_insight import get_daily_foreign_insight, get_multi_broker_insight
-from lib.pre_breakout_report import render_hybrid_pre_breakout_doc
+from lib.pre_breakout_report import render_hybrid_pre_breakout_doc, get_ai_daily_report
 from lib.portfolio import (
     get_all_watchlists,
     add_to_watchlist,
@@ -814,6 +814,21 @@ def api_get_bandarmology_doc():
         }
     except Exception as err:
         raise HTTPException(status_code=500, detail=f"Gagal membaca dokumen: {err}")
+
+@app.get("/api/reports/ai-daily")
+def api_get_ai_daily_report(
+    response: Response,
+    date: Optional[str] = Query(None, description="Tanggal laporan AI (YYYY-MM-DD), default terbaru")
+):
+    """Ambil laporan analisis AI harian lengkap & daftar tanggal arsip dari Neon DB."""
+    try:
+        res = get_ai_daily_report(report_date=date)
+        response.headers["Cache-Control"] = "public, s-maxage=120, stale-while-revalidate=300"
+        return res
+    except Exception as err:
+        logger.error(f"Error in api_get_ai_daily_report: {err}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Gagal memuat laporan AI: {err}")
+
 
 @app.get("/api/docs/{slug}")
 def api_get_doc_by_slug(slug: str):

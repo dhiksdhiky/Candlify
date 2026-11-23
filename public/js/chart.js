@@ -7109,6 +7109,10 @@ class CandlifyChart {
         const docModalTitle = document.getElementById('doc-modal-title');
         const docModalSub = document.getElementById('doc-modal-subtitle');
         const docModalIcon = document.getElementById('doc-modal-icon');
+        const aiBar = document.getElementById('doc-ai-report-bar');
+        const btnSummary = document.getElementById('btn-doc-mode-summary');
+        const btnFull = document.getElementById('btn-doc-mode-full');
+        const selDate = document.getElementById('select-ai-report-date');
 
         if (!docModal || !docContent) return;
 
@@ -7116,6 +7120,67 @@ class CandlifyChart {
         if (docModalTitle) docModalTitle.textContent = title;
         if (docModalSub) docModalSub.textContent = subtitle;
         if (docModalIcon) docModalIcon.textContent = icon;
+
+        const isPerfDoc = (String(slug || '').toLowerCase() === '04_laporan_kinerja_pre_breakout');
+        if (aiBar) {
+            aiBar.classList.toggle('hidden', !isPerfDoc);
+        }
+        if (btnSummary) btnSummary.classList.add('active');
+        if (btnFull) btnFull.classList.remove('active');
+        if (selDate) selDate.classList.add('hidden');
+
+        const renderMdIntoDoc = (mdText) => {
+            if (window.marked && typeof window.marked.parse === 'function') {
+                docContent.innerHTML = window.marked.parse(mdText);
+            } else {
+                docContent.innerHTML = `<pre style="white-space: pre-wrap; color:#e2e8f0;">${escapeHtml(mdText)}</pre>`;
+            }
+            docContent.scrollTop = 0;
+        };
+
+        const loadAiFullReport = async (targetDate = null) => {
+            docContent.innerHTML = `
+                <div style="text-align: center; padding: 40px; color: var(--text-muted);">
+                    <div style="font-size: 24px; margin-bottom: 10px;">🤖</div>
+                    Memuat laporan analisis AI lengkap...
+                </div>
+            `;
+            try {
+                const apiUrl = targetDate
+                    ? `/api/reports/ai-daily?date=${encodeURIComponent(targetDate)}`
+                    : '/api/reports/ai-daily';
+                const r = await fetch(apiUrl);
+                const payload = await r.json();
+                if (!r.ok || !payload.success) {
+                    throw new Error(payload.detail || payload.error || 'Gagal memuat laporan AI');
+                }
+                const dates = payload.available_dates || [];
+                const rep = payload.report;
+                if (selDate) {
+                    if (dates.length > 0) {
+                        selDate.innerHTML = dates.map(d => `<option value="${escapeHtml(d.date)}">${escapeHtml(d.date)}</option>`).join('');
+                        if (rep && rep.date) selDate.value = rep.date;
+                        selDate.classList.remove('hidden');
+                    } else {
+                        selDate.classList.add('hidden');
+                    }
+                }
+                if (!rep || !rep.full_report_md) {
+                    docContent.innerHTML = `
+                        <div style="text-align:center; padding: 36px 20px; color: var(--text-muted);">
+                            <div style="font-size: 28px; margin-bottom: 8px;">🤖</div>
+                            <strong style="color:#e2e8f0;">Belum Ada Laporan AI Harian Tersimpan</strong><br>
+                            <span style="font-size: 12px;">Laporan otomatis dibuat setiap sore setelah data Harga, IDX Official, dan Broksum lengkap.</span>
+                        </div>
+                    `;
+                    return;
+                }
+                const headerMd = `> 🤖 **AI Daily Quant Report** • Tanggal: **\`${rep.date}\`** • Model: **\`${rep.model_used}\`** *(thinking: ${rep.thinking_level})*\n\n---\n\n`;
+                renderMdIntoDoc(headerMd + rep.full_report_md);
+            } catch (err) {
+                docContent.innerHTML = `<div style="color:#f87171; padding:20px;">Gagal memuat laporan AI: ${escapeHtml(err.message)}</div>`;
+            }
+        };
 
         docContent.innerHTML = `
             <div style="text-align: center; padding: 40px; color: var(--text-muted);">
@@ -7129,14 +7194,29 @@ class CandlifyChart {
             const res = await fetch(url);
             const data = await res.json();
             if (data.success && data.markdown) {
+                this._lastSummaryDocMarkdown = data.markdown;
                 if (data.title && docModalTitle) docModalTitle.textContent = data.title;
                 if (data.icon && docModalIcon) docModalIcon.textContent = data.icon;
-                if (window.marked && typeof window.marked.parse === 'function') {
-                    docContent.innerHTML = window.marked.parse(data.markdown);
-                } else {
-                    docContent.innerHTML = `<pre style="white-space: pre-wrap; color:#e2e8f0;">${escapeHtml(data.markdown)}</pre>`;
+                renderMdIntoDoc(data.markdown);
+
+                if (isPerfDoc && btnSummary && btnFull && selDate) {
+                    btnSummary.onclick = () => {
+                        btnSummary.classList.add('active');
+                        btnFull.classList.remove('active');
+                        selDate.classList.add('hidden');
+                        renderMdIntoDoc(this._lastSummaryDocMarkdown || '');
+                    };
+                    btnFull.onclick = () => {
+                        btnFull.classList.add('active');
+                        btnSummary.classList.remove('active');
+                        loadAiFullReport(selDate.value || null);
+                    };
+                    selDate.onchange = () => {
+                        if (btnFull.classList.contains('active')) {
+                            loadAiFullReport(selDate.value);
+                        }
+                    };
                 }
-                docContent.scrollTop = 0;
             } else {
                 docContent.innerHTML = '<div style="color:#f87171; padding:20px;">Gagal memuat dokumen panduan.</div>';
             }

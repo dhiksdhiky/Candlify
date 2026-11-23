@@ -166,6 +166,15 @@ def main():
             logger.error(f"❌ Scanner crash: {e}")
             scanner_success = False
 
+    # ── Step 6: AI Daily Quant Analyst (Gemini 4 Neon/Hydrogen) ──
+    if not daemon_mode and not pipeline_only:
+        try:
+            from ai_analyst import run_ai_analyst
+            ai_res = run_ai_analyst()
+            logger.info(f"🤖 AI Daily Analyst: {ai_res.get('status')} (tanggal={ai_res.get('date') or '-'}, model={ai_res.get('model_used') or '-'})")
+        except Exception as e:
+            logger.warning(f"⚠️ AI Daily Analyst dilewati karena error non-fatal: {e}")
+
     if not pipeline_success:
         logger.error("⚠️ Peringatan: Pipeline sempat gagal sebelumnya (lihat log di atas).")
 

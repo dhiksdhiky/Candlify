@@ -326,6 +326,20 @@ def setup_tables():
                     CREATE INDEX IF NOT EXISTS idx_candlify_signals_ticker
                         ON candlify_signals (ticker)
                 """))
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS ai_daily_reports (
+                        report_date TEXT PRIMARY KEY,
+                        model_used TEXT NOT NULL,
+                        thinking_level TEXT DEFAULT 'high',
+                        daily_brief_json TEXT,
+                        checklist_json TEXT,
+                        signal_notes_json TEXT,
+                        winning_patterns_json TEXT,
+                        full_report_md TEXT NOT NULL,
+                        stats_snapshot_json TEXT,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                    )
+                """))
             else:
                 # PostgreSQL branch
                 conn.execute(text("""
@@ -470,6 +484,20 @@ def setup_tables():
                 conn.execute(text("""
                     CREATE INDEX IF NOT EXISTS idx_candlify_signals_ticker
                         ON candlify_signals (ticker)
+                """))
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS ai_daily_reports (
+                        report_date DATE PRIMARY KEY,
+                        model_used VARCHAR(60) NOT NULL,
+                        thinking_level VARCHAR(20) DEFAULT 'high',
+                        daily_brief_json TEXT,
+                        checklist_json TEXT,
+                        signal_notes_json TEXT,
+                        winning_patterns_json TEXT,
+                        full_report_md TEXT NOT NULL,
+                        stats_snapshot_json TEXT,
+                        created_at TIMESTAMPTZ DEFAULT NOW()
+                    )
                 """))
 
     logger.info("✅ Semua tabel siap.")

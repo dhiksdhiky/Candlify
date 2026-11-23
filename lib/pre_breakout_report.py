@@ -13,6 +13,7 @@ Arsitektur Future-Proof:
 - Sinyal `RUNNING` tanpa catatan forensik menampilkan kolom evaluasi kosong (`—`).
 """
 
+import json
 import logging
 import re
 import threading
@@ -386,11 +387,149 @@ def evaluate_all_signals_from_db() -> Dict[str, Any]:
         return {"success": False, "error": str(e), "records": []}
 
 
+def _safe_json_load(raw: Optional[str], default: Any) -> Any:
+    if not raw:
+        return default
+    try:
+        return json.loads(raw)
+    except Exception:
+        return default
+
+
+def get_ai_daily_report(report_date: Optional[str] = None, limit_dates: int = 30) -> Dict[str, Any]:
+    """
+    Ambil laporan AI harian lengkap (`full_report_md`) untuk tanggal tertentu (default terbaru)
+    beserta daftar tanggal arsip yang tersedia di `ai_daily_reports`.
+    """
+    engine = get_engine()
+    if not engine:
+        return {"success": False, "error": "Database tidak terhubung", "available_dates": [], "report": None}
+
+    try:
+        with engine.connect() as conn:
+            date_rows = conn.execute(
+                text("""
+                    SELECT report_date, model_used
+                    FROM ai_daily_reports
+                    ORDER BY report_date DESC
+                    LIMIT :lim
+                """),
+                {"lim": limit_dates},
+            ).fetchall()
+
+            available_dates = [
+                {"date": str(r[0])[:10], "model_used": str(r[1] or "")}
+                for r in date_rows
+            ]
+
+            if not available_dates:
+                return {"success": True, "available_dates": [], "report": None}
+
+            target_d = str(report_date)[:10] if report_date else available_dates[0]["date"]
+            row = conn.execute(
+                text("""
+                    SELECT
+                        report_date, model_used, thinking_level,
+                        daily_brief_json, checklist_json, signal_notes_json,
+                        winning_patterns_json, full_report_md
+                    FROM ai_daily_reports
+                    WHERE report_date = :d
+                """),
+                {"d": target_d},
+            ).fetchone()
+
+            if not row:
+                # Fallback ke laporan terbaru jika tanggal spesifik tidak ada
+                row = conn.execute(
+                    text("""
+                        SELECT
+                            report_date, model_used, thinking_level,
+                            daily_brief_json, checklist_json, signal_notes_json,
+                            winning_patterns_json, full_report_md
+                        FROM ai_daily_reports
+                        ORDER BY report_date DESC
+                        LIMIT 1
+                    """)
+                ).fetchone()
+
+            if not row:
+                return {"success": True, "available_dates": available_dates, "report": None}
+
+            return {
+                "success": True,
+                "available_dates": available_dates,
+                "report": {
+                    "date": str(row[0])[:10],
+                    "model_used": str(row[1] or ""),
+                    "thinking_level": str(row[2] or "high"),
+                    "daily_brief": _safe_json_load(row[3], []),
+                    "checklist": _safe_json_load(row[4], []),
+                    "signal_notes": _safe_json_load(row[5], {}),
+                    "winning_patterns": _safe_json_load(row[6], []),
+                    "full_report_md": str(row[7] or ""),
+                },
+            }
+    except Exception as e:
+        # Tabel belum ada pada environment lama -> kembalikan kosong secara graceful
+        logger.debug(f"ai_daily_reports belum tersedia atau gagal dibaca: {e}")
+        return {"success": True, "available_dates": [], "report": None}
+
+
+def _load_merged_ai_notes_and_latest() -> Tuple[Dict[str, str], Optional[Dict[str, Any]]]:
+    """Ambil gabungan catatan 1-baris AI dari arsip terbaru + ringkasan laporan AI terbaru."""
+    engine = get_engine()
+    if not engine:
+        return {}, None
+
+    merged_notes: Dict[str, str] = {}
+    latest_report: Optional[Dict[str, Any]] = None
+    try:
+        with engine.connect() as conn:
+            rows = conn.execute(
+                text("""
+                    SELECT
+                        report_date, model_used, thinking_level,
+                        daily_brief_json, checklist_json, signal_notes_json,
+                        winning_patterns_json
+                    FROM ai_daily_reports
+                    ORDER BY report_date DESC
+                    LIMIT 20
+                """)
+            ).fetchall()
+
+            for idx, r in enumerate(rows):
+                if idx == 0:
+                    latest_report = {
+                        "date": str(r[0])[:10],
+                        "model_used": str(r[1] or ""),
+                        "thinking_level": str(r[2] or "high"),
+                        "daily_brief": _safe_json_load(r[3], []),
+                        "checklist": _safe_json_load(r[4], []),
+                        "winning_patterns": _safe_json_load(r[6], []),
+                    }
+                notes_obj = _safe_json_load(r[5], {})
+                if isinstance(notes_obj, dict):
+                    for k, v in notes_obj.items():
+                        ku = str(k).upper().strip()
+                        if ku and v and ku not in merged_notes:
+                            merged_notes[ku] = str(v).strip()
+    except Exception:
+        return {}, None
+
+    return merged_notes, latest_report
+
+
 def build_live_scorecard_markdown(forensic_notes: Optional[Dict[str, str]] = None) -> str:
     """
-    Bangun blok Markdown live scorecard dari Neon DB & gabungkan dengan catatan forensik manual.
+    Bangun blok Markdown live scorecard dari Neon DB & gabungkan dengan catatan forensik manual
+    serta ringkasan AI Daily Brief + Checklist dinamis terbaru (jika tersedia).
     """
-    notes_map = forensic_notes or {}
+    ai_notes, latest_ai = _load_merged_ai_notes_and_latest()
+    # Catatan manual di file .md selalu menjadi prioritas tertinggi
+    notes_map: Dict[str, str] = dict(ai_notes)
+    if forensic_notes:
+        notes_map.update(forensic_notes)
+
     eval_res = evaluate_all_signals_from_db()
 
     if not eval_res.get("success"):
@@ -420,6 +559,30 @@ def build_live_scorecard_markdown(forensic_notes: Optional[Dict[str, str]] = Non
     v2_wr = f"{round((len(v2_hits) / len(v2_closed)) * 100.0, 1)}%" if v2_closed else "Menunggu penutupan window T+10"
 
     lines: List[str] = []
+
+    # ── Ringkasan AI Daily Brief + Checklist Dinamis (Compact Level 1) ──
+    if latest_ai:
+        ai_dt = latest_ai["date"]
+        ai_mod = latest_ai["model_used"]
+        briefs = latest_ai.get("daily_brief") or []
+        checks = latest_ai.get("checklist") or []
+        lines.append(f"### 🤖 Ringkasan AI Harian • `{ai_dt}` *({ai_mod})*")
+        lines.append("")
+        if briefs:
+            for b in briefs[:4]:
+                lines.append(f"- {b}")
+            lines.append("")
+        if checks:
+            lines.append("**✅ Checklist Wajib Pasca-Radar (Belajar dari Pola Paling Sering WIN):**")
+            lines.append("")
+            for i, step in enumerate(checks[:5], 1):
+                lines.append(f"{i}. {step}")
+            lines.append("")
+        lines.append("> 💡 *Klik tab **🤖 Laporan Lengkap AI** di bagian atas layar ini untuk membaca bedah mendalam (Foreign Flow, Multi-Broker, Winning Pattern DNA, & arsip tanggal sebelumnya).*")
+        lines.append("")
+        lines.append("---")
+        lines.append("")
+
     lines.append(f"> 🔄 **Live Scorecard Neon DB** • Data Harga Terakhir: **`{latest_dt}`** • Total Sinyal Terekam: **`{len(records)}`**")
     lines.append("")
     lines.append("| Ringkasan Metrik Keseluruhan (V1 + V2) | Nilai |")

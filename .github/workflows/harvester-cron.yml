@@ -59,6 +59,7 @@ jobs:
         PYTHONUNBUFFERED: "1"
         IDX_PROXY_URL: "socks5h://127.0.0.1:40000"
         DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         TELE_BOT_DHIKSDHIKY: ${{ secrets.TELE_BOT_DHIKSDHIKY }}
         TELE_CHAT_ID_DHIKA: ${{ secrets.TELE_CHAT_ID_DHIKA }}
       run: |

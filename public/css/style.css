@@ -5208,6 +5208,64 @@ select option:checked,
     border-radius: 4px;
 }
 
+/* AI Report Level Switcher inside Doc Reader Modal */
+.doc-ai-report-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 16px;
+    background: rgba(15, 23, 42, 0.85);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    flex-wrap: wrap;
+}
+
+.doc-ai-report-bar.hidden {
+    display: none;
+}
+
+.doc-ai-tabs {
+    display: inline-flex;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 2px;
+    gap: 2px;
+}
+
+.doc-ai-tab {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.doc-ai-tab.active {
+    background: rgba(59, 130, 246, 0.24);
+    color: #ffffff;
+}
+
+.doc-ai-date-select {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 7px;
+    color: #e2e8f0;
+    font-size: 11px;
+    font-weight: 700;
+    font-family: var(--font-mono);
+    padding: 4px 8px;
+    cursor: pointer;
+}
+
+.doc-ai-date-select.hidden {
+    display: none;
+}
+
 .daily-stock-row {
     display: flex;
     flex-direction: column;
