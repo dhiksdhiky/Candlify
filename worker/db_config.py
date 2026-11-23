@@ -522,6 +522,15 @@ def migrate_schema():
                         ("clv_3d", "REAL DEFAULT 0"),
                         ("up_down_vol_ratio", "REAL DEFAULT 1.0"),
                         ("is_pocket_pivot", "INTEGER DEFAULT 0"),
+                        ("eval_status", "TEXT"),
+                        ("eval_max_gain", "REAL"),
+                        ("eval_max_dd", "REAL"),
+                        ("eval_p_max", "REAL"),
+                        ("eval_p_min", "REAL"),
+                        ("eval_p_last", "REAL"),
+                        ("eval_event_day", "INTEGER DEFAULT 0"),
+                        ("eval_days_elapsed", "INTEGER DEFAULT 0"),
+                        ("eval_is_closed", "INTEGER DEFAULT 0"),
                     ]
                     for col_name, col_type in new_sig_cols:
                         if col_name not in existing_sig_cols:
@@ -548,6 +557,15 @@ def migrate_schema():
                 conn.execute(text("ALTER TABLE candlify_signals ADD COLUMN IF NOT EXISTS clv_3d FLOAT DEFAULT 0;"))
                 conn.execute(text("ALTER TABLE candlify_signals ADD COLUMN IF NOT EXISTS up_down_vol_ratio FLOAT DEFAULT 1.0;"))
                 conn.execute(text("ALTER TABLE candlify_signals ADD COLUMN IF NOT EXISTS is_pocket_pivot BOOLEAN DEFAULT FALSE;"))
+                conn.execute(text("ALTER TABLE candlify_signals ADD COLUMN IF NOT EXISTS eval_status VARCHAR(24);"))
+                conn.execute(text("ALTER TABLE candlify_signals ADD COLUMN IF NOT EXISTS eval_max_gain FLOAT;"))
+                conn.execute(text("ALTER TABLE candlify_signals ADD COLUMN IF NOT EXISTS eval_max_dd FLOAT;"))
+                conn.execute(text("ALTER TABLE candlify_signals ADD COLUMN IF NOT EXISTS eval_p_max FLOAT;"))
+                conn.execute(text("ALTER TABLE candlify_signals ADD COLUMN IF NOT EXISTS eval_p_min FLOAT;"))
+                conn.execute(text("ALTER TABLE candlify_signals ADD COLUMN IF NOT EXISTS eval_p_last FLOAT;"))
+                conn.execute(text("ALTER TABLE candlify_signals ADD COLUMN IF NOT EXISTS eval_event_day INTEGER DEFAULT 0;"))
+                conn.execute(text("ALTER TABLE candlify_signals ADD COLUMN IF NOT EXISTS eval_days_elapsed INTEGER DEFAULT 0;"))
+                conn.execute(text("ALTER TABLE candlify_signals ADD COLUMN IF NOT EXISTS eval_is_closed BOOLEAN DEFAULT FALSE;"))
 
             if dialect == "sqlite":
                 conn.execute(text("""

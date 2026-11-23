@@ -205,6 +205,24 @@ FORENSIC_NOTES_END -->
     # Sinyal RUNNING tanpa catatan harus menampilkan kolom evaluasi kosong (—)
     assert "| 2026-10-16 | **RUNN** |" in rendered
     assert "| — |" in rendered
+    # Rekap bulanan otomatis harus muncul
+    assert "### 📅 Rekap Kinerja per Bulan" in rendered
+    assert "**Okt 2026**" in rendered
+
+
+def test_freeze_closed_signals_skips_recomputation(sqlite_market_engine):
+    # Run #1: Evaluasi dari awal -> SUPR & FAIL harus ter-freeze, RUNN tetap terbuka
+    res1 = pb_report.evaluate_all_signals_from_db()
+    assert res1["success"] is True
+    assert res1["frozen_count"] == 0
+    assert res1["newly_frozen_count"] == 2  # SUPR (HIT SUPER) & FAIL (STOP OUT)
+
+    # Run #2: SUPR & FAIL harus langsung dibaca dari kolom frozen, hanya RUNN yg dihitung ulang
+    res2 = pb_report.evaluate_all_signals_from_db()
+    assert res2["success"] is True
+    assert res2["frozen_count"] == 2
+    assert res2["live_evaluated_count"] == 1  # Hanya RUNN
+    assert res2["newly_frozen_count"] == 0
 
 
 def test_fastapi_endpoints_daily_insight_broker_radar_and_docs(sqlite_market_engine):

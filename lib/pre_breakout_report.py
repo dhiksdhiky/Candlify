@@ -5,27 +5,29 @@ Menghitung evaluasi performa sinyal Pre-Breakout secara live dari tabel
 `candlify_signals` dan `harga_saham` (window T+1 s/d T+10), lalu menggabungkannya
 dengan catatan forensik manual yang tersimpan di `docs/04_LAPORAN_KINERJA_PRE_BREAKOUT.md`.
 
-Keunggulan arsitektur Hybrid:
-- Angka performa & status (HIT / STOP OUT / RUNNING / EXPIRED) selalu up-to-date otomatis.
-- Catatan interpretasi mendalam dari analisis berkala tersimpan aman di file .md (tidak tertimpa).
-- Sinyal RUNNING yang belum dianalisis menampilkan kolom evaluasi kosong (`—`).
-- Menggunakan in-memory cache (TTL 10 menit) agar nol beban untuk Neon DB.
+Arsitektur Future-Proof:
+- Freeze/Persist hasil evaluasi sinyal yang sudah selesai (HIT / STOP OUT / EXPIRED)
+  langsung ke kolom `eval_*` di `candlify_signals` sehingga tidak pernah dihitung ulang.
+- Hanya sinyal berstatus `RUNNING` yang di-query ke `harga_saham` (super ringan < 50ms).
+- Dilengkapi Tabel Rekap Kinerja per Bulan untuk memantau tren Win Rate jangka panjang.
+- Sinyal `RUNNING` tanpa catatan forensik menampilkan kolom evaluasi kosong (`—`).
 """
 
 import logging
 import re
 import threading
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from sqlalchemy import text
 from lib.db import get_engine
 
 logger = logging.getLogger("candlify.pre_breakout_report")
 
-_REPORT_CACHE: Dict[str, Any] = {"timestamp": 0.0, "markdown_section": None, "stats": None}
+_REPORT_CACHE: Dict[str, Any] = {"timestamp": 0.0, "markdown_section": None, "notes_hash": None}
 _REPORT_LOCK = threading.Lock()
 _REPORT_TTL = 600.0  # 10 menit
+_MIGRATED_ENGINE_IDS: Set[int] = set()
 
 PLACEHOLDER_TAG = "<!-- LIVE_PRE_BREAKOUT_SCORECARD -->"
 NOTES_PATTERN = re.compile(
@@ -33,12 +35,59 @@ NOTES_PATTERN = re.compile(
     re.DOTALL,
 )
 
+MONTH_NAMES_ID = {
+    "01": "Jan", "02": "Feb", "03": "Mar", "04": "Apr",
+    "05": "Mei", "06": "Jun", "07": "Jul", "08": "Agu",
+    "09": "Sep", "10": "Okt", "11": "Nov", "12": "Des",
+}
+
 
 def clear_report_cache() -> None:
     with _REPORT_LOCK:
         _REPORT_CACHE["timestamp"] = 0.0
         _REPORT_CACHE["markdown_section"] = None
-        _REPORT_CACHE["stats"] = None
+        _REPORT_CACHE["notes_hash"] = None
+
+
+def _ensure_eval_columns(engine) -> None:
+    """Pastikan kolom persistensi evaluasi (`eval_*`) tersedia di `candlify_signals`."""
+    eng_id = id(engine)
+    if eng_id in _MIGRATED_ENGINE_IDS:
+        return
+
+    dialect = engine.dialect.name
+    try:
+        with engine.begin() as conn:
+            if dialect == "sqlite":
+                cur = conn.execute(text("PRAGMA table_info(candlify_signals)")).fetchall()
+                existing = {row[1] for row in cur}
+                cols = [
+                    ("eval_status", "TEXT"),
+                    ("eval_max_gain", "REAL"),
+                    ("eval_max_dd", "REAL"),
+                    ("eval_p_max", "REAL"),
+                    ("eval_p_min", "REAL"),
+                    ("eval_p_last", "REAL"),
+                    ("eval_event_day", "INTEGER DEFAULT 0"),
+                    ("eval_days_elapsed", "INTEGER DEFAULT 0"),
+                    ("eval_is_closed", "INTEGER DEFAULT 0"),
+                ]
+                for col_name, col_type in cols:
+                    if col_name not in existing:
+                        conn.execute(text(f"ALTER TABLE candlify_signals ADD COLUMN {col_name} {col_type}"))
+            else:
+                conn.execute(text("ALTER TABLE candlify_signals ADD COLUMN IF NOT EXISTS eval_status VARCHAR(24);"))
+                conn.execute(text("ALTER TABLE candlify_signals ADD COLUMN IF NOT EXISTS eval_max_gain FLOAT;"))
+                conn.execute(text("ALTER TABLE candlify_signals ADD COLUMN IF NOT EXISTS eval_max_dd FLOAT;"))
+                conn.execute(text("ALTER TABLE candlify_signals ADD COLUMN IF NOT EXISTS eval_p_max FLOAT;"))
+                conn.execute(text("ALTER TABLE candlify_signals ADD COLUMN IF NOT EXISTS eval_p_min FLOAT;"))
+                conn.execute(text("ALTER TABLE candlify_signals ADD COLUMN IF NOT EXISTS eval_p_last FLOAT;"))
+                conn.execute(text("ALTER TABLE candlify_signals ADD COLUMN IF NOT EXISTS eval_event_day INTEGER DEFAULT 0;"))
+                conn.execute(text("ALTER TABLE candlify_signals ADD COLUMN IF NOT EXISTS eval_days_elapsed INTEGER DEFAULT 0;"))
+                conn.execute(text("ALTER TABLE candlify_signals ADD COLUMN IF NOT EXISTS eval_is_closed BOOLEAN DEFAULT FALSE;"))
+        _MIGRATED_ENGINE_IDS.add(eng_id)
+    except Exception as e:
+        logger.warning(f"Gagal migrasi kolom eval_* pada candlify_signals: {e}")
 
 
 def parse_forensic_notes(markdown_text: str) -> Dict[str, str]:
@@ -46,7 +95,6 @@ def parse_forensic_notes(markdown_text: str) -> Dict[str, str]:
     Parse catatan forensik manual dari blok komentar:
     <!-- FORENSIC_NOTES_START
     2026-10-02|DKHH: Multi-bagger T+2, base kering di 69 reli 3 hari ke 127.
-    2026-10-16|BINA: Waspada crossing Pasar Nego RS/RB Rp 102,5 M (Standby Repo).
     FORENSIC_NOTES_END -->
     """
     notes_map: Dict[str, str] = {}
@@ -75,22 +123,37 @@ def _fmt_rp(val: float) -> str:
         return f"Rp {val}"
 
 
+def _fmt_month_id(ym: str) -> str:
+    parts = ym.split("-")
+    if len(parts) != 2:
+        return ym
+    return f"{MONTH_NAMES_ID.get(parts[1], parts[1])} {parts[0]}"
+
+
 def evaluate_all_signals_from_db() -> Dict[str, Any]:
     """
-    Evaluasi seluruh sinyal historis pada tabel `candlify_signals` menggunakan data
-    harga T+1 s/d T+10 dari tabel `harga_saham`.
+    Evaluasi sinyal historis di `candlify_signals`:
+    - Sinyal yang sudah selesai (`eval_is_closed = True`) dibaca langsung tanpa query `harga_saham`.
+    - Hanya sinyal yang belum selesai (`RUNNING`) yang dievaluasi terhadap `harga_saham` (T+1..T+10),
+      lalu jika baru saja selesai langsung di-freeze permanen ke database.
     """
     engine = get_engine()
     if not engine:
         return {"success": False, "error": "Database tidak terhubung", "records": []}
+
+    _ensure_eval_columns(engine)
+    is_sqlite = engine.dialect.name == "sqlite"
 
     try:
         with engine.connect() as conn:
             sig_rows = conn.execute(
                 text("""
                     SELECT
-                        date, ticker, price, score, range_7, volume_dry_ratio,
-                        top_accumulator, dominance, aar, is_pocket_pivot
+                        id, date, ticker, price, score, range_7, volume_dry_ratio,
+                        top_accumulator, dominance, aar, is_pocket_pivot,
+                        eval_status, eval_max_gain, eval_max_dd, eval_p_max,
+                        eval_p_min, eval_p_last, eval_event_day, eval_days_elapsed,
+                        eval_is_closed
                     FROM candlify_signals
                     ORDER BY date DESC, score DESC
                 """)
@@ -101,56 +164,90 @@ def evaluate_all_signals_from_db() -> Dict[str, Any]:
                     "success": True,
                     "latest_market_date": None,
                     "total": 0,
+                    "frozen_count": 0,
+                    "live_evaluated_count": 0,
                     "records": [],
                 }
 
             latest_market_date = conn.execute(text("SELECT MAX(tanggal) FROM harga_saham")).scalar()
             latest_market_str = str(latest_market_date)[:10] if latest_market_date else None
 
-            tickers = sorted({str(r[1]) for r in sig_rows if r[1]})
-            min_sig_date = min(str(r[0])[:10] for r in sig_rows)
+            frozen_records: List[Dict[str, Any]] = []
+            open_rows = []
 
-            # Query harga_saham portabel untuk SQLite & PostgreSQL
-            placeholders = ", ".join([f":t_{i}" for i in range(len(tickers))])
-            params: Dict[str, Any] = {f"t_{i}": tickers[i] for i in range(len(tickers))}
-            params["min_d"] = min_sig_date
+            for r in sig_rows:
+                p0 = float(r[3] or 0.0)
+                if p0 <= 0:
+                    continue
 
-            price_rows = conn.execute(
-                text(f"""
-                    SELECT ticker, tanggal, high, low, close
-                    FROM harga_saham
-                    WHERE ticker IN ({placeholders})
-                      AND tanggal >= :min_d
-                    ORDER BY ticker ASC, tanggal ASC
-                """),
-                params,
-            ).fetchall()
+                is_closed = bool(r[19]) and bool(r[11])
+                if is_closed:
+                    p_last = float(r[16] if r[16] is not None else p0)
+                    cur_pnl = round(((p_last - p0) / p0) * 100.0, 1)
+                    frozen_records.append({
+                        "date": str(r[1])[:10],
+                        "ticker": str(r[2]),
+                        "p0": p0,
+                        "score": int(r[4] or 0),
+                        "top_acc": str(r[7] or "-"),
+                        "dom": float(r[8] or 0.0),
+                        "aar": float(r[9] or 1.0),
+                        "days_elapsed": int(r[18] or 0),
+                        "p_max": float(r[14] if r[14] is not None else p0),
+                        "p_min": float(r[15] if r[15] is not None else p0),
+                        "p_last": p_last,
+                        "max_gain": float(r[12] or 0.0),
+                        "max_dd": float(r[13] or 0.0),
+                        "cur_pnl": cur_pnl,
+                        "status": str(r[11]),
+                        "event_day": int(r[17] or 0),
+                    })
+                else:
+                    open_rows.append(r)
 
-        price_map: Dict[str, List[Tuple[str, float, float, float]]] = {}
-        for pr in price_rows:
-            tkr = str(pr[0])
-            price_map.setdefault(tkr, []).append(
-                (str(pr[1])[:10], float(pr[2] or 0.0), float(pr[3] or 0.0), float(pr[4] or 0.0))
-            )
+            price_map: Dict[str, List[Tuple[str, float, float, float]]] = {}
+            if open_rows:
+                open_tickers = sorted({str(r[2]) for r in open_rows if r[2]})
+                min_open_date = min(str(r[1])[:10] for r in open_rows)
+                placeholders = ", ".join([f":t_{i}" for i in range(len(open_tickers))])
+                params: Dict[str, Any] = {f"t_{i}": open_tickers[i] for i in range(len(open_tickers))}
+                params["min_d"] = min_open_date
 
-        records: List[Dict[str, Any]] = []
-        for r in sig_rows:
-            sig_date = str(r[0])[:10]
-            ticker = str(r[1])
-            p0 = float(r[2] or 0.0)
-            score = int(r[3] or 0)
-            dom = float(r[7] or 0.0)
-            aar = float(r[8] or 1.0)
-            top_acc = str(r[6] or "-")
+                price_rows = conn.execute(
+                    text(f"""
+                        SELECT ticker, tanggal, high, low, close
+                        FROM harga_saham
+                        WHERE ticker IN ({placeholders})
+                          AND tanggal >= :min_d
+                        ORDER BY ticker ASC, tanggal ASC
+                    """),
+                    params,
+                ).fetchall()
 
-            if p0 <= 0:
-                continue
+                for pr in price_rows:
+                    tkr = str(pr[0])
+                    price_map.setdefault(tkr, []).append(
+                        (str(pr[1])[:10], float(pr[2] or 0.0), float(pr[3] or 0.0), float(pr[4] or 0.0))
+                    )
+
+        live_records: List[Dict[str, Any]] = []
+        to_freeze_updates: List[Dict[str, Any]] = []
+
+        for r in open_rows:
+            row_id = int(r[0])
+            sig_date = str(r[1])[:10]
+            ticker = str(r[2])
+            p0 = float(r[3] or 0.0)
+            score = int(r[4] or 0)
+            top_acc = str(r[7] or "-")
+            dom = float(r[8] or 0.0)
+            aar = float(r[9] or 1.0)
 
             bars = [b for b in price_map.get(ticker, []) if b[0] > sig_date][:10]
             days_elapsed = len(bars)
 
             if days_elapsed == 0:
-                records.append({
+                live_records.append({
                     "date": sig_date,
                     "ticker": ticker,
                     "p0": p0,
@@ -199,18 +296,23 @@ def evaluate_all_signals_from_db() -> Dict[str, Any]:
                     event_day = idx
                     break
 
+            is_terminal = False
             if hit_super:
                 status = "🎯 HIT (SUPER)"
+                is_terminal = True
             elif hit_target:
                 status = "🎯 HIT"
+                is_terminal = True
             elif stopped_out:
                 status = "🛑 STOP OUT"
+                is_terminal = True
             elif days_elapsed < 10:
                 status = "⏳ RUNNING"
             else:
                 status = "⚪ EXPIRED"
+                is_terminal = True
 
-            records.append({
+            rec = {
                 "date": sig_date,
                 "ticker": ticker,
                 "p0": p0,
@@ -227,13 +329,57 @@ def evaluate_all_signals_from_db() -> Dict[str, Any]:
                 "cur_pnl": cur_pnl,
                 "status": status,
                 "event_day": event_day,
-            })
+            }
+            live_records.append(rec)
+
+            if is_terminal:
+                to_freeze_updates.append({
+                    "id": row_id,
+                    "eval_status": status,
+                    "eval_max_gain": max_gain,
+                    "eval_max_dd": max_dd,
+                    "eval_p_max": p_max,
+                    "eval_p_min": p_min,
+                    "eval_p_last": p_last,
+                    "eval_event_day": event_day,
+                    "eval_days_elapsed": days_elapsed,
+                    "eval_is_closed": 1 if is_sqlite else True,
+                })
+
+        # Persistensi (freeze) sinyal yang baru selesai dalam 1 transaksi ringan
+        if to_freeze_updates:
+            try:
+                with engine.begin() as wconn:
+                    wconn.execute(
+                        text("""
+                            UPDATE candlify_signals
+                            SET
+                                eval_status = :eval_status,
+                                eval_max_gain = :eval_max_gain,
+                                eval_max_dd = :eval_max_dd,
+                                eval_p_max = :eval_p_max,
+                                eval_p_min = :eval_p_min,
+                                eval_p_last = :eval_p_last,
+                                eval_event_day = :eval_event_day,
+                                eval_days_elapsed = :eval_days_elapsed,
+                                eval_is_closed = :eval_is_closed
+                            WHERE id = :id
+                        """),
+                        to_freeze_updates,
+                    )
+            except Exception as freeze_err:
+                logger.warning(f"Gagal menyimpan freeze evaluasi sinyal: {freeze_err}")
+
+        all_records = sorted(frozen_records + live_records, key=lambda x: (x["date"], x["score"]), reverse=True)
 
         return {
             "success": True,
             "latest_market_date": latest_market_str,
-            "total": len(records),
-            "records": records,
+            "total": len(all_records),
+            "frozen_count": len(frozen_records),
+            "live_evaluated_count": len(live_records),
+            "newly_frozen_count": len(to_freeze_updates),
+            "records": all_records,
         }
     except Exception as e:
         logger.error(f"Error evaluating pre-breakout signals: {e}", exc_info=True)
@@ -278,13 +424,37 @@ def build_live_scorecard_markdown(forensic_notes: Optional[Dict[str, str]] = Non
     lines.append("")
     lines.append("| Ringkasan Metrik Keseluruhan (V1 + V2) | Nilai |")
     lines.append("| :--- | :---: |")
-    lines.append(f"| 🎯 **Total HIT ($\ge +8\%$ s/d ARA)** | **{len(hits)} sinyal** *(Avg Gain: `+{avg_hit_gain}%`)* |")
+    lines.append(f"| 🎯 **Total HIT ($\\ge +8\\%$ s/d ARA)** | **{len(hits)} sinyal** *(Avg Gain: `+{avg_hit_gain}%`)* |")
     lines.append(f"| ⏳ **Sedang Berjalan (`RUNNING` $< T+10$)** | **{len(running)} sinyal** |")
-    lines.append(f"| 🛑 **Total STOP OUT ($\le -4\%$)** | **{len(stops)} sinyal** *(Avg DD: `{avg_stop_dd}%`)* |")
+    lines.append(f"| 🛑 **Total STOP OUT ($\\le -4\\%$)** | **{len(stops)} sinyal** *(Avg DD: `{avg_stop_dd}%`)* |")
     lines.append(f"| ⚪ **EXPIRED (Datar 10 Hari)** | **{len(expired)} sinyal** |")
     lines.append(f"| 📈 **Win Rate Sinyal Selesai (Gabungan V1+V2)** | **{win_rate}%** *({len(hits)} / {len(closed)})* |")
-    lines.append(f"| 🚀 **Tracking Khusus Era V2 ($\ge$ 16 Okt 2026)** | **{len(v2_records)} sinyal** *(Win Rate: {v2_wr})* |")
+    lines.append(f"| 🚀 **Tracking Khusus Era V2 ($\\ge$ 16 Okt 2026)** | **{len(v2_records)} sinyal** *(Win Rate: {v2_wr})* |")
     lines.append("")
+
+    # 0. Rekap Kinerja per Bulan (Monthly Summary Table)
+    monthly_groups: Dict[str, List[Dict[str, Any]]] = {}
+    for r in records:
+        ym = str(r["date"])[:7]
+        monthly_groups.setdefault(ym, []).append(r)
+
+    if monthly_groups:
+        lines.append("### 📅 Rekap Kinerja per Bulan")
+        lines.append("")
+        lines.append("| Bulan | Total | 🎯 HIT | 🛑 Stop Out | ⏳ Running | Win Rate | Avg Hit Gain |")
+        lines.append("| :---: | :---: | :---: | :---: | :---: | :---: | :---: |")
+        for ym in sorted(monthly_groups.keys(), reverse=True):
+            grp = monthly_groups[ym]
+            m_hits = [x for x in grp if "HIT" in x["status"]]
+            m_stops = [x for x in grp if "STOP" in x["status"]]
+            m_run = [x for x in grp if "RUNNING" in x["status"]]
+            m_closed = [x for x in grp if "RUNNING" not in x["status"]]
+            m_wr = f"**{round((len(m_hits) / len(m_closed)) * 100.0, 1)}%**" if m_closed else "—"
+            m_avg_gain = f"+{round(sum(x['max_gain'] for x in m_hits) / len(m_hits), 1)}%" if m_hits else "—"
+            lines.append(
+                f"| **{_fmt_month_id(ym)}** | {len(grp)} | {len(m_hits)} | {len(m_stops)} | {len(m_run)} | {m_wr} | {m_avg_gain} |"
+            )
+        lines.append("")
 
     # 1. Tabel Sinyal RUNNING
     lines.append("### ⏳ A. Sinyal Aktif Berjalan (`RUNNING`)")
@@ -304,7 +474,7 @@ def build_live_scorecard_markdown(forensic_notes: Optional[Dict[str, str]] = Non
     lines.append("")
 
     # 2. Tabel Sinyal HIT (Juara Breakout)
-    lines.append("### 🎯 B. Histori Sinyal Berhasil (`HIT` $\ge +8\%$)")
+    lines.append("### 🎯 B. Histori Sinyal Berhasil (`HIT` $\\ge +8\\%$)")
     lines.append("")
     if not hits:
         lines.append("*Belum ada sinyal selesai yang mencapai target HIT.*")
