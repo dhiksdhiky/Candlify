@@ -4854,12 +4854,64 @@ select option:checked,
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
 }
 
+.db-insight-card.collapsed {
+    padding: 10px 13px;
+    gap: 0;
+}
+
 .db-insight-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 8px;
     flex-wrap: wrap;
+    cursor: pointer;
+    user-select: none;
+}
+
+.db-insight-hdr-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.db-insight-tabs.hidden {
+    display: none;
+}
+
+.db-insight-chevron-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #93c5fd;
+    font-size: 10px;
+    width: 24px;
+    height: 24px;
+    border-radius: 7px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.2s ease, background 0.15s ease, color 0.15s ease;
+    line-height: 1;
+}
+
+.db-insight-chevron-btn:hover {
+    background: rgba(59, 130, 246, 0.22);
+    color: #ffffff;
+}
+
+.db-insight-card:not(.collapsed) .db-insight-chevron-btn {
+    transform: rotate(180deg);
+}
+
+.db-insight-body {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.db-insight-body.hidden {
+    display: none;
 }
 
 .db-insight-title-group {
@@ -5129,6 +5181,25 @@ select option:checked,
 .daily-list {
     display: flex;
     flex-direction: column;
+    max-height: 240px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
+}
+
+.daily-list::-webkit-scrollbar {
+    width: 4px;
+}
+
+.daily-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.daily-list::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.35);
+    border-radius: 4px;
 }
 
 .daily-stock-row {

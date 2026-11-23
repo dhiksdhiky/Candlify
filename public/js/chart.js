@@ -603,6 +603,10 @@ class CandlifyChart {
             btnCalNext: document.getElementById('btn-cal-next'),
             // Daily Market Insight (Foreign Flow + Multi-Broker Radar)
             dbDailyInsightCard: document.getElementById('db-daily-insight-card'),
+            dbInsightHeaderToggle: document.getElementById('db-insight-header-toggle'),
+            dailyInsightTabsWrap: document.getElementById('daily-insight-tabs-wrap'),
+            btnToggleDailyInsight: document.getElementById('btn-toggle-daily-insight'),
+            dailyInsightBody: document.getElementById('daily-insight-body'),
             dailyInsightDateLabel: document.getElementById('daily-insight-date-label'),
             dailyInsightTabs: document.querySelectorAll('.db-insight-tab'),
             insightPaneForeign: document.getElementById('insight-pane-foreign'),
@@ -6059,11 +6063,12 @@ class CandlifyChart {
                 }
                 this.renderSyncCalendar(histArr, activeMonth);
 
-                // Muat Daily Market Insight untuk tanggal terpilih
-                if (this.selectedInsightDate) {
-                    this.loadDailyInsightForDate(this.selectedInsightDate);
-                } else {
-                    this.loadDailyInsightForDate(null);
+                // Update label tanggal tanpa auto-fetch (lazy-load saat user buka ▼ atau klik tanggal)
+                if (this.dom.dailyInsightDateLabel && this.selectedInsightDate) {
+                    this.dom.dailyInsightDateLabel.textContent = this.formatShortDateIndo(this.selectedInsightDate);
+                }
+                if (this.isDailyInsightOpen) {
+                    this.loadDailyInsightForDate(this.selectedInsightDate || null);
                 }
             } else {
                 throw new Error(json.detail || json.error || `HTTP ${res.status}`);
@@ -6286,6 +6291,7 @@ class CandlifyChart {
     // DAILY MARKET INSIGHT (FOREIGN FLOW + MULTI-BROKER RADAR)
     // =========================================================================
     setupDailyInsightEvents() {
+        this.isDailyInsightOpen = false;
         this.activeInsightTab = this.activeInsightTab || 'foreign';
         this.brokerRadarDays = this.brokerRadarDays || 1;
         this.brokerRadarAvailable = this.brokerRadarAvailable || ['AK', 'BK', 'ZP', 'KZ', 'RX', 'CC', 'YP', 'XL', 'MG'];
@@ -6293,7 +6299,14 @@ class CandlifyChart {
         this._dailyInsightCache = this._dailyInsightCache || {};
         this._brokerRadarCache = this._brokerRadarCache || {};
 
-        this.renderBrokerRadarChips();
+        // 0. Toggle Collapse/Expand Market Insight Card (default tertutup biar hemat beban)
+        if (this.dom.dbInsightHeaderToggle) {
+            this.dom.dbInsightHeaderToggle.addEventListener('click', (e) => {
+                if (e.target.closest('.db-insight-tab')) return;
+                e.stopPropagation();
+                this.toggleDailyInsight();
+            });
+        }
 
         // 1. Klik tanggal pada kalender sync
         if (this.dom.calendarGrid) {
@@ -6510,14 +6523,43 @@ class CandlifyChart {
         }).join('');
     }
 
+    toggleDailyInsight(forceOpen = null) {
+        const nextOpen = (forceOpen !== null) ? Boolean(forceOpen) : !this.isDailyInsightOpen;
+        this.isDailyInsightOpen = nextOpen;
+
+        if (this.dom.dbDailyInsightCard) {
+            this.dom.dbDailyInsightCard.classList.toggle('collapsed', !nextOpen);
+        }
+        if (this.dom.dailyInsightBody) {
+            this.dom.dailyInsightBody.classList.toggle('hidden', !nextOpen);
+        }
+        if (this.dom.dailyInsightTabsWrap) {
+            this.dom.dailyInsightTabsWrap.classList.toggle('hidden', !nextOpen);
+        }
+        if (this.dom.btnToggleDailyInsight) {
+            this.dom.btnToggleDailyInsight.setAttribute('aria-expanded', nextOpen ? 'true' : 'false');
+        }
+
+        if (nextOpen) {
+            this.loadDailyInsightForDate(this.selectedInsightDate || null);
+        }
+    }
+
     selectInsightDate(dateStr) {
         this.selectedInsightDate = dateStr;
+        if (this.dom.dailyInsightDateLabel) {
+            this.dom.dailyInsightDateLabel.textContent = this.formatShortDateIndo(dateStr);
+        }
         if (this.dom.calendarGrid) {
             this.dom.calendarGrid.querySelectorAll('.cal-box.cal-selected').forEach(el => el.classList.remove('cal-selected'));
             const targetCell = this.dom.calendarGrid.querySelector(`.cal-box[data-date="${dateStr}"]`);
             if (targetCell) targetCell.classList.add('cal-selected');
         }
-        this.loadDailyInsightForDate(dateStr);
+        if (!this.isDailyInsightOpen) {
+            this.toggleDailyInsight(true);
+        } else {
+            this.loadDailyInsightForDate(dateStr);
+        }
     }
 
     loadDailyInsightForDate(dateStr) {
@@ -6716,7 +6758,7 @@ class CandlifyChart {
             const params = new URLSearchParams({
                 brokers: brokers.join(','),
                 days: String(days),
-                limit: '6',
+                limit: '20',
             });
             if (dt) params.set('date', dt);
 

@@ -102,18 +102,22 @@
                 </div>
 
                 <!-- 2B. Daily Market Insight Card (Foreign Flow + Multi-Broker Radar) -->
-                <div class="db-insight-card" id="db-daily-insight-card">
-                    <div class="db-insight-header">
+                <div class="db-insight-card collapsed" id="db-daily-insight-card">
+                    <div class="db-insight-header" id="db-insight-header-toggle" title="Klik untuk buka/tutup Market Insight">
                         <div class="db-insight-title-group">
                             <span class="db-insight-title">📊 Market Insight</span>
                             <span class="db-insight-date-pill" id="daily-insight-date-label">--</span>
                         </div>
-                        <div class="db-insight-tabs" role="tablist">
-                            <button type="button" class="db-insight-tab active" data-insight-tab="foreign">🌐 Foreign</button>
-                            <button type="button" class="db-insight-tab" data-insight-tab="broker">🏦 Broker</button>
+                        <div class="db-insight-hdr-right">
+                            <div class="db-insight-tabs hidden" id="daily-insight-tabs-wrap" role="tablist">
+                                <button type="button" class="db-insight-tab active" data-insight-tab="foreign">🌐 Foreign</button>
+                                <button type="button" class="db-insight-tab" data-insight-tab="broker">🏦 Broker</button>
+                            </div>
+                            <button type="button" id="btn-toggle-daily-insight" class="db-insight-chevron-btn" aria-expanded="false" title="Buka/Tutup Insight">▼</button>
                         </div>
                     </div>
 
+                    <div id="daily-insight-body" class="db-insight-body hidden">
                     <!-- Sub-Tab 1: Foreign Flow Market-Wide + Barometer 20D -->
                     <div id="insight-pane-foreign" class="db-insight-pane">
                         <div class="daily-foreign-top-grid">
@@ -212,6 +216,7 @@
                                 </div>
                             </div>
                         </div>
+                    </div>
                     </div>
                 </div>
 

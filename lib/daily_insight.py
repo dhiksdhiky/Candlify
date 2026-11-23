@@ -292,12 +292,12 @@ def get_daily_foreign_insight(target_date: Optional[str] = None) -> Dict[str, An
                 [x for x in per_stock_foreign if x["net_val"] > 0],
                 key=lambda x: x["net_val"],
                 reverse=True,
-            )[:5]
+            )[:20]
 
             top_foreign_sell = sorted(
                 [x for x in per_stock_foreign if x["net_val"] < 0],
                 key=lambda x: x["net_val"],
-            )[:5]
+            )[:20]
 
             above_ma20_pct = round((above_ma20 / total_ma20) * 100.0, 1) if total_ma20 > 0 else 0.0
 
