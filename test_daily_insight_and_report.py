@@ -168,6 +168,9 @@ def test_multi_broker_radar_single_and_combined_and_multiday(sqlite_market_engin
     assert res_ak_1d["top_buy"][0]["net_val"] == pytest.approx(8.4e9)
     assert res_ak_1d["top_sell"][0]["ticker"] == "BBRI"
     assert res_ak_1d["top_sell"][0]["net_val"] == pytest.approx(-2.4e9)
+    assert "AK" in res_ak_1d["available_brokers"]
+    assert "BK" in res_ak_1d["available_brokers"]
+    assert "YP" in res_ak_1d["available_brokers"]
 
     # 1D Combined Brokers (AK + BK) -> harus menjumlahkan 8.4B + 4.2B = 12.6B
     res_combo_1d = daily_insight.get_multi_broker_insight(target_date="2026-10-17", brokers=["AK", "BK"], days=1)

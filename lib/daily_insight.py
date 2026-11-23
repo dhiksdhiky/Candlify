@@ -19,6 +19,7 @@ logger = logging.getLogger("candlify.daily_insight")
 
 _FOREIGN_CACHE: Dict[str, Tuple[float, Dict[str, Any]]] = {}
 _BROKER_CACHE: Dict[str, Tuple[float, Dict[str, Any]]] = {}
+_BROKER_LIST_CACHE: Dict[str, Tuple[float, List[str]]] = {}
 _CACHE_LOCK = threading.Lock()
 _MAX_CACHE_ENTRIES = 120
 _LATEST_TTL = 300.0      # 5 menit untuk tanggal terbaru
@@ -37,6 +38,48 @@ def clear_daily_insight_cache() -> None:
     with _CACHE_LOCK:
         _FOREIGN_CACHE.clear()
         _BROKER_CACHE.clear()
+        _BROKER_LIST_CACHE.clear()
+
+
+def _get_available_brokers(conn, end_date: str, is_latest: bool) -> List[str]:
+    """Ambil daftar seluruh broker aktif pada end_date (diurutkan dari nilai transaksi terbesar)."""
+    now = time.time()
+    ttl = _LATEST_TTL if is_latest else _HISTORICAL_TTL
+    with _CACHE_LOCK:
+        if end_date in _BROKER_LIST_CACHE:
+            ts, cached_list = _BROKER_LIST_CACHE[end_date]
+            if now - ts < ttl:
+                return cached_list
+
+    rows = conn.execute(
+        text("""
+            SELECT broker_code, SUM(COALESCE(buy_val, 0) + COALESCE(sell_val, 0)) AS gross_val
+            FROM broker_summary
+            WHERE date = :ed
+            GROUP BY broker_code
+            ORDER BY gross_val DESC
+        """),
+        {"ed": end_date},
+    ).fetchall()
+
+    brokers_out: List[str] = []
+    for r in rows:
+        code = str(r[0] or "").strip().upper()
+        if code and code not in brokers_out:
+            brokers_out.append(code)
+
+    # Pastikan broker populer default tetap ada di daftar jika DB minim
+    for b in DEFAULT_POPULAR_BROKERS:
+        if b not in brokers_out:
+            brokers_out.append(b)
+
+    with _CACHE_LOCK:
+        if len(_BROKER_LIST_CACHE) >= _MAX_CACHE_ENTRIES:
+            oldest = min(_BROKER_LIST_CACHE.keys(), key=lambda k: _BROKER_LIST_CACHE[k][0])
+            _BROKER_LIST_CACHE.pop(oldest, None)
+        _BROKER_LIST_CACHE[end_date] = (now, brokers_out)
+
+    return brokers_out
 
 
 def _parse_date_str(val: Optional[str]) -> Optional[str]:
@@ -477,6 +520,7 @@ def get_multi_broker_insight(
             tot_gross = total_buy_val + total_sell_val
             buy_pct = round((total_buy_val / tot_gross) * 100.0, 1) if tot_gross > 0 else 50.0
             sell_pct = round(100.0 - buy_pct, 1)
+            available_brokers = _get_available_brokers(conn, end_date, is_latest)
 
             result = {
                 "success": True,
@@ -486,6 +530,7 @@ def get_multi_broker_insight(
                 "trading_days": actual_days,
                 "days_param": days_clean,
                 "brokers": clean_brokers,
+                "available_brokers": available_brokers,
                 "is_latest": is_latest,
                 "summary": {
                     "total_buy_val": round(total_buy_val, 2),

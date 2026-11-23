@@ -620,7 +620,7 @@ class CandlifyChart {
             dailyForeignTopSell: document.getElementById('daily-foreign-top-sell'),
             brokerRangeBtns: document.querySelectorAll('.broker-range-btn'),
             inputAddBrokerChip: document.getElementById('input-add-broker-chip'),
-            btnAddBrokerChip: document.getElementById('btn-add-broker-chip'),
+            btnClearBrokerSearch: document.getElementById('btn-clear-broker-search'),
             brokerRadarChips: document.getElementById('broker-radar-chips'),
             brokerRadarComboLabel: document.getElementById('broker-radar-combo-label'),
             brokerRadarNetVal: document.getElementById('broker-radar-net-val'),
@@ -6365,34 +6365,63 @@ class CandlifyChart {
             });
         }
 
-        // 5. Tambah Broker Custom via Input (+ Kode)
-        const handleAddBroker = () => {
-            if (!this.dom.inputAddBrokerChip) return;
-            const raw = (this.dom.inputAddBrokerChip.value || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-            if (raw.length < 2 || raw.length > 3) {
-                this.showToast('Masukkan 2 huruf kode broker (misal RS, YU, LG)', 'warning');
-                return;
-            }
-            if (!this.brokerRadarAvailable.includes(raw)) {
-                this.brokerRadarAvailable.push(raw);
-            }
-            if (!this.brokerRadarSelected.includes(raw)) {
-                this.brokerRadarSelected.push(raw);
-            }
-            this.dom.inputAddBrokerChip.value = '';
-            this.renderBrokerRadarChips();
-            this.loadMultiBrokerRadar();
+        // 5. Pencarian Broker Dinamis Real-Time (persis pencarian saham di Screener)
+        this.brokerRadarSearchQuery = '';
+        this.brokerNameMap = {
+            AK: 'UBS', BK: 'JP Morgan', ZP: 'Maybank', KZ: 'CLSA', RX: 'Macquarie',
+            YU: 'CGS Intl', DP: 'DBS Vickers', CS: 'Credit Suisse', ML: 'Merrill Lynch',
+            CC: 'Mandiri', YP: 'Mirae Asset', XL: 'Stockbit', XC: 'Ajaib', PD: 'Indo Premier',
+            MG: 'Semesta', OD: 'BRI Danareksa', NI: 'BNI Sekuritas', SQ: 'BCA Sekuritas',
+            KK: 'Phillip', IF: 'Samuel', LG: 'Trimegah', GR: 'Panin', DR: 'RHB',
+            RF: 'Buana', RS: 'Yulie', RB: 'Ina Sekuritas', AZ: 'Sucor', CP: 'KB Valbury',
+            EP: 'MNC', HP: 'Henan', AG: 'Kiwoom', AI: 'UOB Kay Hian', BQ: 'Korea Inv',
+            FZ: 'Waterfront', HD: 'KGI', II: 'Danatama', IN: 'Investindo', KI: 'Ciptadana',
+            LS: 'Reliance', MU: 'Minna Padi', PG: 'Panca Global', PO: 'Pilarmas',
+            QA: 'Tuntun', SA: 'Elit Sukses', SF: 'Surya Fajar', SH: 'Artha', SS: 'Supra',
+            TF: 'Universal', TP: 'OCBC', TS: 'Dwidana', XA: 'NH Korindo', YJ: 'Lotus',
+            YO: 'Amantara', AO: 'Erdikha', AP: 'Pacific', AR: 'Binaartha', AT: 'Phintraco',
+            BB: 'Verdhana', BF: 'Inti Fikasa', BR: 'Trust', BS: 'Equity', DH: 'Sinarmas',
+            DX: 'Bahana', EL: 'Evergreen', ES: 'Ekosistem', FO: 'Forte', FS: 'Yuanta',
+            GA: 'BNC', GI: 'Mahastra', ID: 'Anugerah', IH: 'Pacific 2000', IU: 'Indo Capital',
+            JB: 'BJB', KQ: 'Kresna', MI: 'Victoria', MK: 'Ekuator', OK: 'Net Sekuritas',
+            PC: 'FAC', PF: 'Danasakti', PP: 'Aldiracita', PS: 'Paramitra', RG: 'Profindo',
+            RO: 'NISP', YB: 'Yakin Bertumbuh', ZR: 'Bumiputera'
         };
+        this.renderBrokerRadarChips();
 
-        if (this.dom.btnAddBrokerChip) {
-            this.dom.btnAddBrokerChip.addEventListener('click', handleAddBroker);
-        }
         if (this.dom.inputAddBrokerChip) {
+            this.dom.inputAddBrokerChip.addEventListener('input', (e) => {
+                const q = (e.target.value || '').trim();
+                this.brokerRadarSearchQuery = q;
+                if (this.dom.btnClearBrokerSearch) {
+                    this.dom.btnClearBrokerSearch.classList.toggle('hidden', q.length === 0);
+                }
+                this.renderBrokerRadarChips();
+            });
+
             this.dom.inputAddBrokerChip.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter') {
                     e.preventDefault();
-                    handleAddBroker();
+                    const firstChip = this.dom.brokerRadarChips?.querySelector('.broker-radar-chip[data-broker]');
+                    if (firstChip) firstChip.click();
+                } else if (e.key === 'Escape') {
+                    this.dom.inputAddBrokerChip.value = '';
+                    this.brokerRadarSearchQuery = '';
+                    if (this.dom.btnClearBrokerSearch) this.dom.btnClearBrokerSearch.classList.add('hidden');
+                    this.renderBrokerRadarChips();
                 }
+            });
+        }
+
+        if (this.dom.btnClearBrokerSearch) {
+            this.dom.btnClearBrokerSearch.addEventListener('click', () => {
+                if (this.dom.inputAddBrokerChip) {
+                    this.dom.inputAddBrokerChip.value = '';
+                    this.dom.inputAddBrokerChip.focus();
+                }
+                this.brokerRadarSearchQuery = '';
+                this.dom.btnClearBrokerSearch.classList.add('hidden');
+                this.renderBrokerRadarChips();
             });
         }
 
@@ -6433,10 +6462,51 @@ class CandlifyChart {
 
     renderBrokerRadarChips() {
         if (!this.dom.brokerRadarChips) return;
-        const selectedSet = new Set(this.brokerRadarSelected || ['AK', 'BK']);
-        this.dom.brokerRadarChips.innerHTML = (this.brokerRadarAvailable || []).map(code => {
+        const selectedArr = this.brokerRadarSelected || ['AK', 'BK'];
+        const selectedSet = new Set(selectedArr);
+        const nameMap = this.brokerNameMap || {};
+
+        // Gabungkan semua broker aktif dari DB + broker populer + broker yang sedang terpilih
+        const baseList = Array.from(new Set([
+            ...selectedArr,
+            ...(this.brokerRadarAvailable || []),
+            ...Object.keys(nameMap),
+        ]));
+
+        const query = (this.brokerRadarSearchQuery || '').trim().toUpperCase();
+        let filtered = baseList;
+
+        if (query) {
+            filtered = baseList.filter(code => {
+                const bName = (nameMap[code] || '').toUpperCase();
+                return code.includes(query) || bName.includes(query);
+            });
+            // Prioritaskan exact match kode di paling depan
+            filtered.sort((a, b) => {
+                if (a === query) return -1;
+                if (b === query) return 1;
+                const aStarts = a.startsWith(query) ? 0 : 1;
+                const bStarts = b.startsWith(query) ? 0 : 1;
+                return aStarts - bStarts;
+            });
+            // Jika user ketik kode 2 huruf custom yang belum ada di daftar, tetap tampilkan agar bisa diklik
+            const cleanCode = query.replace(/[^A-Z0-9]/g, '');
+            if (filtered.length === 0 && cleanCode.length === 2) {
+                filtered = [cleanCode];
+            }
+        }
+
+        if (filtered.length === 0) {
+            this.dom.brokerRadarChips.innerHTML = `<span class="broker-chips-empty">Broker "${escapeHtml(this.brokerRadarSearchQuery)}" tidak ditemukan</span>`;
+            return;
+        }
+
+        this.dom.brokerRadarChips.innerHTML = filtered.map(code => {
             const isActive = selectedSet.has(code);
-            return `<button type="button" class="broker-radar-chip${isActive ? ' active' : ''}" data-broker="${escapeHtml(code)}">${isActive ? '✓ ' : ''}${escapeHtml(code)}</button>`;
+            const bName = nameMap[code] || '';
+            const titleAttr = bName ? `${code} — ${bName}` : code;
+            const nameBadge = (query && bName) ? `<span class="broker-chip-name">${escapeHtml(bName)}</span>` : '';
+            return `<button type="button" class="broker-radar-chip${isActive ? ' active' : ''}" data-broker="${escapeHtml(code)}" title="${escapeHtml(titleAttr)}">${isActive ? '✓ ' : ''}${escapeHtml(code)}${nameBadge}</button>`;
         }).join('');
     }
 
@@ -6672,6 +6742,11 @@ class CandlifyChart {
         this._lastBrokerRadar = data;
         const sum = data.summary || {};
         const brokersList = data.brokers || [];
+
+        if (Array.isArray(data.available_brokers) && data.available_brokers.length > 0) {
+            this.brokerRadarAvailable = data.available_brokers;
+            this.renderBrokerRadarChips();
+        }
 
         if (this.dom.dailyInsightDateLabel && data.date) {
             this.dom.dailyInsightDateLabel.textContent = this.formatShortDateIndo(data.date);

@@ -5242,65 +5242,95 @@ select option:checked,
     color: #34d399;
 }
 
-.broker-add-wrap {
+.broker-search-wrap {
+    position: relative;
     display: flex;
     align-items: center;
-    gap: 4px;
+    flex: 1;
+    min-width: 135px;
+    max-width: 210px;
+}
+
+.broker-search-icon {
+    position: absolute;
+    left: 7px;
+    font-size: 10px;
+    opacity: 0.65;
+    pointer-events: none;
 }
 
 .broker-add-input {
-    width: 96px;
-    background: rgba(255, 255, 255, 0.04);
+    width: 100%;
+    background: rgba(255, 255, 255, 0.045);
     border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 6px;
+    border-radius: 7px;
     color: #f8fafc;
-    font-size: 10px;
-    font-weight: 700;
-    padding: 4px 7px;
-    text-transform: uppercase;
-    font-family: var(--font-mono);
+    font-size: 10.5px;
+    font-weight: 600;
+    padding: 4px 22px 4px 23px;
+    font-family: var(--font-sans);
+    transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.broker-add-input::placeholder {
+    color: var(--text-muted);
+    font-weight: 500;
 }
 
 .broker-add-input:focus {
     outline: none;
-    border-color: rgba(59, 130, 246, 0.6);
+    border-color: rgba(59, 130, 246, 0.65);
+    background: rgba(255, 255, 255, 0.07);
 }
 
-.broker-add-btn {
-    background: rgba(59, 130, 246, 0.2);
-    border: 1px solid rgba(59, 130, 246, 0.4);
-    color: #93c5fd;
-    font-size: 12px;
-    font-weight: 800;
-    width: 24px;
-    height: 24px;
-    border-radius: 6px;
+.broker-search-clear {
+    position: absolute;
+    right: 5px;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 10px;
     cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+    padding: 2px 4px;
+    line-height: 1;
 }
 
-.broker-add-btn:hover {
-    background: rgba(59, 130, 246, 0.35);
-    color: #ffffff;
+.broker-search-clear:hover {
+    color: #f8fafc;
 }
 
+.broker-search-clear.hidden {
+    display: none;
+}
+
+/* Horizontal Swipeable Broker Strip (persis quick-chips di Chart) */
 .broker-radar-chips {
     display: flex;
-    flex-wrap: wrap;
-    gap: 5px;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 6px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 2px 1px 4px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+}
+
+.broker-radar-chips::-webkit-scrollbar {
+    display: none;
 }
 
 .broker-radar-chip {
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    flex-shrink: 0;
+    white-space: nowrap;
+    background: rgba(255, 255, 255, 0.045);
+    border: 1px solid rgba(255, 255, 255, 0.11);
     color: #cbd5e1;
     font-size: 10.5px;
     font-weight: 800;
     font-family: var(--font-mono);
-    padding: 4px 9px;
-    border-radius: 7px;
+    padding: 4px 10px;
+    border-radius: 14px;
     cursor: pointer;
     transition: all 0.14s ease;
     display: inline-flex;
@@ -5309,7 +5339,8 @@ select option:checked,
 }
 
 .broker-radar-chip:hover {
-    border-color: rgba(59, 130, 246, 0.5);
+    border-color: rgba(59, 130, 246, 0.55);
+    background: rgba(255, 255, 255, 0.08);
 }
 
 .broker-radar-chip.active {
@@ -5317,6 +5348,20 @@ select option:checked,
     border-color: #60a5fa;
     color: #ffffff;
     box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.25);
+}
+
+.broker-chip-name {
+    font-family: var(--font-sans);
+    font-size: 9px;
+    font-weight: 500;
+    opacity: 0.72;
+}
+
+.broker-chips-empty {
+    font-size: 10px;
+    color: var(--text-muted);
+    padding: 4px 6px;
+    white-space: nowrap;
 }
 
 .broker-radar-summary {
