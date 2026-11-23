@@ -249,8 +249,18 @@ def test_fastapi_endpoints_daily_insight_broker_radar_and_docs(sqlite_market_eng
     assert "Live Scorecard Neon DB" in md
     assert "Perbandingan Menyeluruh Formula V1 vs V2" in md
 
-    # Test AI Daily Report save + retrieval + hybrid merge
+    # Test AI Daily Report save + retrieval + hybrid merge + token/cost tracking
     import worker.ai_analyst as ai_analyst
+    est_cost = ai_analyst.calculate_token_cost_usd(
+        model_name="gemini-4-neon",
+        input_tokens=10000,
+        cached_tokens=0,
+        output_tokens=2000,
+        thought_tokens=3000,
+        total_tokens=15000,
+    )
+    assert est_cost == pytest.approx(0.105, rel=1e-4)
+
     ai_analyst.save_ai_daily_report(
         engine=sqlite_market_engine,
         report_date="2026-10-17",
@@ -263,6 +273,14 @@ def test_fastapi_endpoints_daily_insight_broker_radar_and_docs(sqlite_market_eng
             "full_report_md": "## 1. Cuaca Makro\nBBCA kuat.\n## 2. Bedah Sinyal\nSUPR hit.",
         },
         stats_snapshot={"overall_win_rate": 50.0},
+        usage={
+            "input_tokens": 10000,
+            "cached_tokens": 0,
+            "output_tokens": 2000,
+            "thought_tokens": 3000,
+            "total_tokens": 15000,
+            "est_cost_usd": est_cost,
+        },
     )
 
     r5 = client.get("/api/reports/ai-daily?date=2026-10-17")
@@ -271,12 +289,16 @@ def test_fastapi_endpoints_daily_insight_broker_radar_and_docs(sqlite_market_eng
     assert j5["success"] is True
     assert j5["report"]["model_used"] == "gemini-4-neon"
     assert "Cuaca Makro" in j5["report"]["full_report_md"]
+    assert "Pemakaian Token & Estimasi Biaya Gemini API" in j5["report"]["full_report_md"]
+    assert j5["cumulative_usage"]["total_tokens"] == 15000
+    assert j5["cumulative_usage"]["est_cost_usd"] == pytest.approx(0.105, rel=1e-4)
     assert len(j5["available_dates"]) == 1
 
-    # Cek hybrid doc sekarang menyuntikkan Ringkasan AI & Checklist + catatan AI untuk FAIL
+    # Cek hybrid doc sekarang menyuntikkan Ringkasan AI & Checklist + catatan AI + footer token/biaya
     r6 = client.get("/api/docs/04_laporan_kinerja_pre_breakout")
     assert r6.status_code == 200
     md6 = r6.json()["markdown"]
     assert "Ringkasan AI Harian" in md6
     assert "Checklist Wajib Pasca-Radar" in md6
     assert "Jebol support T+1 akibat distribusi." in md6
+    assert "Pemakaian Token & Estimasi Biaya Gemini API" in md6

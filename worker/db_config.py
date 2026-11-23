@@ -337,6 +337,12 @@ def setup_tables():
                         winning_patterns_json TEXT,
                         full_report_md TEXT NOT NULL,
                         stats_snapshot_json TEXT,
+                        input_tokens INTEGER DEFAULT 0,
+                        cached_tokens INTEGER DEFAULT 0,
+                        output_tokens INTEGER DEFAULT 0,
+                        thought_tokens INTEGER DEFAULT 0,
+                        total_tokens INTEGER DEFAULT 0,
+                        est_cost_usd REAL DEFAULT 0.0,
                         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                     )
                 """))
@@ -496,6 +502,12 @@ def setup_tables():
                         winning_patterns_json TEXT,
                         full_report_md TEXT NOT NULL,
                         stats_snapshot_json TEXT,
+                        input_tokens INTEGER DEFAULT 0,
+                        cached_tokens INTEGER DEFAULT 0,
+                        output_tokens INTEGER DEFAULT 0,
+                        thought_tokens INTEGER DEFAULT 0,
+                        total_tokens INTEGER DEFAULT 0,
+                        est_cost_usd FLOAT DEFAULT 0.0,
                         created_at TIMESTAMPTZ DEFAULT NOW()
                     )
                 """))

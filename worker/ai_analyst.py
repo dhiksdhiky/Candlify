@@ -41,6 +41,53 @@ PRIMARY_MODEL = os.environ.get("GEMINI_MODEL", "gemini-4-neon")
 FALLBACK_MODEL = os.environ.get("GEMINI_FALLBACK_MODEL", "gemini-4-hydrogen")
 THINKING_LEVEL = os.environ.get("GEMINI_THINKING_LEVEL", "high")
 
+# Tarif resmi API Standard Tier per 1 Juta token (USD) — Nov/Des 2026
+# Thinking tokens ditagih menggunakan tarif output tokens
+MODEL_PRICING_PER_1M: Dict[str, Dict[str, float]] = {
+    "gemini-4-neon":     {"input": 3.00, "cached_input": 0.15,  "output": 15.00},
+    "gemini-4-hydrogen": {"input": 1.50, "cached_input": 0.075, "output": 7.50},
+    "gemini-4-argon":    {"input": 4.00, "cached_input": 0.20,  "output": 20.00},
+    "gemini-4-carbon":   {"input": 4.00, "cached_input": 0.20,  "output": 20.00},
+}
+
+
+def calculate_token_cost_usd(
+    model_name: str,
+    input_tokens: int = 0,
+    cached_tokens: int = 0,
+    output_tokens: int = 0,
+    thought_tokens: int = 0,
+    total_tokens: int = 0,
+) -> float:
+    """
+    Hitung estimasi biaya API akurat (USD) berdasarkan tarif resmi model Gemini 4.
+    Otomatis mendeteksi apakah `output_tokens` sudah mencakup `thought_tokens` atau terpisah
+    dengan membandingkan terhadap `total_tokens` agar tidak terjadi double-counting.
+    """
+    key = str(model_name or "").strip().lower()
+    rates = MODEL_PRICING_PER_1M.get(key, MODEL_PRICING_PER_1M["gemini-4-neon"])
+
+    in_tok = max(0, int(input_tokens or 0))
+    cached_tok = max(0, min(in_tok, int(cached_tokens or 0)))
+    uncached_in = in_tok - cached_tok
+
+    out_tok = max(0, int(output_tokens or 0))
+    th_tok = max(0, int(thought_tokens or 0))
+    tot_tok = max(0, int(total_tokens or 0))
+
+    # Cek apakah output_tokens sudah termasuk thought_tokens
+    if tot_tok > 0 and abs((in_tok + out_tok) - tot_tok) <= 2 and th_tok > 0:
+        billable_out = out_tok
+    else:
+        billable_out = out_tok + th_tok
+
+    cost = (
+        (uncached_in / 1_000_000.0) * rates["input"]
+        + (cached_tok / 1_000_000.0) * rates["cached_input"]
+        + (billable_out / 1_000_000.0) * rates["output"]
+    )
+    return round(cost, 6)
+
 RESPONSE_SCHEMA: Dict[str, Any] = {
     "type": "object",
     "properties": {
@@ -118,9 +165,27 @@ def ensure_ai_reports_table(engine) -> None:
                     winning_patterns_json TEXT,
                     full_report_md TEXT NOT NULL,
                     stats_snapshot_json TEXT,
+                    input_tokens INTEGER DEFAULT 0,
+                    cached_tokens INTEGER DEFAULT 0,
+                    output_tokens INTEGER DEFAULT 0,
+                    thought_tokens INTEGER DEFAULT 0,
+                    total_tokens INTEGER DEFAULT 0,
+                    est_cost_usd REAL DEFAULT 0.0,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
             """))
+            cur = conn.execute(text("PRAGMA table_info(ai_daily_reports)")).fetchall()
+            existing = {row[1] for row in cur}
+            for col_name, col_type in [
+                ("input_tokens", "INTEGER DEFAULT 0"),
+                ("cached_tokens", "INTEGER DEFAULT 0"),
+                ("output_tokens", "INTEGER DEFAULT 0"),
+                ("thought_tokens", "INTEGER DEFAULT 0"),
+                ("total_tokens", "INTEGER DEFAULT 0"),
+                ("est_cost_usd", "REAL DEFAULT 0.0"),
+            ]:
+                if col_name not in existing:
+                    conn.execute(text(f"ALTER TABLE ai_daily_reports ADD COLUMN {col_name} {col_type}"))
         else:
             conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS ai_daily_reports (
@@ -133,9 +198,21 @@ def ensure_ai_reports_table(engine) -> None:
                     winning_patterns_json TEXT,
                     full_report_md TEXT NOT NULL,
                     stats_snapshot_json TEXT,
+                    input_tokens INTEGER DEFAULT 0,
+                    cached_tokens INTEGER DEFAULT 0,
+                    output_tokens INTEGER DEFAULT 0,
+                    thought_tokens INTEGER DEFAULT 0,
+                    total_tokens INTEGER DEFAULT 0,
+                    est_cost_usd FLOAT DEFAULT 0.0,
                     created_at TIMESTAMPTZ DEFAULT NOW()
                 )
             """))
+            conn.execute(text("ALTER TABLE ai_daily_reports ADD COLUMN IF NOT EXISTS input_tokens INTEGER DEFAULT 0;"))
+            conn.execute(text("ALTER TABLE ai_daily_reports ADD COLUMN IF NOT EXISTS cached_tokens INTEGER DEFAULT 0;"))
+            conn.execute(text("ALTER TABLE ai_daily_reports ADD COLUMN IF NOT EXISTS output_tokens INTEGER DEFAULT 0;"))
+            conn.execute(text("ALTER TABLE ai_daily_reports ADD COLUMN IF NOT EXISTS thought_tokens INTEGER DEFAULT 0;"))
+            conn.execute(text("ALTER TABLE ai_daily_reports ADD COLUMN IF NOT EXISTS total_tokens INTEGER DEFAULT 0;"))
+            conn.execute(text("ALTER TABLE ai_daily_reports ADD COLUMN IF NOT EXISTS est_cost_usd FLOAT DEFAULT 0.0;"))
 
 
 def check_day_completeness(
@@ -447,8 +524,34 @@ def call_gemini_analyst(
             if not out_text:
                 raise RuntimeError(f"Output kosong dari model {model_name}")
             parsed = _extract_json_from_text(out_text)
-            logger.info(f"✅ Analisa Gemini berhasil via {model_name}.")
-            return parsed, model_name
+
+            usage_obj = getattr(interaction, "usage", None)
+            in_tok = int(getattr(usage_obj, "total_input_tokens", 0) or 0) if usage_obj else 0
+            cached_tok = int(getattr(usage_obj, "total_cached_tokens", 0) or 0) if usage_obj else 0
+            out_tok = int(getattr(usage_obj, "total_output_tokens", 0) or 0) if usage_obj else 0
+            th_tok = int(getattr(usage_obj, "total_thought_tokens", 0) or 0) if usage_obj else 0
+            tot_tok = int(getattr(usage_obj, "total_tokens", 0) or (in_tok + out_tok + th_tok)) if usage_obj else 0
+            est_cost = calculate_token_cost_usd(
+                model_name=model_name,
+                input_tokens=in_tok,
+                cached_tokens=cached_tok,
+                output_tokens=out_tok,
+                thought_tokens=th_tok,
+                total_tokens=tot_tok,
+            )
+            usage_dict = {
+                "input_tokens": in_tok,
+                "cached_tokens": cached_tok,
+                "output_tokens": out_tok,
+                "thought_tokens": th_tok,
+                "total_tokens": tot_tok,
+                "est_cost_usd": est_cost,
+            }
+            logger.info(
+                f"✅ Analisa Gemini berhasil via {model_name} "
+                f"(in={in_tok:,}, thought={th_tok:,}, out={out_tok:,}, total={tot_tok:,}, est=${est_cost:.5f})."
+            )
+            return parsed, model_name, usage_dict
         except Exception as err:
             logger.warning(f"⚠️ Model {model_name} gagal ({err}), mencoba fallback jika tersedia...")
             last_err = err
@@ -463,8 +566,9 @@ def save_ai_daily_report(
     parsed_json: Dict[str, Any],
     stats_snapshot: Dict[str, Any],
     thinking_level: str = THINKING_LEVEL,
+    usage: Optional[Dict[str, Any]] = None,
 ) -> None:
-    """Simpan hasil analisa AI harian ke tabel `ai_daily_reports` (idempotent UPSERT)."""
+    """Simpan hasil analisa AI harian + metrik token & biaya ke `ai_daily_reports` (idempotent UPSERT)."""
     ensure_ai_reports_table(engine)
     dialect = engine.dialect.name
 
@@ -478,6 +582,18 @@ def save_ai_daily_report(
             if isinstance(item, dict) and item.get("key") and item.get("note"):
                 notes_dict[str(item["key"]).upper().strip()] = str(item["note"]).strip()
 
+    u = usage or {}
+    in_tok = int(u.get("input_tokens") or 0)
+    cached_tok = int(u.get("cached_tokens") or 0)
+    out_tok = int(u.get("output_tokens") or 0)
+    th_tok = int(u.get("thought_tokens") or 0)
+    tot_tok = int(u.get("total_tokens") or (in_tok + out_tok + th_tok))
+    est_cost = float(
+        u["est_cost_usd"]
+        if u.get("est_cost_usd") is not None
+        else calculate_token_cost_usd(model_used, in_tok, cached_tok, out_tok, th_tok, tot_tok)
+    )
+
     params = {
         "report_date": report_date,
         "model_used": model_used,
@@ -488,6 +604,12 @@ def save_ai_daily_report(
         "winning_patterns_json": json.dumps(parsed_json.get("winning_patterns") or [], ensure_ascii=False),
         "full_report_md": str(parsed_json.get("full_report_md") or "").strip(),
         "stats_snapshot_json": json.dumps(stats_snapshot or {}, ensure_ascii=False, default=str),
+        "input_tokens": in_tok,
+        "cached_tokens": cached_tok,
+        "output_tokens": out_tok,
+        "thought_tokens": th_tok,
+        "total_tokens": tot_tok,
+        "est_cost_usd": est_cost,
     }
 
     with engine.begin() as conn:
@@ -496,11 +618,13 @@ def save_ai_daily_report(
                 INSERT OR REPLACE INTO ai_daily_reports (
                     report_date, model_used, thinking_level,
                     daily_brief_json, checklist_json, signal_notes_json,
-                    winning_patterns_json, full_report_md, stats_snapshot_json
+                    winning_patterns_json, full_report_md, stats_snapshot_json,
+                    input_tokens, cached_tokens, output_tokens, thought_tokens, total_tokens, est_cost_usd
                 ) VALUES (
                     :report_date, :model_used, :thinking_level,
                     :daily_brief_json, :checklist_json, :signal_notes_json,
-                    :winning_patterns_json, :full_report_md, :stats_snapshot_json
+                    :winning_patterns_json, :full_report_md, :stats_snapshot_json,
+                    :input_tokens, :cached_tokens, :output_tokens, :thought_tokens, :total_tokens, :est_cost_usd
                 )
             """), params)
         else:
@@ -508,11 +632,13 @@ def save_ai_daily_report(
                 INSERT INTO ai_daily_reports (
                     report_date, model_used, thinking_level,
                     daily_brief_json, checklist_json, signal_notes_json,
-                    winning_patterns_json, full_report_md, stats_snapshot_json
+                    winning_patterns_json, full_report_md, stats_snapshot_json,
+                    input_tokens, cached_tokens, output_tokens, thought_tokens, total_tokens, est_cost_usd
                 ) VALUES (
                     :report_date, :model_used, :thinking_level,
                     :daily_brief_json, :checklist_json, :signal_notes_json,
-                    :winning_patterns_json, :full_report_md, :stats_snapshot_json
+                    :winning_patterns_json, :full_report_md, :stats_snapshot_json,
+                    :input_tokens, :cached_tokens, :output_tokens, :thought_tokens, :total_tokens, :est_cost_usd
                 )
                 ON CONFLICT (report_date) DO UPDATE SET
                     model_used = EXCLUDED.model_used,
@@ -523,6 +649,12 @@ def save_ai_daily_report(
                     winning_patterns_json = EXCLUDED.winning_patterns_json,
                     full_report_md = EXCLUDED.full_report_md,
                     stats_snapshot_json = EXCLUDED.stats_snapshot_json,
+                    input_tokens = EXCLUDED.input_tokens,
+                    cached_tokens = EXCLUDED.cached_tokens,
+                    output_tokens = EXCLUDED.output_tokens,
+                    thought_tokens = EXCLUDED.thought_tokens,
+                    total_tokens = EXCLUDED.total_tokens,
+                    est_cost_usd = EXCLUDED.est_cost_usd,
                     created_at = NOW()
             """), params)
 
@@ -572,7 +704,7 @@ def run_ai_analyst(
     # 3. Kumpulkan Konteks & Panggil Gemini 4
     logger.info(f"🧠 Menyusun paket data kuantitatif & korelasi untuk {eff_date}...")
     context_payload = build_daily_analysis_context(engine, eff_date)
-    parsed_json, model_used = call_gemini_analyst(context_payload, api_key=key)
+    parsed_json, model_used, usage_dict = call_gemini_analyst(context_payload, api_key=key)
 
     # 4. Simpan ke Neon DB
     save_ai_daily_report(
@@ -581,6 +713,7 @@ def run_ai_analyst(
         model_used=model_used,
         parsed_json=parsed_json,
         stats_snapshot=context_payload.get("winning_pattern_correlations", {}),
+        usage=usage_dict,
     )
     logger.info(f"💾 Laporan AI harian {eff_date} berhasil disimpan via {model_used}!")
 
@@ -591,6 +724,7 @@ def run_ai_analyst(
         "brief_count": len(parsed_json.get("daily_brief") or []),
         "checklist_count": len(parsed_json.get("post_radar_checklist") or []),
         "full_report_chars": len(parsed_json.get("full_report_md") or ""),
+        "usage": usage_dict,
     }
 
 

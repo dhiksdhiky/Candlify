@@ -396,10 +396,93 @@ def _safe_json_load(raw: Optional[str], default: Any) -> Any:
         return default
 
 
+USD_TO_IDR_RATE = 16000.0
+
+
+def _format_usage_footer_markdown(
+    daily_usage: Optional[Dict[str, Any]],
+    cumulative_usage: Optional[Dict[str, Any]],
+    report_date: str = "-",
+    model_used: str = "-",
+) -> str:
+    """Render tabel ringkas pemakaian token & estimasi biaya API (harian & akumulasi) di akhir halaman."""
+    if not daily_usage and not cumulative_usage:
+        return ""
+
+    def _fmt_tok(n: int) -> str:
+        return f"{int(n or 0):,}".replace(",", ".")
+
+    def _fmt_cost(usd: float) -> str:
+        u = float(usd or 0.0)
+        idr = int(round(u * USD_TO_IDR_RATE))
+        return f"\\${u:.4f} (~Rp {idr:,})".replace(",", ".")
+
+    d = daily_usage or {}
+    c = cumulative_usage or {}
+
+    lines = [
+        "",
+        "---",
+        "",
+        "### 🧾 Pemakaian Token & Estimasi Biaya Gemini API",
+        "",
+        "| Periode | Model | Input | Thinking | Output | Total Token | Estimasi Biaya |",
+        "| :--- | :---: | :---: | :---: | :---: | :---: | :---: |",
+    ]
+
+    if d:
+        lines.append(
+            f"| **Harian ({report_date})** | `{model_used}` | {_fmt_tok(d.get('input_tokens'))} | "
+            f"{_fmt_tok(d.get('thought_tokens'))} | {_fmt_tok(d.get('output_tokens'))} | "
+            f"**{_fmt_tok(d.get('total_tokens'))}** | **{_fmt_cost(d.get('est_cost_usd'))}** |"
+        )
+    if c and int(c.get("total_reports") or 0) > 0:
+        lines.append(
+            f"| **Akumulasi ({int(c.get('total_reports'))} laporan)** | Semua | {_fmt_tok(c.get('input_tokens'))} | "
+            f"{_fmt_tok(c.get('thought_tokens'))} | {_fmt_tok(c.get('output_tokens'))} | "
+            f"**{_fmt_tok(c.get('total_tokens'))}** | **{_fmt_cost(c.get('est_cost_usd'))}** |"
+        )
+
+    lines.append("")
+    lines.append("*Tarif resmi Gemini 4 Standard Tier: `gemini-4-neon` (\\$3/\\$15 per 1M token), `gemini-4-hydrogen` (\\$1.50/\\$7.50 per 1M token, tersedia Free Tier). Kurs estimasi Rp 16.000/USD.*")
+    return "\n".join(lines)
+
+
+def _fetch_cumulative_ai_usage(conn) -> Dict[str, Any]:
+    """Hitung akumulasi seluruh token & estimasi biaya dari tabel `ai_daily_reports`."""
+    try:
+        agg = conn.execute(
+            text("""
+                SELECT
+                    COUNT(*) AS total_reports,
+                    COALESCE(SUM(input_tokens), 0) AS in_tok,
+                    COALESCE(SUM(cached_tokens), 0) AS cached_tok,
+                    COALESCE(SUM(output_tokens), 0) AS out_tok,
+                    COALESCE(SUM(thought_tokens), 0) AS th_tok,
+                    COALESCE(SUM(total_tokens), 0) AS tot_tok,
+                    COALESCE(SUM(est_cost_usd), 0.0) AS tot_usd
+                FROM ai_daily_reports
+            """)
+        ).fetchone()
+        if not agg:
+            return {"total_reports": 0, "input_tokens": 0, "cached_tokens": 0, "output_tokens": 0, "thought_tokens": 0, "total_tokens": 0, "est_cost_usd": 0.0}
+        return {
+            "total_reports": int(agg[0] or 0),
+            "input_tokens": int(agg[1] or 0),
+            "cached_tokens": int(agg[2] or 0),
+            "output_tokens": int(agg[3] or 0),
+            "thought_tokens": int(agg[4] or 0),
+            "total_tokens": int(agg[5] or 0),
+            "est_cost_usd": round(float(agg[6] or 0.0), 6),
+        }
+    except Exception:
+        return {"total_reports": 0, "input_tokens": 0, "cached_tokens": 0, "output_tokens": 0, "thought_tokens": 0, "total_tokens": 0, "est_cost_usd": 0.0}
+
+
 def get_ai_daily_report(report_date: Optional[str] = None, limit_dates: int = 30) -> Dict[str, Any]:
     """
     Ambil laporan AI harian lengkap (`full_report_md`) untuk tanggal tertentu (default terbaru)
-    beserta daftar tanggal arsip yang tersedia di `ai_daily_reports`.
+    beserta daftar tanggal arsip dan statistik token/biaya (harian & akumulasi).
     """
     engine = get_engine()
     if not engine:
@@ -423,7 +506,7 @@ def get_ai_daily_report(report_date: Optional[str] = None, limit_dates: int = 30
             ]
 
             if not available_dates:
-                return {"success": True, "available_dates": [], "report": None}
+                return {"success": True, "available_dates": [], "report": None, "cumulative_usage": None}
 
             target_d = str(report_date)[:10] if report_date else available_dates[0]["date"]
             row = conn.execute(
@@ -431,7 +514,10 @@ def get_ai_daily_report(report_date: Optional[str] = None, limit_dates: int = 30
                     SELECT
                         report_date, model_used, thinking_level,
                         daily_brief_json, checklist_json, signal_notes_json,
-                        winning_patterns_json, full_report_md
+                        winning_patterns_json, full_report_md,
+                        COALESCE(input_tokens, 0), COALESCE(cached_tokens, 0),
+                        COALESCE(output_tokens, 0), COALESCE(thought_tokens, 0),
+                        COALESCE(total_tokens, 0), COALESCE(est_cost_usd, 0.0)
                     FROM ai_daily_reports
                     WHERE report_date = :d
                 """),
@@ -439,13 +525,15 @@ def get_ai_daily_report(report_date: Optional[str] = None, limit_dates: int = 30
             ).fetchone()
 
             if not row:
-                # Fallback ke laporan terbaru jika tanggal spesifik tidak ada
                 row = conn.execute(
                     text("""
                         SELECT
                             report_date, model_used, thinking_level,
                             daily_brief_json, checklist_json, signal_notes_json,
-                            winning_patterns_json, full_report_md
+                            winning_patterns_json, full_report_md,
+                            COALESCE(input_tokens, 0), COALESCE(cached_tokens, 0),
+                            COALESCE(output_tokens, 0), COALESCE(thought_tokens, 0),
+                            COALESCE(total_tokens, 0), COALESCE(est_cost_usd, 0.0)
                         FROM ai_daily_reports
                         ORDER BY report_date DESC
                         LIMIT 1
@@ -453,11 +541,28 @@ def get_ai_daily_report(report_date: Optional[str] = None, limit_dates: int = 30
                 ).fetchone()
 
             if not row:
-                return {"success": True, "available_dates": available_dates, "report": None}
+                return {"success": True, "available_dates": available_dates, "report": None, "cumulative_usage": None}
+
+            daily_usage = {
+                "input_tokens": int(row[8] or 0),
+                "cached_tokens": int(row[9] or 0),
+                "output_tokens": int(row[10] or 0),
+                "thought_tokens": int(row[11] or 0),
+                "total_tokens": int(row[12] or 0),
+                "est_cost_usd": round(float(row[13] or 0.0), 6),
+            }
+            cum_usage = _fetch_cumulative_ai_usage(conn)
+            usage_footer_md = _format_usage_footer_markdown(
+                daily_usage=daily_usage,
+                cumulative_usage=cum_usage,
+                report_date=str(row[0])[:10],
+                model_used=str(row[1] or ""),
+            )
 
             return {
                 "success": True,
                 "available_dates": available_dates,
+                "cumulative_usage": cum_usage,
                 "report": {
                     "date": str(row[0])[:10],
                     "model_used": str(row[1] or ""),
@@ -466,13 +571,13 @@ def get_ai_daily_report(report_date: Optional[str] = None, limit_dates: int = 30
                     "checklist": _safe_json_load(row[4], []),
                     "signal_notes": _safe_json_load(row[5], {}),
                     "winning_patterns": _safe_json_load(row[6], []),
-                    "full_report_md": str(row[7] or ""),
+                    "full_report_md": str(row[7] or "") + usage_footer_md,
+                    "usage": daily_usage,
                 },
             }
     except Exception as e:
-        # Tabel belum ada pada environment lama -> kembalikan kosong secara graceful
         logger.debug(f"ai_daily_reports belum tersedia atau gagal dibaca: {e}")
-        return {"success": True, "available_dates": [], "report": None}
+        return {"success": True, "available_dates": [], "report": None, "cumulative_usage": None}
 
 
 def _load_merged_ai_notes_and_latest() -> Tuple[Dict[str, str], Optional[Dict[str, Any]]]:
@@ -704,4 +809,23 @@ def render_hybrid_pre_breakout_doc(raw_markdown: str) -> str:
             _REPORT_CACHE["markdown_section"] = live_section
             _REPORT_CACHE["notes_hash"] = hash(tuple(sorted(forensic_notes.items())))
 
-    return raw_markdown.replace(PLACEHOLDER_TAG, live_section)
+    rendered = raw_markdown.replace(PLACEHOLDER_TAG, live_section)
+
+    # Tambahkan footer pemakaian token & estimasi biaya AI di akhir halaman Ringkasan
+    try:
+        ai_meta = get_ai_daily_report(limit_dates=1)
+        rep = ai_meta.get("report")
+        cum = ai_meta.get("cumulative_usage")
+        if rep and cum:
+            footer = _format_usage_footer_markdown(
+                daily_usage=rep.get("usage"),
+                cumulative_usage=cum,
+                report_date=rep.get("date", "-"),
+                model_used=rep.get("model_used", "-"),
+            )
+            if footer:
+                rendered = rendered.rstrip() + "\n" + footer
+    except Exception:
+        pass
+
+    return rendered
