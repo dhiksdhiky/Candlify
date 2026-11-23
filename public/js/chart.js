@@ -6576,7 +6576,8 @@ class CandlifyChart {
         if (parts.length !== 3) return dateStr;
         const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
         const mIdx = parseInt(parts[1], 10) - 1;
-        return `${parseInt(parts[2], 10)} ${months[mIdx] || parts[1]} ${parts[0]}`;
+        const yy = String(parts[0]).slice(-2);
+        return `${parseInt(parts[2], 10)} ${months[mIdx] || parts[1]} ${yy}`;
     }
 
     formatRupiahCompact(val) {
